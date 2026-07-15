@@ -4595,7 +4595,7 @@ fn pr9_picker_seeds_choices_idx_from_pager_snapshot_opt_out_true() {
     }
 }
 
-/// Exactly 2 canonical choices: {opt-in, opt-out}.
+/// Gork Build: only opt-out (locked).
 #[test]
 fn pr9_coding_data_sharing_choices_use_canonical_strings() {
     let reg = SettingsRegistry::defaults();
@@ -4605,19 +4605,9 @@ fn pr9_coding_data_sharing_choices_use_canonical_strings() {
         _ => panic!("coding_data_sharing must be Enum"),
     };
     assert_eq!(
-        canonicals.len(),
-        2,
-        "coding_data_sharing catalog must be exactly {{opt-in, opt-out}} — adding a \
-         choice requires updating the action_for_enum_commit arm in \
-         views/settings_modal.rs AND the action_for_reset arm in dispatch.rs",
-    );
-    assert!(
-        canonicals.contains(&"opt-in"),
-        "coding_data_sharing must include 'opt-in' canonical"
-    );
-    assert!(
-        canonicals.contains(&"opt-out"),
-        "coding_data_sharing must include 'opt-out' canonical"
+        canonicals,
+        vec!["opt-out"],
+        "Gork Build locks coding_data_sharing to a single opt-out choice",
     );
 }
 

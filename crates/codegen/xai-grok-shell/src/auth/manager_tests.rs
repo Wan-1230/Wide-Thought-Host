@@ -2888,9 +2888,10 @@ async fn enrich_auth_inline_keeps_fields_absent_from_response() {
     assert_eq!(auth.principal_type.as_deref(), Some("Team"));
     assert_eq!(auth.principal_id.as_deref(), Some("team-1"));
     assert!(auth.is_zdr_team());
+    // Gork Build forces opt-out even when /user omits the field.
     assert!(
-        !auth.coding_data_retention_opt_out,
-        "absent field stays unchanged"
+        auth.coding_data_retention_opt_out,
+        "privacy build locks coding_data_retention_opt_out"
     );
 }
 

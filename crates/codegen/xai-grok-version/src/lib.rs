@@ -29,6 +29,13 @@ pub fn research_data_collection_forbidden() -> bool {
     PRIVACY_BUILD
 }
 
+/// `true` when coding-data retention is locked to **opt-out** (no UI/API path
+/// may opt the account into sharing/training retention).
+#[inline]
+pub fn coding_data_retention_locked_opt_out() -> bool {
+    PRIVACY_BUILD
+}
+
 pub const TEST_VERSION_ENV: &str = "GROK_TEST_VERSION";
 
 pub const VERSION: &str = match option_env!("GROK_VERSION") {

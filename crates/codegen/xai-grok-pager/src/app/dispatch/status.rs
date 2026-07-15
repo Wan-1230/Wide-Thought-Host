@@ -74,23 +74,17 @@ pub(super) fn dispatch_show_session_info(app: &mut AppView) -> Vec<Effect> {
 pub(super) fn dispatch_show_privacy_info(app: &mut AppView) -> Vec<Effect> {
     let mut lines = Vec::new();
 
-    // Gork Build always ships as a privacy build (no research telemetry / GCS
-    // traces). Server-side retention flags are still shown for honesty.
     lines.push("  Product: Gork Build (privacy fork of Grok Build)");
-    lines.push("  Client research uploads: disabled (hard-off in this build)");
+    lines.push("  Client research uploads: disabled (hard-off)");
     lines.push("  Product analytics (Mixpanel / events): disabled");
-    lines.push("  Model inference: required for the agent (files the agent reads are sent to the model API)");
+    lines.push("  Coding data retention: opt-out only (locked in this build)");
+    lines.push("  Model inference: required (files the agent reads go to the model API)");
     lines.push("");
 
     if app.is_zdr {
         lines.push("  Account: Enterprise Zero Data Retention");
-        lines.push("  Server retention / training: blocked for your team.");
-    } else if app.coding_data_retention_opt_out {
-        lines.push("  Account: privacy mode (coding data retention opted out)");
-        lines.push("  Prefer: keep this on. Use /privacy opt-in only if you want server-side sharing.");
     } else {
-        lines.push("  Account: share data (coding data retention opted in)");
-        lines.push("  Gork Build still blocks client research uploads; prefer /privacy opt-out.");
+        lines.push("  Account: privacy mode (coding data retention opted out)");
     }
 
     lines.push("");
@@ -108,6 +102,14 @@ pub(super) fn set_coding_data_sharing_inner(app: &mut AppView, opted_in: bool) {
 /// Set coding-data-sharing preference. SHELL-owned, auth-metadata-backed
 /// (persists via ACP ext-request, NOT `~/.grok/config.toml`).
 pub(super) fn set_coding_data_sharing(app: &mut AppView, opted_in: bool) -> Vec<Effect> {
+    // ── Guard 0: Gork Build locks retention to opt-out ────────────────
+    if xai_grok_version::coding_data_retention_locked_opt_out() && opted_in {
+        app.show_toast("\u{2717} Gork Build locks coding data retention to opt-out");
+        // Keep local state on opt-out even if UI/server was stale.
+        set_coding_data_sharing_inner(app, false);
+        refresh_open_settings_modals(app);
+        return vec![];
+    }
     // ── Guard 1: Enterprise ZDR ──────────────────────────────────────
     if app.is_zdr {
         app.show_toast("\u{2717} Cannot change: Zero Data Retention enabled");

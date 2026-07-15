@@ -53,10 +53,10 @@ read — that is still how cloud coding works.
 
 ## Server-side retention
 
-Client hard-offs do not control what xAI’s **API servers** log or retain for
-inference. For account-level retention preference, use `/privacy opt-out`
-(or the coding-data-sharing setting). Gork Build defaults that preference to
-**opt-out** where the client owns the default.
+Client hard-offs do not control what xAI’s **API servers** log for inference.
+Gork Build locks **coding-data retention to opt-out** (no `/privacy opt-in`,
+settings cannot enable sharing). Local state always stays opted out; the shell
+refuses opt-in over ACP.
 
 Deleting historical research data already uploaded by **upstream** Grok Build
 is a **server-side** operation (upstream `/privacy` + their storage policies).

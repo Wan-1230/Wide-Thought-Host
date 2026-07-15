@@ -1116,7 +1116,12 @@ impl AppView {
         self.team_name = meta.team_name.clone();
         self.is_zdr = meta.is_zdr;
         self.team_role = meta.team_role.clone();
-        self.coding_data_retention_opt_out = meta.coding_data_retention_opt_out;
+        self.coding_data_retention_opt_out = if xai_grok_version::coding_data_retention_locked_opt_out()
+        {
+            true
+        } else {
+            meta.coding_data_retention_opt_out
+        };
         self.gate = meta.gate.clone();
         if was_gated && self.gate.is_none() {
             self.paywall_check_started = None;

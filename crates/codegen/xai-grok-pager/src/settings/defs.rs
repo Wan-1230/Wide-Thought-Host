@@ -133,13 +133,8 @@ const PERMISSION_MODE_CHOICES: &[EnumChoice] = &[
 const CODING_DATA_SHARING_CHOICES: &[EnumChoice] = &[
     EnumChoice {
         canonical: "opt-out",
-        display: "Opt out (default)",
-        description: "Gork Build default. Do not retain coding session data or use it for training. Research uploads are hard-disabled in this build.",
-    },
-    EnumChoice {
-        canonical: "opt-in",
-        display: "Opt in",
-        description: "Ask the API account to allow retention for product improvement. Gork Build still blocks client-side research uploads.",
+        display: "Opt out (locked)",
+        description: "Gork Build locks coding data retention to opt-out. Opt-in is not available.",
     },
 ];
 
@@ -1045,15 +1040,13 @@ pub fn default_settings() -> Vec<SettingMeta> {
             restart_required: false,
             hidden_in_minimal: false,
         },
-        // SHELL-owned. Persisted in auth metadata (not config.toml).
-        // Gork Build default: opt-out (privacy by default).
-        // ZDR / non-admin guards are enforced at dispatch time.
+        // SHELL-owned. Gork Build: locked to opt-out (single choice).
         SettingMeta {
             key: "coding_data_sharing",
             category: SettingCategory::Privacy,
             owner: SettingOwner::Shell,
-            label: "Coding data sharing",
-            description: "Server-side retention preference. Gork Build never performs research/trace uploads regardless.",
+            label: "Coding data retention",
+            description: "Locked to opt-out in Gork Build. Opt-in is not offered.",
             keywords: &[
                 "privacy",
                 "data",
@@ -1062,7 +1055,6 @@ pub fn default_settings() -> Vec<SettingMeta> {
                 "retention",
                 "telemetry",
                 "training",
-                "opt-in",
                 "opt-out",
             ],
             kind: SettingKind::Enum {

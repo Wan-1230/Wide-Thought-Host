@@ -46,7 +46,7 @@ Comparison at a glance:
 | GCS research / session traces | Upload pipeline present | **Hard-off** |
 | Whole-repo research packaging | Present upstream | **Disabled** |
 | Auto-update | Yes | **No** |
-| Coding-data retention default | Share / opt-in | **Privacy / opt-out** |
+| Coding-data retention | Opt-in available | **Opt-out only (locked)** |
 
 ---
 
@@ -61,7 +61,7 @@ including secrets in files the agent read. Upstream open-sourced the harness;
 - No product analytics (Mixpanel / `events` telemetry)
 - No client-side research / trace / session-state uploads to GCS
 - Remote feature flags **cannot** re-enable those paths
-- Default coding-data retention preference is **opt-out**
+- Coding-data retention is **opt-out only** (no opt-in path)
 - No vendor auto-update: Gork Build never runs `x.ai/cli/install.*` (that
   would replace your binary with official Grok Build)
 
@@ -117,9 +117,6 @@ mixpanel_enabled = false
 
 `[cli] auto_update` is ignored for vendor channels: this build will not fetch
 or run x.ai installers even if the key is set to `true`.
-
-Optional: `/privacy opt-out` in the TUI so the **server** retention flag
-matches the client (recommended even though client uploads are hard-off).
 
 ## Documentation
 
