@@ -133,11 +133,7 @@ for setup, commit style, and PR expectations. Security reports: [`SECURITY.md`](
 
 <div align="center">
 
-### Made with Grok 4.5
-
 ![Gork Build session — Made with Grok 4.5](docs/assets/made-with-grok-4.5.png)
-
-This community fork was built with [Grok 4.5](https://grok.com).
 
 </div>
 
