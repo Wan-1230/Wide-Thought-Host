@@ -46,7 +46,6 @@ Comparison at a glance:
 | GCS research / session traces | Upload pipeline present | **Hard-off** |
 | Whole-repo research packaging | Present upstream | **Disabled** |
 | Auto-update from x.ai channels | On by default | **Off by default** |
-| Branding | SpaceXAI / x.ai | Community **Gork Build** |
 | Coding-data retention default | Share / opt-in | **Privacy / opt-out** |
 
 ---
