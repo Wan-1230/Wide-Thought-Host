@@ -1,0 +1,28 @@
+# Dependabot for Gork Build — keep Actions and Rust crates current.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - github-actions
+
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - rust
+    # Workspace is large; group minor/patch to reduce noise.
+    groups:
+      cargo-minor-patch:
+        update-types:
+          - minor
+          - patch
