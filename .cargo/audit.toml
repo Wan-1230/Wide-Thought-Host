@@ -1,0 +1,20 @@
+# cargo-audit configuration for Gork Build.
+#
+# CI treats audit as a **hard gate**: any vulnerability not listed here fails
+# the job. Entries below are residual issues in the upstream monorepo graph
+# that cannot be fixed with a clean lockfile bump alone (pinned transitive
+# majors, or no fixed release). Revisit when upstream or direct deps update.
+#
+# See: https://docs.rs/cargo-audit/latest/cargo_audit/
+
+[advisories]
+# rsa: RUSTSEC-2023-0071 Marvin Attack — no fixed upgrade from the crate author.
+# Pulled via jsonwebtoken / sigstore stack; accept until those crates migrate.
+ignore = [
+    "RUSTSEC-2023-0071",
+    # quick-xml: needs >=0.41; direct pin is ^0.38 (xai-grok-tools) and
+    # pdf_oxide pins ^0.39. Bump requires coordinated API changes — track
+    # separately; not a silent ignore of new advisories on other crates.
+    "RUSTSEC-2026-0194",
+    "RUSTSEC-2026-0195",
+]
