@@ -95,7 +95,8 @@ jobs:
   test-privacy:
     name: Privacy tests
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Full update suite + feature-enabled installer tests can be slow.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
 
@@ -125,18 +126,18 @@ jobs:
           cargo test -p xai-grok-version --lib
           cargo test -p xai-mixpanel --lib
           cargo test -p xai-grok-telemetry --lib default_is_privacy
-          # Updater hard-off: bottom chokepoint, leader ensure_latest, manual
-          # update, status/background, minimum-version refuse vendor install.
-          # Without --features updater-integration-tests: proves product path
-          # has no env escape hatch (including GORK_TEST_ALLOW_UPDATE=1).
+          # Default product build: full update crate suite (lib + integration
+          # tests that do NOT require installer mocks). Installer-mechanic
+          # tests are behind `updater-integration-tests` and compile empty
+          # without the feature.
+          cargo test -p xai-grok-update
+          # Focused privacy filters (also covered above; keep for clarity).
           cargo test -p xai-grok-update --lib privacy -- --nocapture
           cargo test -p xai-grok-update --lib env_cannot_disable -- --nocapture
-          cargo test -p xai-grok-update --lib reinstall_hint -- --nocapture
-          cargo test -p xai-grok-update --lib refuses_minimum -- --nocapture
+          # Installer mechanics against local mocks (feature + env required).
+          GORK_TEST_ALLOW_UPDATE=1 cargo test -p xai-grok-update \
+            --features updater-integration-tests --tests
           # Telemetry / trace resolvers: env/config/remote cannot re-enable.
-          # Integration test (not --lib): full shell unit tests fail upstream
-          # (missing WorkspaceOps::for_test helpers); this binary drives the
-          # shipped Config resolvers without those helpers.
           cargo test -p xai-grok-shell --test privacy_resolvers -- --nocapture
 
       - name: Static install chokepoint inventory
