@@ -127,10 +127,7 @@ pub fn print_update_status(status: &UpdateStatus, json: bool) -> anyhow::Result<
         && status.latest_version.is_none()
         && status.auto_update == Some(false)
     {
-        println!(
-            "Gork Build - v{}{}",
-            status.current_version, channel_label
-        );
+        println!("Gork Build - v{}{}", status.current_version, channel_label);
         println!("Auto-update: disabled (privacy build never installs from vendor channels).");
         println!("{}", vendor_update_blocked_message());
         return Ok(());
