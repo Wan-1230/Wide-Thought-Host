@@ -411,6 +411,9 @@ mod tests {
         }
     }
 
+    /// Asserts that without the installer-test feature, env cannot open the
+    /// gate and minimum-version enforcement stays fail-closed.
+    #[cfg(not(feature = "updater-integration-tests"))]
     #[tokio::test]
     #[serial_test::serial]
     async fn privacy_build_refuses_minimum_version_vendor_install() {

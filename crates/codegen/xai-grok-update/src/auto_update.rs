@@ -3355,8 +3355,19 @@ mod tests {
         }
     }
 
+    /// Ensure product-policy assertions are not poisoned by a leftover
+    /// installer-mock env var (only meaningful when the feature is on).
+    fn clear_installer_test_escape_env() {
+        // SAFETY: only called from #[serial] privacy unit tests.
+        unsafe {
+            std::env::remove_var("GORK_TEST_ALLOW_UPDATE");
+        }
+    }
+
     #[test]
+    #[serial_test::serial]
     fn privacy_build_forbids_vendor_auto_update() {
+        clear_installer_test_escape_env();
         assert!(
             vendor_auto_update_forbidden(),
             "PRIVACY_BUILD must forbid vendor auto-update"
@@ -3375,6 +3386,10 @@ mod tests {
     /// Product builds (this default unit-test profile) must not compile in an
     /// env-based escape hatch. Setting GORK_TEST_ALLOW_UPDATE=1 is a no-op
     /// unless the crate is built with `--features updater-integration-tests`.
+    ///
+    /// Only compiled when the feature is *off* — with the feature on, env
+    /// intentionally opens the gate (covered by integration tests).
+    #[cfg(not(feature = "updater-integration-tests"))]
     #[test]
     #[serial_test::serial]
     fn env_cannot_disable_privacy_gate_without_feature() {
@@ -3391,8 +3406,35 @@ mod tests {
         }
     }
 
+    /// With the installer-test feature, env=1 must open the gate (and only then).
+    #[cfg(feature = "updater-integration-tests")]
+    #[test]
+    #[serial_test::serial]
+    fn env_opens_privacy_gate_only_with_feature() {
+        // SAFETY: serial
+        unsafe {
+            std::env::remove_var("GORK_TEST_ALLOW_UPDATE");
+        }
+        assert!(
+            vendor_auto_update_forbidden(),
+            "even with feature, gate stays on without env=1"
+        );
+        unsafe {
+            std::env::set_var("GORK_TEST_ALLOW_UPDATE", "1");
+        }
+        assert!(
+            !vendor_auto_update_forbidden(),
+            "feature + GORK_TEST_ALLOW_UPDATE=1 must open the gate for installer mocks"
+        );
+        unsafe {
+            std::env::remove_var("GORK_TEST_ALLOW_UPDATE");
+        }
+    }
+
     #[tokio::test]
+    #[serial_test::serial]
     async fn run_install_script_fail_closed_under_privacy() {
+        clear_installer_test_escape_env();
         assert!(vendor_auto_update_forbidden());
 
         let cfg = dummy_update_config();
@@ -3413,7 +3455,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn ensure_latest_on_disk_no_install_under_privacy() {
+        clear_installer_test_escape_env();
         assert!(vendor_auto_update_forbidden());
 
         let cfg = dummy_update_config();
@@ -3432,7 +3476,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn auto_update_target_none_under_privacy() {
+        clear_installer_test_escape_env();
         assert!(vendor_auto_update_forbidden());
         let cfg = dummy_update_config();
         assert_eq!(
@@ -3443,7 +3489,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn check_update_status_does_not_advertise_vendor_update_under_privacy() {
+        clear_installer_test_escape_env();
         assert!(vendor_auto_update_forbidden());
         let cfg = dummy_update_config();
         let status = check_update_status(&cfg).await;
@@ -3461,7 +3509,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn run_update_fail_closed_under_privacy() {
+        clear_installer_test_escape_env();
         assert!(vendor_auto_update_forbidden());
         let mut cfg = dummy_update_config();
         let err = run_update(false, None, None, &mut cfg)
@@ -3475,7 +3525,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn run_update_if_available_is_noop_under_privacy() {
+        clear_installer_test_escape_env();
         assert!(vendor_auto_update_forbidden());
         let cfg = dummy_update_config();
         let ran = run_update_if_available(UpdateRunMode::Blocking, false, &cfg)
@@ -3485,7 +3537,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn check_update_background_is_noop_under_privacy() {
+        clear_installer_test_escape_env();
         assert!(vendor_auto_update_forbidden());
         let cfg = dummy_update_config();
         let bg = check_update_background(&cfg).await;

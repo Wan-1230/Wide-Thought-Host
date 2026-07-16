@@ -134,8 +134,17 @@ jobs:
           cargo test -p xai-grok-update --lib privacy -- --nocapture
           cargo test -p xai-grok-update --lib env_cannot_disable -- --nocapture
           # Installer mechanics against local mocks (feature + env required).
+          # IMPORTANT: cargo's `--tests` also runs library unit tests. With the
+          # feature compiled in and GORK_TEST_ALLOW_UPDATE=1 in the process
+          # env, privacy unit tests that assert "gate stays on" would fail.
+          # Target only the installer integration test binaries by name.
           GORK_TEST_ALLOW_UPDATE=1 cargo test -p xai-grok-update \
-            --features updater-integration-tests --tests
+            --features updater-integration-tests \
+            --test test_install_internal \
+            --test test_blitz_cancel \
+            --test test_check_status_regression \
+            --test test_concurrent_convergence \
+            --test test_downgrade_matrix
           # Telemetry / trace resolvers: env/config/remote cannot re-enable.
           cargo test -p xai-grok-shell --test privacy_resolvers -- --nocapture
 
