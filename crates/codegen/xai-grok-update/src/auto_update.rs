@@ -3224,15 +3224,15 @@ mod tests {
     }
 
     #[test]
-    fn test_reinstall_hint_gh_release_mentions_gh_command() {
+    fn test_reinstall_hint_gh_release_mentions_gork_releases() {
         let hint = reinstall_hint("gh-release");
         assert!(
-            hint.contains("gh release download"),
-            "should suggest gh release download: {hint}"
+            hint.contains("thedavidweng/gork-build"),
+            "should point at this fork's releases: {hint}"
         );
         assert!(
-            hint.contains("xai-org-shared/grok-build"),
-            "should name the repo: {hint}"
+            !hint.contains("curl -fsSL https://x.ai/cli"),
+            "must not recommend vendor installers: {hint}"
         );
     }
 
@@ -3244,8 +3244,9 @@ mod tests {
             "Gork Build reinstall must point at source rebuild, not x.ai installers: {hint}"
         );
         assert!(
-            !hint.contains("x.ai/cli"),
-            "must never recommend vendor installers: {hint}"
+            !hint.contains("curl -fsSL https://x.ai/cli")
+                && !hint.contains("irm https://x.ai/cli"),
+            "must not recommend vendor installers: {hint}"
         );
     }
 
