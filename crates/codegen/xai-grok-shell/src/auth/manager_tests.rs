@@ -456,10 +456,7 @@ fn is_data_collection_disabled_matrix() {
             false,
         ),
         (&["BLOCKED_REASON_BILLING"], true),
-        (
-            &["BLOCKED_REASON_BILLING", "BLOCKED_REASON_NO_LOGS"],
-            false,
-        ),
+        (&["BLOCKED_REASON_BILLING", "BLOCKED_REASON_NO_LOGS"], false),
     ];
     for (reasons, opt_out) in cases {
         let auth = GrokAuth {

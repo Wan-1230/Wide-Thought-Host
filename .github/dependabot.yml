@@ -10,6 +10,9 @@ updates:
     labels:
       - dependencies
       - github-actions
+    commit-message:
+      prefix: build
+      include: scope
 
   - package-ecosystem: cargo
     directory: "/"
@@ -20,6 +23,9 @@ updates:
     labels:
       - dependencies
       - rust
+    commit-message:
+      prefix: build
+      include: scope
     # Workspace is large; group minor/patch to reduce noise.
     groups:
       cargo-minor-patch:

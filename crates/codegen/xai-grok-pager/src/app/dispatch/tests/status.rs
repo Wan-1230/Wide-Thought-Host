@@ -68,8 +68,12 @@ fn show_privacy_info_zdr() {
     assert!(effects.is_empty());
     let text = last_system_text(&app, AgentId(0));
     assert!(text.contains("Gork Build"));
-    assert!(text.contains("Zero Data Retention") || text.contains("Enterprise Zero Data Retention"));
-    assert!(text.contains("research uploads: disabled") || text.contains("Client research uploads"));
+    assert!(
+        text.contains("Zero Data Retention") || text.contains("Enterprise Zero Data Retention")
+    );
+    assert!(
+        text.contains("research uploads: disabled") || text.contains("Client research uploads")
+    );
 }
 
 /// Gork Build `/privacy` always advertises the hard client privacy posture.

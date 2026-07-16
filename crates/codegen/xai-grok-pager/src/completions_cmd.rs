@@ -81,7 +81,12 @@ mod tests {
     fn zsh_script() -> String {
         let mut cmd = PagerArgs::command().name(xai_grok_version::PRODUCT_CLI);
         let mut buf = Vec::new();
-        generate(Shell::Zsh, &mut cmd, xai_grok_version::PRODUCT_CLI, &mut buf);
+        generate(
+            Shell::Zsh,
+            &mut cmd,
+            xai_grok_version::PRODUCT_CLI,
+            &mut buf,
+        );
         String::from_utf8(buf).expect("completion script is UTF-8")
     }
 

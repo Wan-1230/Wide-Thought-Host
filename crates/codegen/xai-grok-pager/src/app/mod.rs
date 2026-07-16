@@ -1276,7 +1276,10 @@ fn terminal_title_string(title: &str) -> String {
     } else {
         // Reserve room for " - {cli}" suffix (space-dash-space + cli name).
         let suffix_len = 3 + cli.len();
-        let truncated: String = sanitized.chars().take(80_usize.saturating_sub(suffix_len)).collect();
+        let truncated: String = sanitized
+            .chars()
+            .take(80_usize.saturating_sub(suffix_len))
+            .collect();
         format!("{truncated} - {cli}")
     }
 }
@@ -1711,13 +1714,7 @@ mod tests {
         );
         assert_eq!(
             first_5,
-            vec![
-                "Gork Build TUI",
-                "",
-                usage.as_str(),
-                "",
-                "Arguments:",
-            ]
+            vec!["Gork Build TUI", "", usage.as_str(), "", "Arguments:",]
         );
         assert!(help.find("Arguments:\n").unwrap() < help.find("Options:\n").unwrap());
         assert!(help.find("Options:\n").unwrap() < help.find("Commands:\n").unwrap());

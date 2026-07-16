@@ -130,13 +130,11 @@ const PERMISSION_MODE_CHOICES: &[EnumChoice] = &[
 // can fail. Commit on Enter only.
 // ---------------------------------------------------------------------------
 
-const CODING_DATA_SHARING_CHOICES: &[EnumChoice] = &[
-    EnumChoice {
-        canonical: "opt-out",
-        display: "Opt out (locked)",
-        description: "Gork Build locks coding data retention to opt-out. Opt-in is not available.",
-    },
-];
+const CODING_DATA_SHARING_CHOICES: &[EnumChoice] = &[EnumChoice {
+    canonical: "opt-out",
+    display: "Opt out (locked)",
+    description: "Gork Build locks coding data retention to opt-out. Opt-in is not available.",
+}];
 
 // ---------------------------------------------------------------------------
 // Plan-mode catalog.

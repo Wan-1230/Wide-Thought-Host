@@ -43,6 +43,10 @@ impl Mixpanel {
     /// Scrub property string values in place, then inject the project
     /// token. Split out from [`Self::track`] so the scrub-then-inject
     /// ordering is testable.
+    ///
+    /// Not called by [`Self::track`] in Gork Build (track is a hard no-op),
+    /// but kept + unit-tested so a future re-enable cannot drop scrub order.
+    #[allow(dead_code)] // intentionally unused by privacy no-op track path
     fn prepare_properties(
         &self,
         mut properties: HashMap<String, serde_json::Value>,

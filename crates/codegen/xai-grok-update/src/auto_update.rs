@@ -3244,8 +3244,7 @@ mod tests {
             "Gork Build reinstall must point at source rebuild, not x.ai installers: {hint}"
         );
         assert!(
-            !hint.contains("curl -fsSL https://x.ai/cli")
-                && !hint.contains("irm https://x.ai/cli"),
+            !hint.contains("curl -fsSL https://x.ai/cli") && !hint.contains("irm https://x.ai/cli"),
             "must not recommend vendor installers: {hint}"
         );
     }

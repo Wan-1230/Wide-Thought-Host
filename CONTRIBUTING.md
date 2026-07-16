@@ -33,17 +33,22 @@ cargo check -p xai-grok-pager-bin
 cargo run -p xai-grok-pager-bin          # launches the TUI binary `gork`
 ```
 
-Useful checks:
+Useful checks (same gates as GitHub Actions CI):
 
 ```sh
+cargo fmt --all -- --check
+cargo clippy --no-deps \
+  -p xai-grok-version -p xai-mixpanel -p xai-grok-telemetry -p xai-grok-update \
+  --lib -- -D warnings
+cargo clippy --no-deps -p xai-grok-pager-bin --bins -- -D warnings
 cargo test -p xai-mixpanel --lib
 cargo test -p xai-grok-version --lib
-cargo fmt --check
-cargo clippy -p xai-grok-pager-bin -- -D warnings   # when the toolchain is ready
 ```
 
 Prefer focused tests for the crate you touch over a full workspace run unless
-you are changing shared infrastructure.
+you are changing shared infrastructure. Full-workspace `cargo clippy -D warnings`
+is not required — the monorepo snapshot is too noisy; CI uses `--no-deps` on the
+privacy crates and the `gork` binary.
 
 ## Branching and commits
 

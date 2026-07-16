@@ -30,9 +30,8 @@ async fn handle_set(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult {
     if xai_grok_version::coding_data_retention_locked_opt_out()
         && !params.coding_data_retention_opt_out
     {
-        return Err(acp::Error::invalid_params().data(
-            "Gork Build locks coding data retention to opt-out; opt-in is not available.",
-        ));
+        return Err(acp::Error::invalid_params()
+            .data("Gork Build locks coding data retention to opt-out; opt-in is not available."));
     }
     let opt_out = if xai_grok_version::coding_data_retention_locked_opt_out() {
         true

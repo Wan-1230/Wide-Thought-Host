@@ -1,4 +1,10 @@
-# Gork Build CI — compile the `gork` binary and run privacy-focused tests.
+# Gork Build CI — lint, privacy tests, and the community `gork` binary.
+#
+# Layout mirrors a normal Rust project CI (see thedavidweng/sdf-flash-gui):
+#   fmt → clippy → tests/build
+# Scoped for this monorepo: full-workspace clippy -D warnings is not practical
+# on the upstream snapshot; clippy covers privacy-critical crates + the pager
+# binary surface. Privacy unit tests stay a separate fast job.
 name: CI
 
 on:
@@ -16,9 +22,76 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: "0"
   RUST_BACKTRACE: "1"
+  # Pin matches rust-toolchain.toml (manual bumps only).
+  RUST_TOOLCHAIN: "1.92.0"
 
 jobs:
-  # Fast path: unit tests that pin Gork Build privacy hard-offs.
+  # ── Lint ──────────────────────────────────────────────────────────────────
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: rustfmt
+
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            protobuf-compiler pkg-config libssl-dev cmake libclang-dev \
+            build-essential
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: clippy
+          cache-targets: "true"
+
+      - name: Clippy privacy-critical crates
+        # --no-deps: lint only these packages, not the full monorepo graph
+        # (upstream crates still carry clippy noise). -D warnings on our
+        # privacy surface.
+        run: |
+          cargo clippy --no-deps \
+            -p xai-grok-version \
+            -p xai-mixpanel \
+            -p xai-grok-telemetry \
+            -p xai-grok-update \
+            --lib \
+            -- -D warnings
+
+      - name: Clippy gork binary crate
+        # Thin entry crate for the community CLI; --no-deps keeps the job
+        # from re-linting the whole pager dependency tree.
+        run: |
+          cargo clippy --no-deps \
+            -p xai-grok-pager-bin \
+            --bins \
+            -- -D warnings
+
+  # ── Tests ─────────────────────────────────────────────────────────────────
   test-privacy:
     name: Privacy tests
     runs-on: ubuntu-latest
@@ -35,7 +108,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.92.0"
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
@@ -53,7 +126,7 @@ jobs:
           cargo test -p xai-grok-telemetry --lib default_is_privacy
           cargo test -p xai-grok-update --lib test_reinstall_hint -- --nocapture
 
-  # Build the community CLI binary.
+  # ── Build ─────────────────────────────────────────────────────────────────
   build-gork:
     name: Build gork
     runs-on: ubuntu-latest
@@ -71,7 +144,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.92.0"
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
