@@ -241,3 +241,36 @@ jobs:
           path: target/release/gork
           if-no-files-found: error
           retention-days: 14
+
+  # Release-binary network capture: CONNECT proxy logs destinations; fail if
+  # denylisted privacy/vendor hosts appear (no MITM required).
+  privacy-egress:
+    name: Privacy egress capture
+    needs: [build-gork]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download gork binary
+        uses: actions/download-artifact@v7
+        with:
+          name: gork-linux-x86_64
+          path: target/release
+
+      - name: Run privacy egress check
+        run: |
+          set -euo pipefail
+          chmod +x target/release/gork scripts/privacy_egress_check.sh
+          export PRIVACY_EGRESS_WORKDIR="${RUNNER_TEMP}/gork-privacy-egress"
+          mkdir -p "$PRIVACY_EGRESS_WORKDIR"
+          GORK_BIN=target/release/gork ./scripts/privacy_egress_check.sh
+
+      - name: Upload egress host log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: privacy-egress-hosts
+          path: ${{ runner.temp }}/gork-privacy-egress/**
+          if-no-files-found: ignore
+          retention-days: 14
