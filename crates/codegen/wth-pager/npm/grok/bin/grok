@@ -6,22 +6,22 @@
 // layout if postinstall hasn't run (e.g. npx, or postinstall failure).
 //
 // Binary location strategy (in priority order):
-//   1. ~/.wth/bin/grok        — canonical versioned symlink (postinstall.js)
-//   2. @wth-build/gork-<platform>/bin/grok[.exe]      — decompressed sibling
-//   3. @wth-build/gork-<platform>/bin/grok[.exe].br   — brotli-compressed
+//   1. ~/.wth/bin/wth        — canonical versioned symlink (postinstall.js)
+//   2. @wth-build/wth-<platform>/bin/wth[.exe]      — decompressed sibling
+//   3. @wth-build/wth-<platform>/bin/wth[.exe].br   — brotli-compressed
 //
 // Per-platform binaries are shipped brotli-compressed to stay well under
-// npm's ~200 MB tarball ceiling. See sibling packages @wth-build/gork-*.
+// npm's ~200 MB tarball ceiling. See sibling packages @wth-build/wth-*.
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const zlib = require('zlib');
 
-const pkgName = '@wth-build/gork';
+const pkgName = '@wth-build/wth';
 const IS_WINDOWS = process.platform === 'win32';
 const EXE = IS_WINDOWS ? '.exe' : '';
-const BIN_NAME = `grok${EXE}`;
+const BIN_NAME = .wth.{EXE}`;
 const CANONICAL_DIR = path.join(os.homedir(), '.wth', 'bin');
 const CANONICAL_PATH = path.join(CANONICAL_DIR, BIN_NAME);
 
@@ -33,7 +33,7 @@ function readLocalVersion() {
 // matching optional dependency wasn't installed (unsupported platform, or
 // npm refused to install optionalDependencies).
 function resolvePlatformPackageDir() {
-    const platformPkg = `@wth-build/gork-${process.platform}-${process.arch}`;
+    const platformPkg = `@wth-build/wth-${process.platform}-${process.arch}`;
     try {
         return path.dirname(require.resolve(`${platformPkg}/package.json`));
     } catch {
@@ -97,7 +97,7 @@ function resolveBinary() {
     const platformDir = resolvePlatformPackageDir();
     if (!platformDir) {
         console.error(`${pkgName}: no platform binary installed for ${process.platform}-${process.arch}.`);
-        console.error(`  Expected sibling package @wth-build/gork-${process.platform}-${process.arch}.`);
+        console.error(`  Expected sibling package @wth-build/wth-${process.platform}-${process.arch}.`);
         console.error(`  This usually means npm skipped optionalDependencies (e.g. --no-optional)`);
         console.error(`  or the platform is not supported.`);
         process.exit(1);

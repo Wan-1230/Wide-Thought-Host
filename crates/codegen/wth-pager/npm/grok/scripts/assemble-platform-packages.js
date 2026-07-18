@@ -6,11 +6,11 @@
 //   2. Stamps the sub-package's version to match the meta package
 //
 // Each per-platform package is its own npm publish target. The meta package
-// (`@wth-build/gork`) lists all six as `optionalDependencies` pinned to
+// (`@wth-build/wth`) lists all six as `optionalDependencies` pinned to
 // the same version; npm installs only the one matching the host's
 // `os` + `cpu` filters.
 //
-// Why brotli? npm's tarball ceiling is ~200 MB and the raw grok binary is
+// Why brotli? npm's tarball ceiling is ~200 MB and the raw wth binary is
 // 100–150 MB per platform. Brotli at max quality cuts that to 30–40 MB,
 // leaves plenty of headroom for binary growth, and is decoded by Node's
 // built-in zlib.brotliDecompressSync (no native deps required).

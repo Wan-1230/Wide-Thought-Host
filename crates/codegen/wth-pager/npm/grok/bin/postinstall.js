@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Runs once after npm install/update. Reads the wth binary from the
-// matching per-platform optional dependency (@wth-build/gork-<platform>)
+// matching per-platform optional dependency (@wth-build/wth-<platform>)
 // and installs it to ~/.wth/bin/ using versioned filenames:
 //
-//   Unix:    wth-<version>  +  grok  (symlink)
+//   Unix:    wth-<version>  +  wth  (symlink)
 //   Windows: wth-<version>.exe  +  wth.exe  (copy)
 //
 // Versioned files ensure running processes are never disrupted on macOS
@@ -28,7 +28,7 @@ const SUPPORTED = new Set([
     'win32-arm64',
 ]);
 if (!SUPPORTED.has(key)) {
-    console.error(`@wth-build/gork: unsupported platform ${key}`);
+    console.error(`@wth-build/wth: unsupported platform ${key}`);
     process.exit(0);
 }
 
@@ -37,7 +37,7 @@ if (!SUPPORTED.has(key)) {
 // other five are silently skipped. If the matching one is missing, npm was
 // likely invoked with --no-optional or the platform is unsupported.
 function resolvePlatformPackageDir() {
-    const platformPkg = `@wth-build/gork-${key}`;
+    const platformPkg = `@wth-build/wth-${key}`;
     try {
         return path.dirname(require.resolve(`${platformPkg}/package.json`));
     } catch {
@@ -48,7 +48,7 @@ function resolvePlatformPackageDir() {
 let version;
 try { version = require('../package.json').version; } catch {}
 if (!version) {
-    console.error('@wth-build/gork: unable to determine version');
+    console.error('@wth-build/wth: unable to determine version');
     process.exit(0);
 }
 
@@ -75,7 +75,7 @@ function installBinary(binName, sourceDir, vendorSubpath) {
     } else if (fs.existsSync(rawPath)) {
         vendoredBinPath = rawPath;
     } else {
-        console.error(`@wth-build/gork: missing binary at ${brPath}`);
+        console.error(`@wth-build/wth: missing binary at ${brPath}`);
         return false;
     }
 
@@ -115,8 +115,8 @@ function installBinary(binName, sourceDir, vendorSubpath) {
                     throw copyErr;
                 }
             } catch (e2) {
-                console.error(`@wth-build/gork: failed to update ${canonicalPath}: ${e2.message}`);
-                console.error('Close all running grok processes and try again.');
+                console.error(`@wth-build/wth: failed to update ${canonicalPath}: ${e2.message}`);
+                console.error('Close all running wth processes and try again.');
                 return false;
             }
         }
@@ -165,13 +165,13 @@ function cleanupOldVersions(binName) {
 
 const platformDir = resolvePlatformPackageDir();
 if (!platformDir) {
-    console.error(`@wth-build/gork: platform package @wth-build/gork-${key} not installed.`);
+    console.error(`@wth-build/wth: platform package @wth-build/wth-${key} not installed.`);
     console.error('  This usually means npm was invoked with --no-optional, or the install failed.');
-    console.error('  Try: npm install -g @wth-build/gork');
+    console.error('  Try: npm install -g @wth-build/wth');
     process.exit(0);
 }
 
-installBinary('wth', platformDir, `grok${EXE}`);
+installBinary('wth', platformDir, `wth${EXE}`);
 cleanupOldVersions('wth');
 cleanupOldVersions('wth-pager');
 
@@ -183,7 +183,7 @@ try { obj = TOML.parse(fs.readFileSync(configPath, 'utf8')); } catch { }
 obj.cli ??= {};
 obj.cli.installer = 'npm';
 
-// Persist the npm registry so `grok update` and the trampoline use the same one.
+// Persist the npm registry so `wth update` and the trampoline use the same one.
 const npmRegistry = process.env.WTH_NPM_REGISTRY
     || (() => {
         try {
@@ -204,7 +204,7 @@ fs.writeFileSync(configPath, TOML.stringify(obj), 'utf8');
 
 // Shell completions: print setup hints (no silent shell config mutation).
 // Set WTH_INSTALL_COMPLETIONS=1 to auto-generate to ~/.wth/completions.
-const WTH_PATH = path.join(CANONICAL_DIR, `grok${EXE}`);
+const WTH_PATH = path.join(CANONICAL_DIR, `wth${EXE}`);
 if (process.env.WTH_INSTALL_COMPLETIONS === '1' && !IS_WINDOWS) {
     try {
         const { spawnSync } = require('child_process');
@@ -220,6 +220,6 @@ if (process.env.WTH_INSTALL_COMPLETIONS === '1' && !IS_WINDOWS) {
         console.log('Completions generated to ~/.wth/completions (bash/zsh)');
     } catch {}
 } else if (!IS_WINDOWS) {
-    console.log('Tip: grok completions bash > ~/.local/share/bash-completion/completions/grok');
-    console.log('     grok completions zsh  > ~/.zsh/completions/_wth');
+    console.log('Tip: wth completions bash > ~/.local/share/bash-completion/completions/wth');
+    console.log('     wth completions zsh  > ~/.zsh/completions/_wth');
 }

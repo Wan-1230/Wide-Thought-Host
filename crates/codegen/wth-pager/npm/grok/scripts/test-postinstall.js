@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Tests for the versioned-binary + symlink installation logic used by
-// postinstall.js and the bin/grok trampoline.
+// postinstall.js and the bin/wth trampoline.
 //
 // Run with:  node scripts/test-postinstall.js
 //
@@ -34,7 +34,7 @@ function cleanup(dir) {
     fs.rmSync(dir, { recursive: true, force: true });
 }
 
-// ─── Extracted logic (mirrors postinstall.js and bin/grok exactly) ─────
+// ─── Extracted logic (mirrors postinstall.js and bin/wth exactly) ─────
 
 /** Semver-aware descending sort for "wth-X.Y.Z" filenames. */
 function semverSortDescending(a, b) {
@@ -86,7 +86,7 @@ function cleanupOldVersions(canonicalDir, currentVersionedName) {
     return versionedBinaries;
 }
 
-/** Bootstrap canonical from vendored (same as bin/grok trampoline). */
+/** Bootstrap canonical from vendored (same as bin/wth trampoline). */
 function bootstrapCanonical(vendoredBinPath, version, canonicalDir) {
     const canonicalPath = path.join(canonicalDir, 'wth');
     try {
@@ -118,7 +118,7 @@ console.log('install + symlink tests\n');
 test('creates versioned binary and symlink on fresh install', () => {
     const dir = makeTmpDir();
     try {
-        const vendored = path.join(dir, 'vendored-grok');
+        const vendored = path.join(dir, 'vendored-wth');
         fs.writeFileSync(vendored, 'binary-content-v1');
 
         const binDir = path.join(dir, 'bin');
@@ -226,7 +226,7 @@ test('handles upgrade from old-style regular file to versioned symlink', () => {
         const canonicalPath = path.join(binDir, 'wth');
         fs.mkdirSync(binDir, { recursive: true });
 
-        // Simulate old installation: grok is a regular file
+        // Simulate old installation: wth is a regular file
         fs.writeFileSync(canonicalPath, 'old-style-binary');
         assert.ok(!fs.lstatSync(canonicalPath).isSymbolicLink(), 'should be regular file initially');
 
@@ -385,13 +385,13 @@ test('cleanup ignores .tmp. and .link. files', () => {
         fs.writeFileSync(path.join(binDir, 'wth-0.1.141'), 'current');
         // Leftover temp files from a crashed install
         fs.writeFileSync(path.join(binDir, 'wth-0.1.140.tmp.12345'), 'crashed-tmp');
-        fs.writeFileSync(path.join(binDir, 'grok.link.12345'), 'crashed-link');
+        fs.writeFileSync(path.join(binDir, 'wth.link.12345'), 'crashed-link');
 
         cleanupOldVersions(binDir, 'wth-0.1.141');
 
         // Temp files should not be touched by cleanup (they're filtered out)
         assert.ok(fs.existsSync(path.join(binDir, 'wth-0.1.140.tmp.12345')), 'tmp file should not be touched');
-        assert.ok(fs.existsSync(path.join(binDir, 'grok.link.12345')), 'link file should not be touched');
+        assert.ok(fs.existsSync(path.join(binDir, 'wth.link.12345')), 'link file should not be touched');
     } finally {
         cleanup(dir);
     }
@@ -480,7 +480,7 @@ test('bootstrapCanonical creates versioned binary from vendored', () => {
     const dir = makeTmpDir();
     try {
         const binDir = path.join(dir, 'bin');
-        const vendored = path.join(dir, 'vendored-grok');
+        const vendored = path.join(dir, 'vendored-wth');
         fs.writeFileSync(vendored, 'vendored-content');
 
         const result = bootstrapCanonical(vendored, '0.1.140', binDir);
@@ -498,7 +498,7 @@ test('bootstrapCanonical is idempotent', () => {
     const dir = makeTmpDir();
     try {
         const binDir = path.join(dir, 'bin');
-        const vendored = path.join(dir, 'vendored-grok');
+        const vendored = path.join(dir, 'vendored-wth');
         fs.writeFileSync(vendored, 'original-content');
 
         bootstrapCanonical(vendored, '0.1.140', binDir);
@@ -628,13 +628,13 @@ test('downgrade: installing older version than current', () => {
     }
 });
 
-test('non-grok files in bin dir are not touched by cleanup', () => {
+test('non-wth files in bin dir are not touched by cleanup', () => {
     const dir = makeTmpDir();
     try {
         const binDir = path.join(dir, 'bin');
         fs.mkdirSync(binDir, { recursive: true });
 
-        // Non-grok files
+        // Non-wth files
         fs.writeFileSync(path.join(binDir, 'other-tool'), 'should-stay');
         fs.writeFileSync(path.join(binDir, 'README.md'), 'should-stay');
 
@@ -645,18 +645,18 @@ test('non-grok files in bin dir are not touched by cleanup', () => {
 
         cleanupOldVersions(binDir, 'wth-0.1.140');
 
-        assert.ok(fs.existsSync(path.join(binDir, 'other-tool')), 'non-grok file should not be touched');
-        assert.ok(fs.existsSync(path.join(binDir, 'README.md')), 'non-grok file should not be touched');
+        assert.ok(fs.existsSync(path.join(binDir, 'other-tool')), 'non-wth file should not be touched');
+        assert.ok(fs.existsSync(path.join(binDir, 'README.md')), 'non-wth file should not be touched');
     } finally {
         cleanup(dir);
     }
 });
 
 // ═══════════════════════════════════════════════════════════════════════
-// grok vs wth-pager Isolation Tests
+// wth vs wth-pager Isolation Tests
 // ═══════════════════════════════════════════════════════════════════════
 
-console.log('\ngrok vs wth-pager isolation tests\n');
+console.log('\nwth vs wth-pager isolation tests\n');
 
 /**
  * Cleanup for a named binary (mirrors postinstall.js cleanupOldVersions).
@@ -714,7 +714,7 @@ function installNamedBinary(vendoredBinPath, binName, version, canonicalDir) {
     return { canonicalPath, versionedPath, versionedName };
 }
 
-test('installing both grok and wth-pager creates independent symlinks', () => {
+test('installing both wth and wth-pager creates independent symlinks', () => {
     const dir = makeTmpDir();
     try {
         const binDir = path.join(dir, 'bin');
@@ -744,12 +744,12 @@ test('cleanup of wth-* does not remove wth-pager-*', () => {
         const binDir = path.join(dir, 'bin');
         fs.mkdirSync(binDir, { recursive: true });
 
-        // Old grok versions
+        // Old wth versions
         fs.writeFileSync(path.join(binDir, 'wth-0.1.138'), 'old-wth-1');
         fs.writeFileSync(path.join(binDir, 'wth-0.1.139'), 'old-wth-2');
         fs.writeFileSync(path.join(binDir, 'wth-0.1.140'), 'old-wth-3');
-        // Current grok
-        fs.writeFileSync(path.join(binDir, 'wth-0.1.141'), 'current-grok');
+        // Current wth
+        fs.writeFileSync(path.join(binDir, 'wth-0.1.141'), 'current-wth');
 
         // wth-pager versions (should not be touched)
         fs.writeFileSync(path.join(binDir, 'wth-pager-0.1.138'), 'old-pager-1');
@@ -758,16 +758,16 @@ test('cleanup of wth-* does not remove wth-pager-*', () => {
 
         cleanupOldVersionsNamed(binDir, 'wth', '0.1.141');
 
-        // grok cleanup: current + N-1 kept, older removed
-        assert.ok(fs.existsSync(path.join(binDir, 'wth-0.1.141')), 'current grok should exist');
-        assert.ok(fs.existsSync(path.join(binDir, 'wth-0.1.140')), 'N-1 grok should be kept');
-        assert.ok(!fs.existsSync(path.join(binDir, 'wth-0.1.139')), 'N-2 grok should be removed');
-        assert.ok(!fs.existsSync(path.join(binDir, 'wth-0.1.138')), 'N-3 grok should be removed');
+        // wth cleanup: current + N-1 kept, older removed
+        assert.ok(fs.existsSync(path.join(binDir, 'wth-0.1.141')), 'current wth should exist');
+        assert.ok(fs.existsSync(path.join(binDir, 'wth-0.1.140')), 'N-1 wth should be kept');
+        assert.ok(!fs.existsSync(path.join(binDir, 'wth-0.1.139')), 'N-2 wth should be removed');
+        assert.ok(!fs.existsSync(path.join(binDir, 'wth-0.1.138')), 'N-3 wth should be removed');
 
         // ALL wth-pager versions must be untouched
-        assert.ok(fs.existsSync(path.join(binDir, 'wth-pager-0.1.138')), 'wth-pager-0.1.138 must survive grok cleanup');
-        assert.ok(fs.existsSync(path.join(binDir, 'wth-pager-0.1.139')), 'wth-pager-0.1.139 must survive grok cleanup');
-        assert.ok(fs.existsSync(path.join(binDir, 'wth-pager-0.1.141')), 'wth-pager-0.1.141 must survive grok cleanup');
+        assert.ok(fs.existsSync(path.join(binDir, 'wth-pager-0.1.138')), 'wth-pager-0.1.138 must survive wth cleanup');
+        assert.ok(fs.existsSync(path.join(binDir, 'wth-pager-0.1.139')), 'wth-pager-0.1.139 must survive wth cleanup');
+        assert.ok(fs.existsSync(path.join(binDir, 'wth-pager-0.1.141')), 'wth-pager-0.1.141 must survive wth cleanup');
     } finally {
         cleanup(dir);
     }
@@ -779,10 +779,10 @@ test('cleanup of wth-pager-* does not remove wth-*', () => {
         const binDir = path.join(dir, 'bin');
         fs.mkdirSync(binDir, { recursive: true });
 
-        // grok versions (should not be touched)
+        // wth versions (should not be touched)
         fs.writeFileSync(path.join(binDir, 'wth-0.1.138'), 'old-wth-1');
         fs.writeFileSync(path.join(binDir, 'wth-0.1.139'), 'old-wth-2');
-        fs.writeFileSync(path.join(binDir, 'wth-0.1.141'), 'current-grok');
+        fs.writeFileSync(path.join(binDir, 'wth-0.1.141'), 'current-wth');
 
         // Old wth-pager versions
         fs.writeFileSync(path.join(binDir, 'wth-pager-0.1.138'), 'old-pager-1');
@@ -799,7 +799,7 @@ test('cleanup of wth-pager-* does not remove wth-*', () => {
         assert.ok(!fs.existsSync(path.join(binDir, 'wth-pager-0.1.139')), 'N-2 pager should be removed');
         assert.ok(!fs.existsSync(path.join(binDir, 'wth-pager-0.1.138')), 'N-3 pager should be removed');
 
-        // ALL grok versions must be untouched
+        // ALL wth versions must be untouched
         assert.ok(fs.existsSync(path.join(binDir, 'wth-0.1.138')), 'wth-0.1.138 must survive pager cleanup');
         assert.ok(fs.existsSync(path.join(binDir, 'wth-0.1.139')), 'wth-0.1.139 must survive pager cleanup');
         assert.ok(fs.existsSync(path.join(binDir, 'wth-0.1.141')), 'wth-0.1.141 must survive pager cleanup');
@@ -860,16 +860,16 @@ test('full dual-binary lifecycle: install, upgrade, cleanup both', () => {
 
 console.log('\nmacOS-only pager platform split tests\n');
 
-test('grok installs normally regardless of platform key', () => {
+test('wth installs normally regardless of platform key', () => {
     const dir = makeTmpDir();
     try {
         const binDir = path.join(dir, 'bin');
-        const vendored = path.join(dir, 'vendored-grok');
+        const vendored = path.join(dir, 'vendored-wth');
         fs.writeFileSync(vendored, 'wth-binary');
 
         for (const platform of ['darwin-arm64', 'linux-x64', 'linux-arm64']) {
             const result = installNamedBinary(vendored, 'wth', '0.1.150', binDir);
-            assert.ok(fs.existsSync(result.versionedPath), `grok should install for ${platform}`);
+            assert.ok(fs.existsSync(result.versionedPath), `wth should install for ${platform}`);
             assert.strictEqual(fs.readlinkSync(result.canonicalPath), 'wth-0.1.150');
         }
     } finally {
@@ -893,7 +893,7 @@ test('wth-pager installs when vendored binary exists (darwin-arm64 path)', () =>
     }
 });
 
-test('Linux pager vendor files are not required for grok install', () => {
+test('Linux pager vendor files are not required for wth install', () => {
     const dir = makeTmpDir();
     try {
         const binDir = path.join(dir, 'bin');
@@ -911,33 +911,33 @@ test('Linux pager vendor files are not required for grok install', () => {
         assert.ok(!fs.existsSync(path.join(vendorBase, 'linux-x64', 'wth-pager')));
         assert.ok(!fs.existsSync(path.join(vendorBase, 'linux-arm64', 'wth-pager')));
 
-        // grok install should succeed independently
-        const grokVendored = path.join(dir, 'vendored-grok');
-        fs.writeFileSync(grokVendored, 'wth-linux');
-        const result = installNamedBinary(grokVendored, 'wth', '0.1.150', binDir);
-        assert.ok(fs.existsSync(result.versionedPath), 'grok should install without Linux pager');
+        // wth install should succeed independently
+        const wthVendored = path.join(dir, 'vendored-wth');
+        fs.writeFileSync(wthVendored, 'wth-linux');
+        const result = installNamedBinary(wthVendored, 'wth', '0.1.150', binDir);
+        assert.ok(fs.existsSync(result.versionedPath), 'wth should install without Linux pager');
     } finally {
         cleanup(dir);
     }
 });
 
-test('skipping pager install on Linux does not affect grok cleanup', () => {
+test('skipping pager install on Linux does not affect wth cleanup', () => {
     const dir = makeTmpDir();
     try {
         const binDir = path.join(dir, 'bin');
         const vendored = path.join(dir, 'vendored');
 
-        // Install grok across two versions
+        // Install wth across two versions
         fs.writeFileSync(vendored, 'wth-v1');
         installNamedBinary(vendored, 'wth', '0.1.149', binDir);
         fs.writeFileSync(vendored, 'wth-v2');
         installNamedBinary(vendored, 'wth', '0.1.150', binDir);
 
-        // Simulate Linux: only run grok cleanup, skip pager entirely
+        // Simulate Linux: only run wth cleanup, skip pager entirely
         cleanupOldVersionsNamed(binDir, 'wth', '0.1.150');
 
-        assert.ok(fs.existsSync(path.join(binDir, 'wth-0.1.150')), 'current grok should exist');
-        assert.ok(fs.existsSync(path.join(binDir, 'wth-0.1.149')), 'N-1 grok should be kept');
+        assert.ok(fs.existsSync(path.join(binDir, 'wth-0.1.150')), 'current wth should exist');
+        assert.ok(fs.existsSync(path.join(binDir, 'wth-0.1.149')), 'N-1 wth should be kept');
         assert.strictEqual(fs.readlinkSync(path.join(binDir, 'wth')), 'wth-0.1.150');
 
         // No pager files should exist at all
@@ -955,7 +955,7 @@ test('canonical pager from non-npm install is preserved on Linux', () => {
         const binDir = path.join(dir, 'bin');
         fs.mkdirSync(binDir, { recursive: true });
 
-        // Simulate pager installed by install-grok.sh (not npm)
+        // Simulate pager installed by install-wth.sh (not npm)
         const pagerVersioned = path.join(binDir, 'wth-pager-0.1.150');
         fs.writeFileSync(pagerVersioned, 'installer-pager-binary');
         fs.chmodSync(pagerVersioned, 0o755);
