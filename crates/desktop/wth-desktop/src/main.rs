@@ -42,12 +42,11 @@ pub fn run() {
             let ws_root = std::env::var("WTH_HOME")
                 .ok()
                 .map(std::path::PathBuf::from)
-                .or_else(|| {
-                    #[allow(deprecated)]
-                    std::env::home_dir()
-                })
+                .or_else(|| dirs::home_dir())
                 .unwrap_or_else(|| std::path::PathBuf::from("."));
-            std::fs::create_dir_all(&ws_root).ok();
+            if let Err(e) = std::fs::create_dir_all(&ws_root) {
+                tracing::warn!("Failed to create workspace root {:?}: {}", ws_root, e);
+            }
             ipc::filesystem::set_workspace_root(&ws_root);
 
             // Build system tray
