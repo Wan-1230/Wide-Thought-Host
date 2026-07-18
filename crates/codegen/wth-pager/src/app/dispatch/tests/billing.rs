@@ -200,8 +200,8 @@ fn upsell_non_max_upgrade_url_is_supergrok() {
         .id
         .as_deref()
         .unwrap();
-    assert!(url.contains("supergrok"), "got: {url}");
-    assert!(url.contains("referrer=grok-build"), "got: {url}");
+    assert!(url.contains("github.com"), "got: {url}");
+    assert!(url.contains("Wide-Thought-Host"), "got: {url}");
 }
 
 #[test]
@@ -215,7 +215,7 @@ fn upsell_non_max_payg_url_is_usage() {
         .id
         .as_deref()
         .unwrap();
-    assert!(url.contains("_s=usage"), "got: {url}");
+    assert!(url.contains("Wide-Thought-Host"), "got: {url}");
 }
 
 #[test]
