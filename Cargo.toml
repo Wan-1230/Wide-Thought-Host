@@ -15,11 +15,11 @@ members = [
     "crates/codegen/xai-file-utils",
     "crates/codegen/xai-fsnotify",
     "crates/codegen/xai-gix-status",
-    "crates/codegen/xai-grok-agent",
+    "crates/codegen/wth-agent",
     "crates/codegen/xai-grok-announcements",
     "crates/codegen/xai-grok-auth",
-    "crates/codegen/xai-grok-config",
-    "crates/codegen/xai-grok-config-types",
+    "crates/codegen/wth-config",
+    "crates/codegen/wth-config-types",
     "crates/codegen/xai-grok-env",
     "crates/codegen/xai-grok-hooks",
     "crates/codegen/xai-grok-http",
@@ -28,9 +28,9 @@ members = [
     "crates/codegen/xai-grok-mcp",
     "crates/codegen/xai-grok-memory",
     "crates/codegen/xai-grok-mermaid",
-    "crates/codegen/xai-grok-models",
-    "crates/codegen/xai-grok-pager",
-    "crates/codegen/xai-grok-pager-bin",
+    "crates/codegen/wth-models",
+    "crates/codegen/wth-pager",
+    "crates/codegen/wth-pager-bin",
     "crates/codegen/xai-grok-pager-minimal",
     "crates/codegen/xai-grok-pager-pty-harness",
     "crates/codegen/xai-grok-pager-render",
@@ -73,9 +73,9 @@ members = [
     "crates/common/xai-grok-compaction",
     "crates/common/xai-interjection-core",
     "crates/common/xai-test-utils",
-    "crates/common/xai-tool-protocol",
-    "crates/common/xai-tool-runtime",
-    "crates/common/xai-tool-types",
+    "crates/common/wth-tool-protocol",
+    "crates/common/wth-tool-runtime",
+    "crates/common/wth-tool-types",
     "crates/common/xai-tracing",
     "prod/mc/cli-chat-proxy-types",
     "third_party/dagre_rust",
@@ -85,8 +85,12 @@ members = [
 ]
 
 [workspace.package]
+version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
+description = "Wide Thought Host — an optimized coding agent harness with multi-backend LLM support, enhanced TUI, and deep extensibility."
+repository = "https://github.com/thedavidweng/wth"
+readme = "README.md"
 
 [workspace.dependencies]
 agent-client-protocol = { version = "0.10.4", features = ["unstable"] }
@@ -276,11 +280,11 @@ xai-circuit-breaker = { path = "crates/common/xai-circuit-breaker" }
 xai-computer-hub-core = { path = "crates/common/xai-computer-hub-core" }
 xai-computer-hub-sdk = { path = "crates/common/xai-computer-hub-sdk" }
 xai-gix-status = { path = "crates/codegen/xai-gix-status" }
-xai-grok-agent = { path = "crates/codegen/xai-grok-agent" }
+xai-grok-agent = { path = "crates/codegen/wth-agent" }
 xai-grok-announcements = { path = "crates/codegen/xai-grok-announcements" }
 xai-grok-auth = { path = "crates/codegen/xai-grok-auth" }
-xai-grok-config = { path = "crates/codegen/xai-grok-config" }
-xai-grok-config-types = { path = "crates/codegen/xai-grok-config-types" }
+xai-grok-config = { path = "crates/codegen/wth-config" }
+xai-grok-config-types = { path = "crates/codegen/wth-config-types" }
 xai-grok-env = { path = "crates/codegen/xai-grok-env" }
 xai-grok-http = { path = "crates/codegen/xai-grok-http" }
 xai-grok-markdown = { path = "crates/codegen/xai-grok-markdown" }
@@ -288,7 +292,7 @@ xai-grok-markdown-core = { path = "crates/codegen/xai-grok-markdown-core" }
 xai-grok-mcp = { path = "crates/codegen/xai-grok-mcp" }
 xai-grok-memory = { path = "crates/codegen/xai-grok-memory" }
 xai-grok-mermaid = { path = "crates/codegen/xai-grok-mermaid" }
-xai-grok-models = { path = "crates/codegen/xai-grok-models" }
+xai-grok-models = { path = "crates/codegen/wth-models" }
 xai-grok-sampler = { path = "crates/codegen/xai-grok-sampler" }
 xai-grok-secrets = { path = "crates/codegen/xai-grok-secrets" }
 xai-grok-shared = { path = "crates/codegen/xai-grok-shared" }
@@ -313,9 +317,9 @@ xai-sqlite-journal = { path = "crates/codegen/xai-sqlite-journal" }
 xai-system-power = { path = "crates/codegen/xai-system-power" }
 xai-test-utils = { path = "crates/common/xai-test-utils" }
 xai-token-estimation = { path = "crates/codegen/xai-token-estimation" }
-xai-tool-protocol = { path = "crates/common/xai-tool-protocol" }
-xai-tool-runtime = { path = "crates/common/xai-tool-runtime" }
-xai-tool-types = { path = "crates/common/xai-tool-types" }
+xai-tool-protocol = { path = "crates/common/wth-tool-protocol" }
+xai-tool-runtime = { path = "crates/common/wth-tool-runtime" }
+xai-tool-types = { path = "crates/common/wth-tool-types" }
 xai-tracing = { path = "crates/common/xai-tracing" }
 xai-tty-utils = { path = "crates/codegen/xai-tty-utils" }
 zbus = { version = "5" }

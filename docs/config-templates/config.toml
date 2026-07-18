@@ -1,0 +1,60 @@
+# Wide Thought Host (WTH) — default configuration template
+# Place at: ~/.wth/config.toml  (or $WTH_HOME/config.toml)
+# Migration: ~/.grok/config.toml is read as fallback if ~/.wth doesn't exist.
+
+# ── LLM Backends ──────────────────────────────────────────────
+# WTH supports multiple backends simultaneously. The first configured
+# backend is the default; use --backend to override at runtime.
+
+[backends.openai]
+# Any OpenAI-compatible API (OpenAI, Grok, DeepSeek, Ollama, vLLM, etc.)
+api_base = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+default_model = "gpt-4.1"
+# Optional: override the chat endpoint path
+# chat_path = "/chat/completions"
+
+[backends.anthropic]
+api_key_env = "ANTHROPIC_API_KEY"
+default_model = "claude-sonnet-4-20250514"
+# Optional: custom base URL for proxies
+# api_base = "https://api.anthropic.com"
+
+# Example: local Ollama
+# [backends.ollama]
+# api_base = "http://localhost:11434/v1"
+# default_model = "llama4"
+
+# ── Agent Configuration ────────────────────────────────────────
+
+[agent]
+# Maximum tokens to keep in context window (model-dependent)
+max_context_tokens = 128000
+# Enable prompt prefix caching (reduces token usage for repeated system prompts)
+cache_prompts = true
+# Enable sub-agent delegation for complex tasks
+subagent_delegation = true
+# Auto-compact conversation when token usage exceeds this fraction of max
+compaction_threshold = 0.85
+
+# ── UI / TUI ──────────────────────────────────────────────────
+
+[ui]
+theme = "dark"              # dark | light | solarized | custom
+default_panels = ["chat", "diff"]
+
+# ── Tools ─────────────────────────────────────────────────────
+
+[tools]
+# Shell execution timeout in seconds
+shell_timeout = 120
+# Max output bytes from shell commands before truncation
+shell_max_output = 65536
+# Enable MCP server auto-start
+mcp_auto_start = true
+
+# ── Features ───────────────────────────────────────────────────
+
+[features]
+telemetry = false
+auto_update = false

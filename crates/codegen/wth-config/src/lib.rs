@@ -1,12 +1,12 @@
-//! Config file loading for Grok.
+//! Config file loading for Wide Thought Host (WTH).
 //!
 //! Merge order (lowest → highest priority):
-//! 1. `/etc/grok/managed_config.toml`
-//! 2. `$GROK_HOME/managed_config.toml`
-//! 3. `$GROK_HOME/config.toml`
-//! 4. `$GROK_HOME/requirements.toml` (cloud cache; Ed25519-signed at rest once a
+//! 1. `/etc/wth/managed_config.toml`
+//! 2. `$WTH_HOME/managed_config.toml`
+//! 3. `$WTH_HOME/config.toml`
+//! 4. `$WTH_HOME/requirements.toml` (cloud cache; Ed25519-signed at rest once a
 //!    key is embedded — see [`signed_policy`] — below the OS-protected layers)
-//! 5. `/etc/grok/requirements.toml`
+//! 5. `/etc/wth/requirements.toml`
 //! 6. macOS MDM managed preferences (`ai.x.grok`, admin-forced) — macOS only
 //!
 //! Each layer applies its own [`[[version_overrides]]`](version_overrides)
@@ -46,9 +46,20 @@ pub use managed_cache::{
 };
 pub use paths::{
     claude_managed_settings_path, claude_managed_settings_probe_path, decode_cwd_from_dirname,
-    default_grok_home, encode_cwd_dirname, ensure_sessions_cwd_dir, grok_application, grok_home,
-    sessions_cwd_dir, system_config_dir, user_grok_home,
+    default_wth_home, encode_cwd_dirname, ensure_sessions_cwd_dir, wth_application, wth_home,
+    sessions_cwd_dir, system_config_dir, user_wth_home,
 };
+
+// Backward-compatibility aliases for Grok/Gork Build migration.
+// New code should use the wth_* variants directly.
+#[deprecated(note = "use `default_wth_home` instead")]
+pub use paths::default_wth_home as default_grok_home;
+#[deprecated(note = "use `wth_home` instead")]
+pub use paths::wth_home as grok_home;
+#[deprecated(note = "use `user_wth_home` instead")]
+pub use paths::user_wth_home as user_grok_home;
+#[deprecated(note = "use `wth_application` instead")]
+pub use paths::wth_application as grok_application;
 pub use validation::{
     RequirementsError, RequirementsLayer, RequirementsSource, fail_closed_flag_from_str,
     load_merged_requirements, requirements_layers, validate_requirements,

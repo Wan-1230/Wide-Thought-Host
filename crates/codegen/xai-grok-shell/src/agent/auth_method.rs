@@ -20,6 +20,9 @@ pub(crate) fn new_shared_auth_method_id(initial: Option<acp::AuthMethodId>) -> S
     ))
 }
 
+/// WTH (Wide Thought Host) API key env var — checked first for the WTH brand.
+pub const WTH_API_KEY_ENV_VAR: &str = "WTH_API_KEY";
+
 /// Env var that, when set, advertises `xai.api_key` as a viable auth method.
 ///
 /// Kept as a constant so test code and the production check stay in sync.
@@ -31,13 +34,15 @@ pub const LEGACY_XAI_API_KEY_ENV_VAR: &str = "GROK_CODE_XAI_API_KEY";
 
 /// Read the API key from the environment.
 ///
-/// Checks `XAI_API_KEY` first, then falls back to the legacy
-/// `GROK_CODE_XAI_API_KEY` for backward compatibility.
+/// Checks `WTH_API_KEY` first, then `XAI_API_KEY`, then falls back to the
+/// legacy `GROK_CODE_XAI_API_KEY` for backward compatibility.
 pub fn read_xai_api_key_env() -> Result<String, std::env::VarError> {
-    std::env::var(XAI_API_KEY_ENV_VAR).or_else(|_| std::env::var(LEGACY_XAI_API_KEY_ENV_VAR))
+    std::env::var(WTH_API_KEY_ENV_VAR)
+        .or_else(|_| std::env::var(XAI_API_KEY_ENV_VAR))
+        .or_else(|_| std::env::var(LEGACY_XAI_API_KEY_ENV_VAR))
 }
 
-/// Returns `true` if either `XAI_API_KEY` or `GROK_CODE_XAI_API_KEY` is set.
+/// Returns `true` if any API key env var is set.
 pub fn has_xai_api_key_env() -> bool {
     read_xai_api_key_env().is_ok()
 }

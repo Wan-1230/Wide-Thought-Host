@@ -1,18 +1,18 @@
 [package]
-name = "xai-grok-pager-bin"
-version = "0.1.220-alpha.4"
+name = "wth-pager-bin"
+version = "0.1.0"
 edition.workspace = true
 license = "Apache-2.0"
-authors = ["Gork Build contributors"]
-default-run = "gork"
+authors = ["Wide Thought Host contributors"]
+default-run = "wth"
 
-# Composition-root binary for the Gork Build TUI (privacy fork of Grok Build).
-# Primary artifact: `gork`. Alias `xai-grok-pager` kept for path/compat.
-# This package links the pager library and optional `xai-grok-pager-minimal`
+# Composition-root binary for the Wide Thought Host TUI.
+# Primary artifact: `wth`. Alias `xai-grok-pager` kept for path/compat.
+# This package links the pager library and optional `wth-pager-minimal`
 # render mode (minimal depends on pager, so pager cannot depend back — cargo
 # cycle). The binary installs the minimal-mode IoC hooks at startup.
 [[bin]]
-name = "gork"
+name = "wth"
 path = "src/main.rs"
 
 [[bin]]
@@ -21,7 +21,7 @@ path = "src/main.rs"
 
 [dependencies]
 # The pager library (all application logic + the public API main.rs drives).
-xai-grok-pager = { path = "../xai-grok-pager" }
+xai-grok-pager = { path = "../wth-pager" }
 # Optional scrollback-native render mode, wired in via the fn-pointer seam.
 xai-grok-pager-minimal = { path = "../xai-grok-pager-minimal" }
 

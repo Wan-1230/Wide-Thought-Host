@@ -541,7 +541,8 @@ impl Default for EndpointsConfig {
     fn default() -> Self {
         Self {
             cli_chat_proxy_base_url: std::env::var("GROK_CLI_CHAT_PROXY_BASE_URL").ok(),
-            xai_api_base_url: std::env::var("GROK_XAI_API_BASE_URL")
+            xai_api_base_url: std::env::var("WTH_API_BASE_URL")
+                .or_else(|_| std::env::var("GROK_XAI_API_BASE_URL"))
                 .unwrap_or_else(|_| XAI_API_BASE_URL_DEFAULT.to_owned()),
             alpha_test_key: None,
             models_base_url: env_string("GROK_MODELS_BASE_URL"),

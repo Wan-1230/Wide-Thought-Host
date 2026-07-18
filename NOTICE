@@ -1,8 +1,10 @@
-Gork Build
-Copyright 2026 The Gork Build contributors
+Wide Thought Host (WTH)
+Copyright 2026 The Wide Thought Host contributors
 
-This product is an independent, community-maintained distribution of
-Grok Build, with vendor telemetry and branding removed.
+This product is an independent, community-maintained distribution derived from
+Gork Build (https://github.com/thedavidweng/gork-build), with vendor telemetry
+and branding removed. WTH extends the foundation with multi-backend LLM support,
+enhanced agent reasoning, and improved TUI.
 
 ================================================================================
 Apache License 2.0 attribution
@@ -14,12 +16,17 @@ This distribution includes software originally published by SpaceXAI as
   Repository: https://github.com/xai-org/grok-build
   Copyright 2023-2026 SpaceXAI
 
+It also includes modifications from Gork Build:
+
+  Repository: https://github.com/thedavidweng/gork-build
+  Copyright 2026 The Gork Build contributors
+
 See the accompanying LICENSE file for the full text of the Apache License,
 Version 2.0.
 
-Grok, Grok Build, xAI, and SpaceXAI are trademarks of their respective
-owners. This project is not affiliated with, endorsed by, or sponsored by
-SpaceXAI or xAI.
+Grok, Grok Build, Gork Build, xAI, and SpaceXAI are trademarks of their
+respective owners. This project is not affiliated with, endorsed by, or
+sponsored by SpaceXAI, xAI, or the Gork Build contributors.
 
 ================================================================================
 Third-party software
