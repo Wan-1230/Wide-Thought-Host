@@ -1714,7 +1714,7 @@ mod tests {
         );
         assert_eq!(
             first_5,
-            vec!["Gork Build TUI", "", usage.as_str(), "", "Arguments:",]
+            vec!["Wide Thought Host TUI", "", usage.as_str(), "", "Arguments:",]
         );
         assert!(help.find("Arguments:\n").unwrap() < help.find("Options:\n").unwrap());
         assert!(help.find("Options:\n").unwrap() < help.find("Commands:\n").unwrap());

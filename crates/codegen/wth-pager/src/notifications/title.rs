@@ -325,7 +325,7 @@ mod tests {
             ..idle_state()
         };
         mgr.update(&state);
-        assert_eq!(mgr.last_title, "my project - gork");
+        assert_eq!(mgr.last_title, "my project - wth");
     }
 
     #[test]
@@ -365,7 +365,7 @@ mod tests {
             ..idle_state()
         };
         mgr.update(&state);
-        assert!(mgr.last_title.contains(" - gork"));
+        assert!(mgr.last_title.contains(" - wth"));
         let spinner_part: String = mgr.last_title.chars().take(1).collect();
         assert!(
             TITLE_SPINNER.contains(&spinner_part.chars().next().unwrap()),
@@ -538,7 +538,7 @@ mod tests {
             ..idle_state()
         };
         mgr.update(&state);
-        assert!(mgr.last_title.contains(" - gork"));
+        assert!(mgr.last_title.contains(" - wth"));
         let spinner_part: String = mgr.last_title.chars().take(1).collect();
         assert!(
             TITLE_SPINNER.contains(&spinner_part.chars().next().unwrap()),
@@ -556,7 +556,7 @@ mod tests {
             ..idle_state()
         };
         mgr.update(&state);
-        assert_eq!(mgr.last_title, "Waiting - gork");
+        assert_eq!(mgr.last_title, "Waiting - wth");
     }
 
     #[test]
@@ -570,7 +570,7 @@ mod tests {
             ..idle_state()
         };
         mgr.update(&state);
-        assert_eq!(mgr.last_title, "Thinking - gork");
+        assert_eq!(mgr.last_title, "Thinking - wth");
     }
 
     // --- Action Required blinking ---
@@ -677,7 +677,7 @@ mod tests {
             ..idle_state()
         };
         mgr.update(&state);
-        assert_eq!(mgr.last_title, "grok-3 - gork");
+        assert_eq!(mgr.last_title, "grok-3 - wth");
     }
 
     #[test]
@@ -699,7 +699,7 @@ mod tests {
             ..idle_state()
         };
         mgr.update(&state);
-        assert_eq!(mgr.last_title, "my-project - gork");
+        assert_eq!(mgr.last_title, "my-project - wth");
     }
 
     // --- TurnTimer item ---
@@ -713,7 +713,7 @@ mod tests {
             ..idle_state()
         };
         mgr.update(&state);
-        assert_eq!(mgr.last_title, "42s - gork");
+        assert_eq!(mgr.last_title, "42s - wth");
     }
 
     #[test]
@@ -850,7 +850,7 @@ mod tests {
         mgr.update(&state);
         assert_eq!(
             mgr.last_title,
-            "Thinking - proj - grok-3 - workspace - gork"
+            "Thinking - proj - grok-3 - workspace - wth"
         );
     }
 

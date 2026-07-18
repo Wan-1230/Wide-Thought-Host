@@ -67,7 +67,7 @@ fn show_privacy_info_zdr() {
     let effects = dispatch(Action::ShowPrivacyInfo, &mut app);
     assert!(effects.is_empty());
     let text = last_system_text(&app, AgentId(0));
-    assert!(text.contains("Gork Build"));
+    assert!(text.contains("Wide Thought Host (WTH)"));
     assert!(
         text.contains("Zero Data Retention") || text.contains("Enterprise Zero Data Retention")
     );
@@ -76,7 +76,7 @@ fn show_privacy_info_zdr() {
     );
 }
 
-/// Gork Build `/privacy` always advertises the hard client privacy posture.
+/// WTH `/privacy` always advertises the hard client privacy posture.
 #[test]
 fn show_privacy_info_opted_out() {
     let mut app = test_app_with_agent();
@@ -85,8 +85,8 @@ fn show_privacy_info_opted_out() {
     assert!(effects.is_empty());
     let text = last_system_text(&app, AgentId(0));
     assert!(
-        text.contains("Gork Build") && text.contains("privacy mode"),
-        "info-print must mention Gork Build privacy mode: {text}",
+        text.contains("Wide Thought Host (WTH)") && text.contains("privacy mode"),
+        "info-print must mention WTH privacy mode: {text}",
     );
 }
 
@@ -99,7 +99,7 @@ fn show_privacy_info_always_locked_opt_out_copy() {
     assert!(effects.is_empty());
     let text = last_system_text(&app, AgentId(0));
     assert!(
-        text.contains("Gork Build") && text.contains("opt-out"),
+        text.contains("Wide Thought Host (WTH)") && text.contains("opt-out"),
         "info-print must describe locked opt-out: {text}",
     );
 }
@@ -531,7 +531,7 @@ fn set_coding_data_sharing_opt_in_rejected_when_locked() {
     let effects = dispatch(Action::SetCodingDataSharing { opted_in: true }, &mut app);
     assert!(
         effects.is_empty(),
-        "Gork Build must not emit ACP effect for opt-in"
+        "WTH must not emit ACP effect for opt-in"
     );
     assert!(
         app.coding_data_retention_opt_out,
