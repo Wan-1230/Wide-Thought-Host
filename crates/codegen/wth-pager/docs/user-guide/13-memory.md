@@ -28,7 +28,7 @@ grok --experimental-memory
 ### Environment Variable
 
 ```bash
-export GROK_MEMORY=1
+export WTH_MEMORY=1
 grok
 ```
 
@@ -51,7 +51,7 @@ grok --no-memory
 Or:
 
 ```bash
-export GROK_MEMORY=0
+export WTH_MEMORY=0
 ```
 
 The `--no-memory` flag has absolute highest priority and always disables memory.
@@ -73,7 +73,7 @@ You can also toggle from inside the `/memory` modal by pressing `t`.
 
 1. `--no-memory` CLI flag (always disables)
 2. `--experimental-memory` CLI flag (enables)
-3. `GROK_MEMORY` env var: `1`/`true` enables, `0`/`false` disables
+3. `WTH_MEMORY` env var: `1`/`true` enables, `0`/`false` disables
 4. `[memory]` section in config.toml
 5. Default: disabled
 
@@ -451,8 +451,8 @@ enabled = true    # default
 ### Memory Not Working
 
 1. Verify memory is enabled: check `wth inspect` output.
-2. Check the flag: `wth --experimental-memory` or `GROK_MEMORY=1`.
-3. Check for `--no-memory` or `GROK_MEMORY=0` overriding your config.
+2. Check the flag: `wth --experimental-memory` or `WTH_MEMORY=1`.
+3. Check for `--no-memory` or `WTH_MEMORY=0` overriding your config.
 
 ### Memory Not Appearing in Sessions
 
@@ -471,6 +471,6 @@ $EDITOR ~/.wth/memory/MEMORY.md
 ### Debug Logging
 
 ```bash
-RUST_LOG=debug GROK_LOG_FILE=/tmp/grok.log grok
+RUST_LOG=debug WTH_LOG_FILE=/tmp/grok.log grok
 grep "memory" /tmp/grok.log
 ```

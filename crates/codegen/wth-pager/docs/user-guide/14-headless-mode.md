@@ -21,7 +21,7 @@ Grok processes the prompt, runs any necessary tools, and prints the result to st
 | Flag                    | Description                                           |
 | ----------------------- | ----------------------------------------------------- |
 | `-p, --single <PROMPT>` | The prompt to send (or use `--prompt-json` / `--prompt-file`) |
-| `-m, --model <MODEL>`   | Model to use (e.g., `grok-build`)              |
+| `-m, --model <MODEL>`   | Model to use (e.g., `wth-build`)              |
 | `-s, --session-id <ID>` | Create a **new** session with this **UUID** (errors if invalid UUID or already in use under the target session directory; does not resume — use `-r`/`-c`) |
 | `--fork-session`        | With `-r`/`-c`, fork into a new session ID instead of appending to the original |
 | `-r, --resume <ID>`     | Resume an existing session (errors if not found)      |
@@ -147,7 +147,7 @@ When the prompt reached the model, the same object also carries spend fields
     "total_tokens": 50103
   },
   "modelUsage": {
-    "grok-build": {
+    "wth-build": {
       "inputTokens": 7210,
       "outputTokens": 1893,
       "cacheReadInputTokens": 41000,
@@ -360,11 +360,11 @@ class GrokChat:
         self.env = {**os.environ}
 
     def _build_cmd(self, prompt, model, stream):
-        return ["grok", "-p", prompt, "-m", model, "--cwd", self.cwd,
+        return ["wth", "-p", prompt, "-m", model, "--cwd", self.cwd,
                 "--output-format", "streaming-json" if stream else "json",
                 "--yolo"]
 
-    async def create(self, messages, model="grok-build", stream=False):
+    async def create(self, messages, model="wth-build", stream=False):
         prompt = messages[-1]["content"] if len(messages) == 1 else "\n".join(
             f"{m['role']}: {m['content']}" for m in messages
         )
@@ -454,8 +454,8 @@ Key environment variables that affect headless mode:
 | Variable                        | Description                                                   |
 | ------------------------------- | ------------------------------------------------------------- |
 | `XAI_API_KEY`        | API key for authentication (required when no browser login)   |
-| `GROK_HOME`                    | Override config directory (default: `~/.wth`)                |
-| `GROK_LOG_FILE`                | Path to a log file (used verbatim as the path; works in headless and TUI, honors `RUST_LOG`) |
+| `WTH_HOME`                    | Override config directory (default: `~/.wth`)                |
+| `WTH_LOG_FILE`                | Path to a log file (used verbatim as the path; works in headless and TUI, honors `RUST_LOG`) |
 | `RUST_LOG`                     | Log level filter (e.g. `debug`). Headless logs to stderr.     |
 
 For CI environments without browser access, set `XAI_API_KEY` with an API key from [console.x.ai](https://console.x.ai):
@@ -514,7 +514,7 @@ the scope small.
 
 ## File Locations
 
-Grok stores data in `~/.wth` (override with `GROK_HOME`; see [Environment Variables for Headless](#environment-variables-for-headless)):
+Grok stores data in `~/.wth` (override with `WTH_HOME`; see [Environment Variables for Headless](#environment-variables-for-headless)):
 
 | Path                     | Contents                              |
 | ------------------------ | ------------------------------------- |
@@ -541,7 +541,7 @@ For containers or CI, mount `~/.wth` read-only:
 
 ```bash
 export XAI_API_KEY="xai-..."
-export GROK_DISABLE_AUTOUPDATER=1
+export WTH_DISABLE_AUTOUPDATER=1
 grok -p "..." --no-auto-update
 ```
 
@@ -552,7 +552,7 @@ grok -p "..." --no-auto-update
 | Method                          | Scope     |
 | ------------------------------- | --------- |
 | `--no-auto-update`              | Session   |
-| `GROK_DISABLE_AUTOUPDATER=1`    | Process   |
+| `WTH_DISABLE_AUTOUPDATER=1`    | Process   |
 | Non-TTY stderr (auto-detected)  | Automatic |
 | `[cli] auto_update = false`     | Persistent|
 

@@ -70,14 +70,14 @@ client_id = "0oa1b2c3d4e5f6g7h8i9"
 Or via environment variables:
 
 ```bash
-export GROK_OIDC_ISSUER="https://acme.okta.com"
-export GROK_OIDC_CLIENT_ID="0oa1b2c3d4e5f6g7h8i9"
+export WTH_OIDC_ISSUER="https://acme.okta.com"
+export WTH_OIDC_CLIENT_ID="0oa1b2c3d4e5f6g7h8i9"
 ```
 
 You can also override the API endpoint to point at your own proxy:
 
 ```bash
-export GROK_CLI_CHAT_PROXY_BASE_URL="https://grok-proxy.acme.com/v1"
+export WTH_CLI_CHAT_PROXY_BASE_URL="https://wth-proxy.acme.com/v1"
 ```
 
 ### 3. Run `wth`
@@ -155,18 +155,18 @@ auth_token_ttl = 3600               # optional -- token lifetime in seconds
 Or via environment variables:
 
 ```bash
-export GROK_AUTH_PROVIDER_COMMAND="/usr/local/bin/my-auth-provider"
-export GROK_AUTH_PROVIDER_LABEL="Acme Corp"
-export GROK_AUTH_TOKEN_TTL=3600
+export WTH_AUTH_PROVIDER_COMMAND="/usr/local/bin/my-auth-provider"
+export WTH_AUTH_PROVIDER_LABEL="Acme Corp"
+export WTH_AUTH_TOKEN_TTL=3600
 ```
 
 ### Token Refresh
 
-When Grok needs to refresh an expired token, it re-runs your binary with `GROK_AUTH_EXPIRED=1` set in the environment. Your binary can use this to take a faster silent-refresh path:
+When Grok needs to refresh an expired token, it re-runs your binary with `WTH_AUTH_EXPIRED=1` set in the environment. Your binary can use this to take a faster silent-refresh path:
 
 ```bash
 #!/bin/sh
-if [ "$GROK_AUTH_EXPIRED" = "1" ]; then
+if [ "$WTH_AUTH_EXPIRED" = "1" ]; then
     echo "Refreshing token..." >&2
     TOKEN=$(my-company-auth --refresh --silent)
 else
@@ -186,11 +186,11 @@ echo "{\"access_token\": \"$TOKEN\", \"expires_in\": 3600}"
 
 | Variable | Description |
 |----------|-------------|
-| `GROK_AUTH_PROVIDER_COMMAND` | Path to your auth binary |
-| `GROK_AUTH_PROVIDER_LABEL` | Display name on the TUI login screen (e.g., "Acme Corp") |
-| `GROK_AUTH_TOKEN_TTL` | Token lifetime in seconds (for bare-string tokens without `expires_in`) |
-| `GROK_AUTH_EXPIRED` | Set to `1` by Grok when re-running the binary for token refresh |
-| `GROK_AUTH_EARLY_INVALIDATION_SECS` | Seconds before expiry to proactively refresh (default: 300) |
+| `WTH_AUTH_PROVIDER_COMMAND` | Path to your auth binary |
+| `WTH_AUTH_PROVIDER_LABEL` | Display name on the TUI login screen (e.g., "Acme Corp") |
+| `WTH_AUTH_TOKEN_TTL` | Token lifetime in seconds (for bare-string tokens without `expires_in`) |
+| `WTH_AUTH_EXPIRED` | Set to `1` by Grok when re-running the binary for token refresh |
+| `WTH_AUTH_EARLY_INVALIDATION_SECS` | Seconds before expiry to proactively refresh (default: 300) |
 
 ---
 
@@ -220,10 +220,10 @@ Tune the refresh buffer:
 
 ```bash
 # Refresh 5 minutes before expiry (default)
-export GROK_AUTH_EARLY_INVALIDATION_SECS=300
+export WTH_AUTH_EARLY_INVALIDATION_SECS=300
 
 # Disable the proactive buffer: refresh at expiry or on a 401 (set to 0)
-export GROK_AUTH_EARLY_INVALIDATION_SECS=0
+export WTH_AUTH_EARLY_INVALIDATION_SECS=0
 ```
 
 ---
@@ -245,7 +245,7 @@ Grok resolves credentials for each request in this order, highest to lowest:
 When more than one login flow is configured, Grok populates the session token from the first available source, highest to lowest:
 
 1. **External auth provider** (`auth_provider_command`)
-2. **Enterprise OIDC** -- when OIDC is configured, through `[grok_com_config.oidc]` in `config.toml` or the `GROK_OIDC_ISSUER` and `GROK_OIDC_CLIENT_ID` environment variables
+2. **Enterprise OIDC** -- when OIDC is configured, through `[grok_com_config.oidc]` in `config.toml` or the `WTH_OIDC_ISSUER` and `WTH_OIDC_CLIENT_ID` environment variables
 3. **Grok (xAI) OAuth2 browser login** -- the default
 
 During a session, the active method handles all mid-session refreshes.
@@ -258,14 +258,14 @@ During a session, the active method handles all mid-session refreshes.
 
 Set `RUST_LOG` to control the verbosity of the file log and headless stderr output. (The TUI's on-screen tracing pane uses a fixed filter and ignores `RUST_LOG`.) In the TUI, file logging defaults to `DEBUG`; in headless mode (`-p`), `RUST_LOG` defaults to `off` so only the answer is printed — set `RUST_LOG=error` (or broader) to see logs on stderr.
 
-In the TUI, set `GROK_LOG_FILE` to an absolute path to write logs to that file:
+In the TUI, set `WTH_LOG_FILE` to an absolute path to write logs to that file:
 
 ```bash
-GROK_LOG_FILE=/tmp/grok.log RUST_LOG=debug grok
+WTH_LOG_FILE=/tmp/grok.log RUST_LOG=debug grok
 tail -f /tmp/grok.log
 ```
 
-`GROK_LOG_FILE` is treated as a literal file path. A relative value such as `1` writes a file named `1` in the current directory.
+`WTH_LOG_FILE` is treated as a literal file path. A relative value such as `1` writes a file named `1` in the current directory.
 
 In headless mode, logs go to stderr. Redirect them to a file:
 

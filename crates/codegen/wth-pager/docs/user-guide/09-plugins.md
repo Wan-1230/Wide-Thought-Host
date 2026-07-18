@@ -11,7 +11,7 @@ A plugin is a directory that holds any combination of these components:
 - **Skills** -- a `skills/` directory of SKILL.md files
 - **Slash commands** -- a `commands/` directory of command files
 - **Agents** -- an `agents/` directory of agent definitions
-- **Hooks** -- a `hooks/hooks.json` file of lifecycle hooks. Plugin hooks also receive `GROK_PLUGIN_ROOT` and `GROK_PLUGIN_DATA` (see the [Hooks guide](10-hooks.md) for every environment variable passed to hooks).
+- **Hooks** -- a `hooks/hooks.json` file of lifecycle hooks. Plugin hooks also receive `WTH_PLUGIN_ROOT` and `WTH_PLUGIN_DATA` (see the [Hooks guide](10-hooks.md) for every environment variable passed to hooks).
 - **MCP servers** -- a `.mcp.json` file of server configurations
 - **LSP servers** -- a `.lsp.json` file of language server configurations
 
@@ -25,8 +25,8 @@ Plugin hooks receive two environment variables beyond the standard ones set for 
 
 | Variable             | Description |
 |----------------------|-------------|
-| `GROK_PLUGIN_ROOT`   | Absolute path to the plugin's installed directory. |
-| `GROK_PLUGIN_DATA`   | Absolute path to the plugin's writable data directory, for plugin state, caches, and logs. |
+| `WTH_PLUGIN_ROOT`   | Absolute path to the plugin's installed directory. |
+| `WTH_PLUGIN_DATA`   | Absolute path to the plugin's writable data directory, for plugin state, caches, and logs. |
 
 Grok sets these values and overrides any value you declare for the same key in the hook JSON's `env` map. (Grok also sets the `CLAUDE_PLUGIN_ROOT` and `CLAUDE_PLUGIN_DATA` aliases for compatibility.) See the [Hooks guide](10-hooks.md) for every environment variable passed to hooks.
 
@@ -40,7 +40,7 @@ Grok discovers plugins from these locations, in priority order:
 |----------|-------|-------|
 | `_meta.pluginDirs` (`session/new` / `session/load`) | Session -- loaded for that session only | Trusted automatically |
 | `--plugin-dir` (CLI flag, `wth agent`) | Process -- loaded for that agent process only | Trusted automatically |
-| `.grok/plugins/` | Project -- shared with the team through version control | Requires trust |
+| `.wth/plugins/` | Project -- shared with the team through version control | Requires trust |
 | `~/.wth/plugins/` | User -- personal plugins for every project | Trusted automatically |
 | `[plugins].paths` (config) | Custom directories you add in `config.toml` | Depends on location |
 
@@ -235,7 +235,7 @@ Place this file at `~/.wth/settings.json` or `~/.claude/settings.json`.
 
 Enabling a plugin loads its skills, slash commands, and agents. Trust is separate and controls whether a plugin's code runs: even for an enabled plugin, its hooks, MCP servers, and LSP servers stay inactive until you trust it. This prevents an untrusted repository from running code on your machine.
 
-Grok trusts plugins from `~/.wth/plugins/` automatically. Project plugins in `.grok/plugins/` require explicit trust. To trust a plugin, install it with `--trust`:
+Grok trusts plugins from `~/.wth/plugins/` automatically. Project plugins in `.wth/plugins/` require explicit trust. To trust a plugin, install it with `--trust`:
 
 ```bash
 grok plugin install <source> --trust

@@ -337,7 +337,7 @@ Pinned/reorder entries are keyed by **session id**, not by the
 per-process `AgentId(usize)`, so they survive restarts and don't
 attach to whatever agent happens to share the old slot number.
 
-Set `GROK_AGENT_DASHBOARD=0` to force-disable the feature for a single
+Set `WTH_AGENT_DASHBOARD=0` to force-disable the feature for a single
 pager invocation; the slash command and CLI subcommand will print a
 friendly toast.
 

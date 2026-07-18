@@ -6,7 +6,7 @@ Grok connects to custom model endpoints for alternative providers, self-hosted m
 
 ## Default Models
 
-By default, Grok uses models hosted by xAI (Grok API), and new sessions start with `grok-build`. Default models require no configuration. Authenticate with `wth login` or an API key, then start a session.
+By default, Grok uses models hosted by xAI (Grok API), and new sessions start with `wth-build`. Default models require no configuration. Authenticate with `wth login` or an API key, then start a session.
 
 List all available models:
 
@@ -21,7 +21,7 @@ grok models
 ### CLI Flag
 
 ```bash
-grok -p "Hello" -m grok-build
+grok -p "Hello" -m wth-build
 ```
 
 ### Slash Command
@@ -29,13 +29,13 @@ grok -p "Hello" -m grok-build
 In the TUI, switch models during a session:
 
 ```
-/model grok-build
+/model wth-build
 ```
 
 Or use the alias:
 
 ```
-/m grok-build
+/m wth-build
 ```
 
 ### Model Picker (Ctrl+M)
@@ -48,7 +48,7 @@ Set a persistent default in `~/.wth/config.toml`:
 
 ```toml
 [models]
-default = "grok-build"
+default = "wth-build"
 ```
 
 ---
@@ -96,7 +96,7 @@ Grok resolves the API key in this order:
 1. The `api_key` field in the model config
 2. The environment variable(s) named by `env_key` — a single string or an array of names. The first set, non-empty value wins (for example `env_key = ["ANTHROPIC_AUTH_TOKEN", "LC_ANTHROPIC_AUTH_TOKEN"]` for SSH `LC_*` forwarding)
 3. Your signed-in session token (from `wth login`), for a model with no `api_key`/`env_key` of its own
-4. The `XAI_API_KEY` environment variable (global fallback; Grok also accepts `GROK_CODE_XAI_API_KEY` for backward compatibility)
+4. The `XAI_API_KEY` environment variable (global fallback; Grok also accepts `WTH_CODE_XAI_API_KEY` for backward compatibility)
 
 ### Context Window
 
@@ -139,11 +139,11 @@ You can override specific fields of built-in models without redefining everythin
 
 ```toml
 # Override only the API key for a default model
-[model.grok-build]
+[model.wth-build]
 api_key = "my-api-key"
 
 # Override temperature and add a custom API key
-[model.grok-build]
+[model.wth-build]
 temperature = 0.5
 api_key = "sk-custom"
 ```
@@ -246,14 +246,14 @@ Point Grok at a custom OpenAI-compatible `/v1/models` endpoint instead of the de
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `GROK_MODELS_BASE_URL` | Yes | Base URL for inference. Grok fetches the model list from `{base_url}/models`. |
-| `XAI_API_KEY` | Yes | API key sent as `Authorization: Bearer`. Grok also accepts `GROK_CODE_XAI_API_KEY`. |
-| `GROK_MODELS_LIST_URL` | No | Override the model-list URL when it differs from `{base_url}/models`. |
+| `WTH_MODELS_BASE_URL` | Yes | Base URL for inference. Grok fetches the model list from `{base_url}/models`. |
+| `XAI_API_KEY` | Yes | API key sent as `Authorization: Bearer`. Grok also accepts `WTH_CODE_XAI_API_KEY`. |
+| `WTH_MODELS_LIST_URL` | No | Override the model-list URL when it differs from `{base_url}/models`. |
 
 ### Setup
 
 ```bash
-export GROK_MODELS_BASE_URL="https://api.acme.com/v1"
+export WTH_MODELS_BASE_URL="https://api.acme.com/v1"
 export XAI_API_KEY="xai-..."
 grok
 ```
@@ -265,7 +265,7 @@ grok
 models_base_url = "https://api.acme.com/v1"
 
 # Override only the API key for a specific model
-[model.grok-build]
+[model.wth-build]
 api_key = "my-api-key"
 ```
 
@@ -283,13 +283,13 @@ The `web_search` tool uses a separate model. Configure it with:
 
 ```toml
 [models]
-web_search = "grok-4.20-multi-agent"
+web_search = "wth-4.20-multi-agent"
 ```
 
 Or via environment variable:
 
 ```bash
-export GROK_WEB_SEARCH_MODEL="grok-4.20-multi-agent"
+export WTH_WEB_SEARCH_MODEL="wth-4.20-multi-agent"
 ```
 
 If you point web search at a custom model, you also need a `[model.*]` entry so Grok can reach it. Server-side ("backend") web search runs only when the model sets `supports_backend_search = true` (and the build enables backend search); it does not depend on `api_backend`:
@@ -341,8 +341,8 @@ auth_token_ttl = 3600
 default = "company-grok"
 
 [model.company-grok]
-model = "grok-build"
-base_url = "https://grok-proxy.acme.com/"
+model = "wth-build"
+base_url = "https://wth-proxy.acme.com/"
 name = "Wide Thought Host (WTH) Latest (Proxy)"
 context_window = 128000
 
@@ -375,7 +375,7 @@ curl -s https://api.example.com/v1/models \
 ### Debug Logging
 
 ```bash
-RUST_LOG=debug GROK_LOG_FILE=/tmp/grok.log grok
+RUST_LOG=debug WTH_LOG_FILE=/tmp/grok.log grok
 tail -f /tmp/grok.log
 ```
 

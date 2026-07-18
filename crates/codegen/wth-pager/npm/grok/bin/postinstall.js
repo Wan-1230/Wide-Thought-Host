@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// Runs once after npm install/update. Reads the grok binary from the
-// matching per-platform optional dependency (@gork-build/gork-<platform>)
-// and installs it to ~/.grok/bin/ using versioned filenames:
+// Runs once after npm install/update. Reads the wth binary from the
+// matching per-platform optional dependency (@wth-build/gork-<platform>)
+// and installs it to ~/.wth/bin/ using versioned filenames:
 //
-//   Unix:    grok-<version>  +  grok  (symlink)
-//   Windows: grok-<version>.exe  +  grok.exe  (copy)
+//   Unix:    wth-<version>  +  grok  (symlink)
+//   Windows: wth-<version>.exe  +  wth.exe  (copy)
 //
 // Versioned files ensure running processes are never disrupted on macOS
 // (replacing a binary that a running process has mmap'd causes SIGKILL
@@ -16,7 +16,7 @@ const zlib = require('zlib');
 const { execSync } = require('child_process');
 const TOML = require('@iarna/toml');
 
-const CANONICAL_DIR = path.join(os.homedir(), '.grok', 'bin');
+const CANONICAL_DIR = path.join(os.homedir(), '.wth', 'bin');
 
 const key = `${process.platform}-${process.arch}`;
 const SUPPORTED = new Set([
@@ -28,7 +28,7 @@ const SUPPORTED = new Set([
     'win32-arm64',
 ]);
 if (!SUPPORTED.has(key)) {
-    console.error(`@gork-build/gork: unsupported platform ${key}`);
+    console.error(`@wth-build/gork: unsupported platform ${key}`);
     process.exit(0);
 }
 
@@ -37,7 +37,7 @@ if (!SUPPORTED.has(key)) {
 // other five are silently skipped. If the matching one is missing, npm was
 // likely invoked with --no-optional or the platform is unsupported.
 function resolvePlatformPackageDir() {
-    const platformPkg = `@gork-build/gork-${key}`;
+    const platformPkg = `@wth-build/gork-${key}`;
     try {
         return path.dirname(require.resolve(`${platformPkg}/package.json`));
     } catch {
@@ -48,7 +48,7 @@ function resolvePlatformPackageDir() {
 let version;
 try { version = require('../package.json').version; } catch {}
 if (!version) {
-    console.error('@gork-build/gork: unable to determine version');
+    console.error('@wth-build/gork: unable to determine version');
     process.exit(0);
 }
 
@@ -75,7 +75,7 @@ function installBinary(binName, sourceDir, vendorSubpath) {
     } else if (fs.existsSync(rawPath)) {
         vendoredBinPath = rawPath;
     } else {
-        console.error(`@gork-build/gork: missing binary at ${brPath}`);
+        console.error(`@wth-build/gork: missing binary at ${brPath}`);
         return false;
     }
 
@@ -115,7 +115,7 @@ function installBinary(binName, sourceDir, vendorSubpath) {
                     throw copyErr;
                 }
             } catch (e2) {
-                console.error(`@gork-build/gork: failed to update ${canonicalPath}: ${e2.message}`);
+                console.error(`@wth-build/gork: failed to update ${canonicalPath}: ${e2.message}`);
                 console.error('Close all running grok processes and try again.');
                 return false;
             }
@@ -135,7 +135,7 @@ function installBinary(binName, sourceDir, vendorSubpath) {
 // Best-effort cleanup of old versioned binaries for a given binary name.
 // Keeps the current version and the previous one (in case a process is still
 // running the old binary and hasn't fully loaded all pages yet).
-// Uses an exact prefix match + hyphen + digit to avoid grok-* matching grok-pager-*.
+// Uses an exact prefix match + hyphen + digit to avoid wth-* matching wth-pager-*.
 function cleanupOldVersions(binName) {
     try {
         const prefix = `${binName}-`;
@@ -165,18 +165,18 @@ function cleanupOldVersions(binName) {
 
 const platformDir = resolvePlatformPackageDir();
 if (!platformDir) {
-    console.error(`@gork-build/gork: platform package @gork-build/gork-${key} not installed.`);
+    console.error(`@wth-build/gork: platform package @wth-build/gork-${key} not installed.`);
     console.error('  This usually means npm was invoked with --no-optional, or the install failed.');
-    console.error('  Try: npm install -g @gork-build/gork');
+    console.error('  Try: npm install -g @wth-build/gork');
     process.exit(0);
 }
 
-installBinary('grok', platformDir, `grok${EXE}`);
-cleanupOldVersions('grok');
-cleanupOldVersions('grok-pager');
+installBinary('wth', platformDir, `grok${EXE}`);
+cleanupOldVersions('wth');
+cleanupOldVersions('wth-pager');
 
 // Write installer config
-const configDir = path.join(os.homedir(), '.grok');
+const configDir = path.join(os.homedir(), '.wth');
 const configPath = path.join(configDir, 'config.toml');
 let obj = {};
 try { obj = TOML.parse(fs.readFileSync(configPath, 'utf8')); } catch { }
@@ -184,11 +184,11 @@ obj.cli ??= {};
 obj.cli.installer = 'npm';
 
 // Persist the npm registry so `grok update` and the trampoline use the same one.
-const npmRegistry = process.env.GROK_NPM_REGISTRY
+const npmRegistry = process.env.WTH_NPM_REGISTRY
     || (() => {
         try {
             const resolved = execSync(
-                'npm config get @gork-build:registry',
+                'npm config get @wth-build:registry',
                 { encoding: 'utf8', timeout: 5000 }
             ).trim();
             if (resolved && resolved !== 'undefined') return resolved;
@@ -203,23 +203,23 @@ if (npmRegistry) {
 fs.writeFileSync(configPath, TOML.stringify(obj), 'utf8');
 
 // Shell completions: print setup hints (no silent shell config mutation).
-// Set GROK_INSTALL_COMPLETIONS=1 to auto-generate to ~/.grok/completions.
-const GROK_PATH = path.join(CANONICAL_DIR, `grok${EXE}`);
-if (process.env.GROK_INSTALL_COMPLETIONS === '1' && !IS_WINDOWS) {
+// Set WTH_INSTALL_COMPLETIONS=1 to auto-generate to ~/.wth/completions.
+const WTH_PATH = path.join(CANONICAL_DIR, `grok${EXE}`);
+if (process.env.WTH_INSTALL_COMPLETIONS === '1' && !IS_WINDOWS) {
     try {
         const { spawnSync } = require('child_process');
-        const completionsDir = path.join(os.homedir(), '.grok', 'completions');
-        const bashPath = path.join(completionsDir, 'bash', 'grok.bash');
-        const zshPath = path.join(completionsDir, 'zsh', '_grok');
+        const completionsDir = path.join(os.homedir(), '.wth', 'completions');
+        const bashPath = path.join(completionsDir, 'bash', 'wth.bash');
+        const zshPath = path.join(completionsDir, 'zsh', '_wth');
         fs.mkdirSync(path.dirname(bashPath), { recursive: true });
         fs.mkdirSync(path.dirname(zshPath), { recursive: true });
-        const bashRes = spawnSync(GROK_PATH, ['completions', 'bash'], { encoding: 'utf8' });
+        const bashRes = spawnSync(WTH_PATH, ['completions', 'bash'], { encoding: 'utf8' });
         if (bashRes.status === 0) fs.writeFileSync(bashPath, bashRes.stdout);
-        const zshRes = spawnSync(GROK_PATH, ['completions', 'zsh'], { encoding: 'utf8' });
+        const zshRes = spawnSync(WTH_PATH, ['completions', 'zsh'], { encoding: 'utf8' });
         if (zshRes.status === 0) fs.writeFileSync(zshPath, zshRes.stdout);
-        console.log('Completions generated to ~/.grok/completions (bash/zsh)');
+        console.log('Completions generated to ~/.wth/completions (bash/zsh)');
     } catch {}
 } else if (!IS_WINDOWS) {
     console.log('Tip: grok completions bash > ~/.local/share/bash-completion/completions/grok');
-    console.log('     grok completions zsh  > ~/.zsh/completions/_grok');
+    console.log('     grok completions zsh  > ~/.zsh/completions/_wth');
 }

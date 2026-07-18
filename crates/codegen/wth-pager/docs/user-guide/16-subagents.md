@@ -14,10 +14,10 @@ Agents and personas both customize behavior, but they operate at different level
 |---|---|---|
 | **What they configure** | The whole session: model, tools, prompt mode, system prompt | A behavioral overlay added to a subagent's prompt |
 | **Scope** | Primary session or subagent | Subagents only |
-| **How you set them** | At startup, or with agent definitions (`.md` files in `.grok/agents/` or `~/.wth/agents/`) | In `config.toml` (`[subagents.personas]`) or `.toml` files under `.grok/personas/`; applied during subagent resolution |
+| **How you set them** | At startup, or with agent definitions (`.md` files in `.wth/agents/` or `~/.wth/agents/`) | In `config.toml` (`[subagents.personas]`) or `.toml` files under `.wth/personas/`; applied during subagent resolution |
 | **What they control** | Model, tool availability, prompt body, skills | Tone, output format, task focus, and input/output contracts |
 | **Who edits them** | You -- create, delete, or toggle them in the agents modal or by editing files | You -- define custom personas in config or files; bundled personas are read-only |
-| **Examples** | `grok-build`, `explore`, `plan` | `researcher`, `concise` |
+| **Examples** | `wth-build`, `explore`, `plan` | `researcher`, `concise` |
 
 An agent defines the session itself. A persona shapes how a subagent behaves within a session. A subagent always runs as an agent type (for example, `general-purpose`), and resolution can layer a persona on top.
 
@@ -30,7 +30,7 @@ Manage both in the agents modal. Open it with `/config-agents` (alias `/agents`)
 Disable subagents with an environment variable or the config file:
 
 ```bash
-export GROK_SUBAGENTS=0              # Environment variable
+export WTH_SUBAGENTS=0              # Environment variable
 ```
 
 ```toml
@@ -81,7 +81,7 @@ description = "Deep investigator."
 
 Wide Thought Host (WTH) discovers file-based personas from these locations, in priority order:
 
-- `.grok/personas/*.toml` (project)
+- `.wth/personas/*.toml` (project)
 - `~/.wth/personas/*.toml` (user)
 - The bundled personas directory (lowest priority)
 
@@ -209,7 +209,7 @@ explore = true                       # default -- omit to keep enabled
 plan = false                         # disable the plan subagent
 
 [subagents.models]
-explore = "grok-build"               # route explore to a specific model
+explore = "wth-build"               # route explore to a specific model
 ```
 
 Per-type model overrides apply for any parent. Without an override, a subagent inherits the parent's model.
@@ -222,8 +222,8 @@ Define custom roles with their own capability and model defaults:
 [subagents.roles.researcher]
 description = "Deep research agent"
 default_capability_mode = "read-only"
-model = "grok-build"
-prompt_file = ".grok/prompts/researcher.md"
+model = "wth-build"
+prompt_file = ".wth/prompts/researcher.md"
 ```
 
 Define custom personas with behavioral instructions:
@@ -231,10 +231,10 @@ Define custom personas with behavioral instructions:
 ```toml
 [subagents.personas.concise]
 instructions = "Be concise. No filler words."
-# instructions_file = ".grok/personas/concise.md"  # or load from a file
+# instructions_file = ".wth/personas/concise.md"  # or load from a file
 ```
 
-Wide Thought Host (WTH) also discovers roles from `.grok/roles/*.toml` and personas from `.grok/personas/*.toml`. Inline `config.toml` definitions take precedence over files.
+Wide Thought Host (WTH) also discovers roles from `.wth/roles/*.toml` and personas from `.wth/personas/*.toml`. Inline `config.toml` definitions take precedence over files.
 
 ---
 
@@ -259,7 +259,7 @@ Subagents appear in several places in the interactive TUI:
 
 When a subagent is spawned, a compact lifecycle block is added to the *parent's* scrollback:
 
-- `Subagent running: "do the thing" (Implementer · grok-3) — Thinking`
+- `Subagent running: "do the thing" (Implementer · wth-3) — Thinking`
 - Or for background subagents: `Subagent started: "..."`
 
 While running, the block shows a live activity suffix (e.g. "Running: cargo test", "Compacting", "Retrying (2/3)") pulled from the child's turn tracker. The bullet animates (or is colored) according to state.

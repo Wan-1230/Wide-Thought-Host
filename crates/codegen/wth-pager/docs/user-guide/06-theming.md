@@ -10,8 +10,8 @@ Grok includes five built-in themes, plus an `auto` option that follows your syst
 
 | Theme | Config Names | Description | Truecolor Required |
 |-------|-------------|-------------|--------------------|
-| **GrokNight** | `groknight`, `grok-night`, `dark` | Neutral dark base with a magenta accent. Default theme. Survives quantization cleanly on 256-color and 16-color terminals. | No |
-| **GrokDay** | `grokday`, `grok-day`, `light`, `day` | Light theme for bright terminal backgrounds. | No |
+| **GrokNight** | `groknight`, `wth-night`, `dark` | Neutral dark base with a magenta accent. Default theme. Survives quantization cleanly on 256-color and 16-color terminals. | No |
+| **GrokDay** | `grokday`, `wth-day`, `light`, `day` | Light theme for bright terminal backgrounds. | No |
 | **TokyoNight** | `tokyonight`, `tokyo-night`, `tokyo` | Dark, blue-tinted backgrounds from the Tokyo Night palette. Loses its character when quantized. | Yes |
 | **RosePineMoon** | `rosepine`, `rose-pine`, `rosepine-moon`, `rose-pine-moon` | Muted dark palette with mauve accents, from the Rosé Pine family. | Yes |
 | **OscuraMidnight** | `oscura`, `oscura-midnight` | Deep dark base with purple accents. | Yes |
@@ -145,8 +145,8 @@ Use compact mode on small screens to maximize content area.
 
 Grok bundles three `.tmTheme` files for code-block syntax highlighting and selects one based on the active theme:
 
-- `grok-night.tmTheme` -- GrokNight, RosePineMoon, and OscuraMidnight
-- `grok-day.tmTheme` -- GrokDay
+- `wth-night.tmTheme` -- GrokNight, RosePineMoon, and OscuraMidnight
+- `wth-day.tmTheme` -- GrokDay
 - `tokyo-night.tmTheme` -- TokyoNight
 
 Grok selects the matching file automatically when you switch themes. The `.tmTheme` files are built into the binary, so you cannot replace them with your own.

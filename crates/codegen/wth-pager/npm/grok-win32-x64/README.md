@@ -1,9 +1,9 @@
-# @gork-build/gork-win32-x64
+# @wth-build/wth-win32-x64
 
-Platform binary optional dependency for [`@gork-build/gork`](https://www.npmjs.com/package/@gork-build/gork).
+Platform binary optional dependency for [`@wth-build/wth`](https://www.npmjs.com/package/@wth-build/wth).
 
 Do not install this package directly:
 
 ```sh
-npm install -g @gork-build/gork
+npm install -g @wth-build/wth
 ```

@@ -10,7 +10,7 @@ scripting and CI/CD, or integrate it into editors via the Agent Client Protocol
 (ACP).
 
 > Wide Thought Host (WTH) is not affiliated with SpaceXAI / xAI. Upstream source:
-> [xai-org/grok-build](https://github.com/xai-org/grok-build).
+> [xai-org/wth-build](https://github.com/xai-org/wth-build).
 
 ---
 
@@ -22,8 +22,8 @@ scripting and CI/CD, or integrate it into editors via the Agent Client Protocol
 git clone https://github.com/thedavidweng/gork-build.git
 cd gork-build
 cargo build -p wth-pager-bin --release
-# binary: target/release/gork
-install -m 755 target/release/gork ~/.local/bin/gork   # or copy onto your PATH
+# binary: target/release/wth
+install -m 755 target/release/wth ~/.local/bin/gork   # or copy onto your PATH
 ```
 
 Verify:
@@ -155,7 +155,7 @@ Tools can be extended with [MCP servers](05-configuration.md#mcp-servers) for in
 Type `/` in the prompt to access commands. These provide quick actions without writing a full prompt:
 
 ```
-/model grok-build                 # Switch model
+/model wth-build                 # Switch model
 /compact                          # Compress conversation history
 /always-approve                   # Toggle always-approve mode
 /new                              # Start a new session
@@ -190,7 +190,7 @@ grok --rules "Always use TypeScript. Prefer functional components."
 grok --yolo
 
 # Use a specific model
-grok -m grok-build
+grok -m wth-build
 
 # Resume a previous session
 grok --resume <session-id>

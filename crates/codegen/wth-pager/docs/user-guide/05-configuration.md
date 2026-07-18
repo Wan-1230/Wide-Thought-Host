@@ -10,7 +10,7 @@ CLI flags. This document covers the common options.
 Configuration is resolved in this order (highest priority first):
 
 1. **CLI flags** (e.g., `--yolo`, `--model`, `--sandbox`)
-2. **Environment variables** (e.g., `XAI_API_KEY`, `GROK_MEMORY`)
+2. **Environment variables** (e.g., `XAI_API_KEY`, `WTH_MEMORY`)
 3. **config.toml** (`~/.wth/config.toml`)
 4. **Managed / requirements config** (local files your org may deploy, e.g.
    `managed_config.toml` / `requirements.toml`)
@@ -31,8 +31,8 @@ If the file does not exist, Grok uses built-in defaults. Specify only the values
 auto_update = true                     # check for updates on launch
 
 [models]
-default = "grok-build"           # model used for new sessions
-web_search = "grok-4.20-multi-agent"   # model used by the web_search tool
+default = "wth-build"           # model used for new sessions
+web_search = "wth-4.20-multi-agent"   # model used by the web_search tool
 
 # Defaults applied to every model; a per-model [model.<id>] value always wins.
 # See "Custom Models" for the per-model overrides and full details.
@@ -138,7 +138,7 @@ that is `always_allow_all_sessions`. Note that the per-command "Always allow"
 rows appear only when `[ui] remember_tool_approvals = true` (default: false).
 See [22-permissions-and-safety.md](22-permissions-and-safety.md).
 
-The setting can also be overridden with the `GROK_DEFAULT_SELECTED_PERMISSION`
+The setting can also be overridden with the `WTH_DEFAULT_SELECTED_PERMISSION`
 environment variable — handy for headless / agent test runs that shouldn't
 mutate `config.toml`. Precedence: env var → `config.toml` →
 `always_allow_all_sessions` (the default).
@@ -207,8 +207,8 @@ invert_scroll = false
 
 Each setting also has an environment-variable override, applied on first load
 only — handy for headless / test runs that shouldn't mutate `config.toml`:
-`GROK_SCROLL_SPEED`, `GROK_SCROLL_MODE`, `GROK_INVERT_SCROLL`
-(`1`/`true`/`0`/`false`), and `GROK_SCROLL_LINES`. Precedence: env var →
+`WTH_SCROLL_SPEED`, `WTH_SCROLL_MODE`, `WTH_INVERT_SCROLL`
+(`1`/`true`/`0`/`false`), and `WTH_SCROLL_LINES`. Precedence: env var →
 `config.toml` → default. Unrecognized values fall back to the default, and
 out-of-range numbers clamp to the allowed range.
 
@@ -230,8 +230,8 @@ allowed_domains = ["docs.rs", "x.ai"]           # override the built-in allowlis
 
 `[toolset.ask_user_question]` is honored across **requirements.toml**, **managed
 config**, and **user `config.toml`**. Precedence: requirements → env
-(`GROK_ASK_USER_QUESTION_TIMEOUT_ENABLED` /
-`GROK_ASK_USER_QUESTION_TIMEOUT_SECS`) → user config → managed →
+(`WTH_ASK_USER_QUESTION_TIMEOUT_ENABLED` /
+`WTH_ASK_USER_QUESTION_TIMEOUT_SECS`) → user config → managed →
 defaults. Set `timeout_enabled = false` in your user config to disable the
 automatic questionnaire timeout for yourself; `timeout_secs` must be a
 positive integer. `timeout_enabled` can also be toggled from the settings
@@ -278,7 +278,7 @@ Credential resolution: `api_key` > `env_key` > signed-in session token > `XAI_AP
 Override built-in models by using their name as the section key:
 
 ```toml
-[model.grok-build]
+[model.wth-build]
 api_key = "my-api-key"               # only override the fields you need
 ```
 
@@ -305,13 +305,13 @@ url = "https://mcp.example.com/api/mcp"  # HTTP/SSE transport
 headers = { "x-mcp-session-id" = "{{session_id}}" }
 ```
 
-MCP servers can also be configured per-project in `.grok/config.toml`. Project-scoped config contributes `[mcp_servers]`, `[plugins]`, and `[permission]` rules; other sections load only from `~/.wth/config.toml`.
+MCP servers can also be configured per-project in `.wth/config.toml`. Project-scoped config contributes `[mcp_servers]`, `[plugins]`, and `[permission]` rules; other sections load only from `~/.wth/config.toml`.
 
-Priority for `[mcp_servers]` and `[plugins]`: `.grok/config.toml` (current dir) > `<repo-root>/.grok/config.toml` > `~/.wth/config.toml`. `[permission]` rules are not overridden by priority; they merge across all files with `deny` > `ask` > `allow` (see [22-permissions-and-safety.md](22-permissions-and-safety.md)).
+Priority for `[mcp_servers]` and `[plugins]`: `.wth/config.toml` (current dir) > `<repo-root>/.wth/config.toml` > `~/.wth/config.toml`. `[permission]` rules are not overridden by priority; they merge across all files with `deny` > `ask` > `allow` (see [22-permissions-and-safety.md](22-permissions-and-safety.md)).
 
 ### Memory
 
-Persist knowledge across sessions (requires `--experimental-memory` or `GROK_MEMORY=1`).
+Persist knowledge across sessions (requires `--experimental-memory` or `WTH_MEMORY=1`).
 
 ```toml
 [memory]
@@ -347,7 +347,7 @@ explore = true                        # enable/disable specific types
 plan = false
 
 [subagents.models]
-explore = "grok-build"               # route to different models
+explore = "wth-build"               # route to different models
 ```
 
 To pin the model a subagent uses, set its entry under `[subagents.models]`.
@@ -447,7 +447,7 @@ progress_bar = true       # show tab progress bar (OSC 9;4)
 
 [ui.notifications.title]
 enabled = true
-items = ["action-required", "spinner", "activity", "session-name", "grok"]
+items = ["action-required", "spinner", "activity", "session-name", "wth"]
 ```
 
 | Option | Type | Default | Description |
@@ -483,19 +483,19 @@ protocol automatically. Set `method` explicitly to override auto-detection.
 #### Notification Hooks
 
 Run custom commands when events occur. Hooks receive environment variables
-`$GROK_EVENT`, `$GROK_MESSAGE`, and `$GROK_SESSION_ID`.
+`$WTH_EVENT`, `$WTH_MESSAGE`, and `$WTH_SESSION_ID`.
 
 ```toml
 # macOS native notification
 [[ui.notifications.hooks]]
-command = "terminal-notifier -title 'Grok' -message '$GROK_MESSAGE'"
+command = "terminal-notifier -title 'Grok' -message '$WTH_MESSAGE'"
 events = ["turn_complete", "approval_required"]
 only_unfocused = true
 timeout_secs = 10
 
 # Push to ntfy server
 [[ui.notifications.hooks]]
-command = "curl -s -d '$GROK_MESSAGE' ntfy.sh/my-grok-alerts"
+command = "curl -s -d '$WTH_MESSAGE' ntfy.sh/my-wth-alerts"
 events = ["turn_complete"]
 only_unfocused = true
 timeout_secs = 10
@@ -562,7 +562,7 @@ The same `[telemetry]` table also configures the **external OpenTelemetry stream
 
 ```toml
 [telemetry]
-otel_enabled = true                                       # external OTEL master switch (= GROK_EXTERNAL_OTEL)
+otel_enabled = true                                       # external OTEL master switch (= WTH_EXTERNAL_OTEL)
 otel_metrics_exporter = "otlp"                            # otlp | console | none
 otel_logs_exporter = "otlp"                               # otlp | console | none
 otel_endpoint = "https://collector.corp.example:4318"     # OTLP base endpoint
@@ -588,8 +588,8 @@ auth_token_ttl = 3600
 default = "company-grok"
 
 [model.company-grok]
-model = "grok-build"
-base_url = "https://grok-proxy.acme.com/"
+model = "wth-build"
+base_url = "https://wth-proxy.acme.com/"
 name = "Wide Thought Host (WTH) Latest (Proxy)"
 context_window = 128000
 
@@ -731,50 +731,50 @@ Key environment variables. See the README for the complete list.
 | Variable | Description |
 |----------|-------------|
 | `XAI_API_KEY` | API key from console.x.ai |
-| `GROK_AUTH_PROVIDER_COMMAND` | External auth binary path |
-| `GROK_AUTH_PROVIDER_LABEL` | Display name on TUI login screen |
-| `GROK_AUTH_TOKEN_TTL` | Token lifetime in seconds |
-| `GROK_AUTH_EARLY_INVALIDATION_SECS` | Seconds before expiry to refresh (default: 300) |
-| `GROK_OIDC_ISSUER` | OIDC issuer URL |
-| `GROK_OIDC_CLIENT_ID` | OIDC client ID |
+| `WTH_AUTH_PROVIDER_COMMAND` | External auth binary path |
+| `WTH_AUTH_PROVIDER_LABEL` | Display name on TUI login screen |
+| `WTH_AUTH_TOKEN_TTL` | Token lifetime in seconds |
+| `WTH_AUTH_EARLY_INVALIDATION_SECS` | Seconds before expiry to refresh (default: 300) |
+| `WTH_OIDC_ISSUER` | OIDC issuer URL |
+| `WTH_OIDC_CLIENT_ID` | OIDC client ID |
 
 ### Endpoints
 
 | Variable | Description |
 |----------|-------------|
-| `GROK_CLI_CHAT_PROXY_BASE_URL` | Override API proxy base URL |
+| `WTH_CLI_CHAT_PROXY_BASE_URL` | Override API proxy base URL |
 
 ### Features
 
 | Variable | Description |
 |----------|-------------|
-| `GROK_MEMORY` | Enable (`1`) or disable (`0`) cross-session memory |
-| `GROK_SUBAGENTS` | Enable (`1`) or disable (`0`) subagents |
-| `GROK_WEB_FETCH` | Enable (`1`) or disable (`0`) the web_fetch tool |
-| `GROK_AGENT` | Custom agent definition path or name |
-| `GROK_SANDBOX` | Sandbox profile (off, workspace, devbox, read-only, strict; or a custom profile name) |
+| `WTH_MEMORY` | Enable (`1`) or disable (`0`) cross-session memory |
+| `WTH_SUBAGENTS` | Enable (`1`) or disable (`0`) subagents |
+| `WTH_WEB_FETCH` | Enable (`1`) or disable (`0`) the web_fetch tool |
+| `WTH_AGENT` | Custom agent definition path or name |
+| `WTH_SANDBOX` | Sandbox profile (off, workspace, devbox, read-only, strict; or a custom profile name) |
 
 ### Logging
 
 | Variable | Description |
 |----------|-------------|
-| `GROK_LOG_FILE` | Write logs to this file path (the value is used verbatim as the path) |
-| `RUST_LOG` | Log level filter (for example `debug`); controls the `GROK_LOG_FILE` log and headless stderr output |
+| `WTH_LOG_FILE` | Write logs to this file path (the value is used verbatim as the path) |
+| `RUST_LOG` | Log level filter (for example `debug`); controls the `WTH_LOG_FILE` log and headless stderr output |
 
 ### Paths
 
 | Variable | Description |
 |----------|-------------|
-| `GROK_HOME` | Override config directory (default: `~/.wth`) |
-| `GROK_RESPECT_GITIGNORE` | Force gitignore filtering on (`1`) or off (`0`); overrides `[tools] respect_gitignore` |
+| `WTH_HOME` | Override config directory (default: `~/.wth`) |
+| `WTH_RESPECT_GITIGNORE` | Force gitignore filtering on (`1`) or off (`0`); overrides `[tools] respect_gitignore` |
 
 ### Telemetry
 
 | Variable | Description |
 |----------|-------------|
-| `GROK_TELEMETRY_ENABLED` | Enable/disable telemetry |
-| `GROK_FEEDBACK_ENABLED` | Enable/disable feedback system |
-| `GROK_DEPLOYMENT_KEY` | Management API key for enterprise |
+| `WTH_TELEMETRY_ENABLED` | Enable/disable telemetry |
+| `WTH_FEEDBACK_ENABLED` | Enable/disable feedback system |
+| `WTH_DEPLOYMENT_KEY` | Management API key for enterprise |
 
 ---
 
@@ -792,27 +792,27 @@ Key environment variables. See the README for the complete list.
 | `~/.wth/agents/` | User-scoped agent definitions |
 | `~/.wth/lsp.json` | LSP server configuration (user-scoped) |
 | `~/.wth/logs/` | Internal log files (for example `unified.jsonl`, MCP server logs) |
-| `.grok/config.toml` | Project-scoped MCP servers, plugins, and permission rules |
-| `.grok/skills/` | Project-scoped skill definitions |
-| `.grok/plugins/` | Project-scoped plugins |
-| `.grok/agents/` | Project-scoped agent definitions |
-| `.grok/hooks/` | Project-scoped hooks |
-| `.grok/lsp.json` | LSP server configuration |
+| `.wth/config.toml` | Project-scoped MCP servers, plugins, and permission rules |
+| `.wth/skills/` | Project-scoped skill definitions |
+| `.wth/plugins/` | Project-scoped plugins |
+| `.wth/agents/` | Project-scoped agent definitions |
+| `.wth/hooks/` | Project-scoped hooks |
+| `.wth/lsp.json` | LSP server configuration |
 
 ---
 
 ## Project-Scoped Configuration
 
-Some configuration can be set per-project by placing files in `.grok/` within your repository:
+Some configuration can be set per-project by placing files in `.wth/` within your repository:
 
 | File | What it configures |
 |------|--------------------|
-| `.grok/config.toml` | MCP servers, plugins, permission rules, and the `[mcp] max_output_bytes` tool-result cap (other sections load only from `~/.wth/config.toml`) |
-| `.grok/skills/` | Project-specific skills |
-| `.grok/hooks/` | Project-specific lifecycle hooks |
-| `.grok/agents/` | Project-specific agent definitions |
-| `.grok/lsp.json` | LSP server configuration |
-| `.grok/sandbox.toml` | Custom sandbox profiles |
+| `.wth/config.toml` | MCP servers, plugins, permission rules, and the `[mcp] max_output_bytes` tool-result cap (other sections load only from `~/.wth/config.toml`) |
+| `.wth/skills/` | Project-specific skills |
+| `.wth/hooks/` | Project-specific lifecycle hooks |
+| `.wth/agents/` | Project-specific agent definitions |
+| `.wth/lsp.json` | LSP server configuration |
+| `.wth/sandbox.toml` | Custom sandbox profiles |
 | `AGENTS.md` | Project instructions (system prompt) |
 
 Project-scoped MCP servers override global ones with the same name (full replacement, not merge).
@@ -826,12 +826,12 @@ Language servers power passive diagnostics and the optional `lsp` tool (see the 
 | Source | Location | Scope |
 |--------|----------|-------|
 | User | `~/.wth/lsp.json` | All projects |
-| Project | `.grok/lsp.json` | Current repository |
+| Project | `.wth/lsp.json` | Current repository |
 | Plugin | A trusted plugin's `.lsp.json` file, or an inline `lspServers` block in its `plugin.json` | Wherever the plugin is enabled |
 
 When the same server name is defined by more than one source, it is resolved in this order (highest priority first):
 
-1. **Project** -- `.grok/lsp.json`
+1. **Project** -- `.wth/lsp.json`
 2. **User** -- `~/.wth/lsp.json`
 3. **Plugins** -- file-based `.lsp.json`, then inline `lspServers`, in plugin load order
 

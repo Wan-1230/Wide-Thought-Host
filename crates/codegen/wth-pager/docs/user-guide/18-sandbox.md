@@ -49,7 +49,7 @@ To block specific files (e.g. `.env` or credential paths) on top of a profile, d
 
 ## Custom Profiles
 
-Create custom sandbox profiles in `~/.wth/sandbox.toml` (global) or `.grok/sandbox.toml` (per-project):
+Create custom sandbox profiles in `~/.wth/sandbox.toml` (global) or `.wth/sandbox.toml` (per-project):
 
 ```toml
 [profiles.project]
@@ -163,7 +163,7 @@ Resuming will **not** change a session's sandbox:
 
 Profile resolution order for a **new** session:
 
-1. An explicit `--sandbox <profile>` flag or `GROK_SANDBOX` environment variable
+1. An explicit `--sandbox <profile>` flag or `WTH_SANDBOX` environment variable
 2. The `[sandbox] profile` in your config
 3. `off` (no sandbox)
 

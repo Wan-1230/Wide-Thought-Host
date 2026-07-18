@@ -4,8 +4,8 @@ Type `/` in the prompt to access commands. Each command runs an action immediate
 
 Slash commands come from two sources:
 
-- **Shell builtins** -- handled by the agent backend (xai-grok-shell)
-- **Pager builtins** -- handled by the TUI frontend (xai-grok-pager)
+- **Shell builtins** -- handled by the agent backend (xai-wth-shell)
+- **Pager builtins** -- handled by the TUI frontend (xai-wth-pager)
 
 Both sets are available in the autocomplete menu. Skills installed via SKILL.md files also appear as slash commands.
 
@@ -131,7 +131,7 @@ Aliases: `/title`
 Switch to a different model. Accepts model IDs or display names (case-insensitive). For reasoning models you can also pass an effort level as a second argument:
 
 ```
-/model grok-build
+/model wth-build
 /model Wide Thought Host (WTH)
 /model Reasoning X high
 ```
@@ -241,7 +241,7 @@ Open the current saved plan preview. Aliases: `/show-plan`, `/plan-view`.
 
 ## Memory
 
-The `/flush`, `/dream`, and `/memory` commands require `--experimental-memory` or `GROK_MEMORY=1`. `/remember` is always available.
+The `/flush`, `/dream`, and `/memory` commands require `--experimental-memory` or `WTH_MEMORY=1`. `/remember` is always available.
 
 ### `/memory`
 

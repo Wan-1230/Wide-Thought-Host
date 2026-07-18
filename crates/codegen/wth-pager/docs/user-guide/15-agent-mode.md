@@ -32,11 +32,11 @@ Clients that use this mode include:
 
 ### Options
 
-These options belong to the `wth agent` command and apply to every mode. Pass them before the mode name, for example `wth agent --model grok-build stdio`. The `stdio` subcommand itself takes no options.
+These options belong to the `wth agent` command and apply to every mode. Pass them before the mode name, for example `wth agent --model wth-build stdio`. The `stdio` subcommand itself takes no options.
 
 | Flag                       | Description                                                       |
 | -------------------------- | ---------------------------------------------------------------- |
-| `-m, --model <MODEL>`      | Set the model ID (for example, `grok-build`).                    |
+| `-m, --model <MODEL>`      | Set the model ID (for example, `wth-build`).                    |
 | `--always-approve`         | Auto-approve every tool execution. (Alias: `--yolo`.)            |
 | `--reauth`                 | Run authentication before starting the agent.                    |
 | `--agent-profile <PATH>`   | Load an agent profile from a file.                               |
@@ -51,7 +51,7 @@ Run the agent as a WebSocket server for remote clients:
 grok agent serve --bind 127.0.0.1:2419 --secret <token>
 ```
 
-Clients connect over WebSocket and authenticate with the secret token. If you omit `--secret`, the agent generates a token and prints it at startup; you can also supply one through the `GROK_AGENT_SECRET` environment variable. The agent persists across reconnections, so a client can disconnect and later resume in-flight work.
+Clients connect over WebSocket and authenticate with the secret token. If you omit `--secret`, the agent generates a token and prints it at startup; you can also supply one through the `WTH_AGENT_SECRET` environment variable. The agent persists across reconnections, so a client can disconnect and later resume in-flight work.
 
 ---
 
@@ -60,7 +60,7 @@ Clients connect over WebSocket and authenticate with the secret token. If you om
 To reach the agent over the internet instead of the local network, run a WebSocket relay server and have the agent connect to it:
 
 ```bash
-grok agent headless --grok-ws-url wss://your-relay.example.com/ws
+grok agent headless --wth-ws-url wss://your-relay.example.com/ws
 ```
 
 The agent connects out to your relay, and your web clients connect to the same relay. This is useful for building web UIs where browsers cannot spawn local processes.
@@ -199,7 +199,7 @@ class GrokACPChat {
   constructor(private cwd = ".") {}
 
   async init() {
-    this.proc = spawn("grok", ["agent", "stdio"]);
+    this.proc = spawn("wth", ["agent", "stdio"]);
     this.rl = readline.createInterface({ input: this.proc.stdout! });
 
     // Initialize

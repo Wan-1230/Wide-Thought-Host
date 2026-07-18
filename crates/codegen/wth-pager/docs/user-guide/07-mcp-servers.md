@@ -36,7 +36,7 @@ tool_timeouts = { slow_op = 120 }     # Per-tool timeout overrides, seconds
 > **Global startup-timeout override:** instead of setting `startup_timeout_sec`
 > per server, you can change the default for all servers via the `MCP_TIMEOUT`
 > environment variable (milliseconds, compatible with Claude Code) or
-> `GROK_MCP_STARTUP_TIMEOUT_SECS` (seconds). A per-server `startup_timeout_sec`
+> `WTH_MCP_STARTUP_TIMEOUT_SECS` (seconds). A per-server `startup_timeout_sec`
 > still takes precedence over both. Cold-start `npx`/`uvx` servers that download
 > packages on first launch often need this; the default is 30s.
 >
@@ -44,10 +44,10 @@ tool_timeouts = { slow_op = 120 }     # Per-tool timeout overrides, seconds
 > inline (full payload spilled under the session `mcp/` folder). Default is
 > **20_000 bytes**. Override via:
 >
-> - env `GROK_MAX_MCP_OUTPUT_BYTES` or `MAX_MCP_OUTPUT_BYTES` (bytes; Grok-native
+> - env `WTH_MAX_MCP_OUTPUT_BYTES` or `MAX_MCP_OUTPUT_BYTES` (bytes; Grok-native
 >   wins if both set; Claude-style name, but we bound by **bytes** not tokens)
 > - `config.toml` — user-level (`~/.wth/config.toml`) **or repo-level**
->   (`.grok/config.toml` anywhere on the cwd → git-root chain; the deepest
+>   (`.wth/config.toml` anywhere on the cwd → git-root chain; the deepest
 >   file wins, and the repo value applies only once the folder is trusted):
 >
 > ```toml
@@ -55,7 +55,7 @@ tool_timeouts = { slow_op = 120 }     # Per-tool timeout overrides, seconds
 > max_output_bytes = 40000
 > ```
 >
-> Precedence: requirements.toml > env > repo `.grok/config.toml` >
+> Precedence: requirements.toml > env > repo `.wth/config.toml` >
 > user/managed config > default. Repo edits apply to running sessions in that
 > directory via config hot-reload.
 
@@ -115,7 +115,7 @@ grok mcp doctor --json        # Machine-readable output
 
 The transport defaults to `stdio`; pass `--transport http` or `--transport sse` for remote servers.
 
-By default `wth mcp add` writes to `~/.wth/config.toml` (`--scope user`). Use `--scope project` to write to `.grok/config.toml` in the current directory instead, which can be committed and shared with your team (see [Project-Scoped MCP Servers](#project-scoped-mcp-servers)). Header and environment variable values are stored verbatim, so reference secrets as `${VAR}` instead of pasting them into a committed project config (see [Example Configurations](#example-configurations)). `wth mcp list` shows servers from both scopes, marking project-scoped ones with `(project)`.
+By default `wth mcp add` writes to `~/.wth/config.toml` (`--scope user`). Use `--scope project` to write to `.wth/config.toml` in the current directory instead, which can be committed and shared with your team (see [Project-Scoped MCP Servers](#project-scoped-mcp-servers)). Header and environment variable values are stored verbatim, so reference secrets as `${VAR}` instead of pasting them into a committed project config (see [Example Configurations](#example-configurations)). `wth mcp list` shows servers from both scopes, marking project-scoped ones with `(project)`.
 
 `wth mcp remove` searches both scopes and exits 0 after removing the server. It exits 1 when the name is not found, or when the name is defined in both user and project scope — pass `--scope` to say which one to remove.
 
@@ -125,18 +125,18 @@ Breaking changes from earlier releases: `--env` now takes one `KEY=value` per fl
 
 ## Project-Scoped MCP Servers
 
-MCP servers can be configured per-project by placing a `.grok/config.toml` in your repository:
+MCP servers can be configured per-project by placing a `.wth/config.toml` in your repository:
 
 ```
 my-project/
-  .grok/
+  .wth/
     config.toml
   src/
   ...
 ```
 
 ```toml
-# .grok/config.toml
+# .wth/config.toml
 [mcp_servers.linear]
 url = "https://mcp.linear.app/mcp"
 enabled = true
@@ -144,13 +144,13 @@ enabled = true
 
 When a server exposes a native HTTP/SSE endpoint, prefer the `url` form over wrapping it in a stdio proxy such as `npx mcp-remote <url>`. Grok handles HTTP/SSE and OAuth directly, so the native form avoids an extra subprocess per session. It also registers Grok's own OAuth client with the provider.
 
-Grok walks from the current directory up to the git repo root, loading `.grok/config.toml` at each level:
+Grok walks from the current directory up to the git repo root, loading `.wth/config.toml` at each level:
 
 | Location | Scope | Priority |
 |----------|-------|----------|
 | `~/.wth/config.toml` | All projects | Lowest |
-| `<repo-root>/.grok/config.toml` | This repository | Medium |
-| `<cwd>/.grok/config.toml` | Current directory | Highest |
+| `<repo-root>/.wth/config.toml` | This repository | Medium |
+| `<cwd>/.wth/config.toml` | Current directory | Highest |
 
 If a project defines a server with the same name as a global one, the project version replaces it entirely (fields are not merged).
 
@@ -202,14 +202,14 @@ Grok loads MCP server configurations from multiple sources for compatibility:
 
 | Source | Format | Location | Configurable |
 |--------|--------|----------|-------------|
-| `config.toml` | Native Grok config | `~/.wth/config.toml`, `.grok/config.toml` | Always on |
+| `config.toml` | Native Grok config | `~/.wth/config.toml`, `.wth/config.toml` | Always on |
 | `.claude.json` | Claude Code format | `~/.claude.json` | `[compat.claude] mcps` |
 | `.cursor/mcp.json` | Cursor format | `~/.cursor/mcp.json`, `<project>/.cursor/mcp.json` | `[compat.cursor] mcps` |
 | `.mcp.json` | MCP standard format | Project root (cwd to git root) | Loaded unless you have imported or dismissed the Claude import prompt (the import marker is set) |
 
 All sources are merged in priority order: config.toml > Claude > Cursor > `.mcp.json`. Servers from higher-priority sources take precedence when names conflict.
 
-The Claude and Cursor MCP sources are scanned by default. To disable scanning for a specific vendor, set `[compat.<vendor>] mcps = false` in `~/.wth/config.toml` or the corresponding environment variable (`GROK_CURSOR_MCPS_ENABLED`, `GROK_CLAUDE_MCPS_ENABLED`). See [Configuration](05-configuration.md#harness-compatibility) for details. Use `wth inspect` to see which MCP servers were loaded and their vendor origin (`[cursor]`, `[claude]`).
+The Claude and Cursor MCP sources are scanned by default. To disable scanning for a specific vendor, set `[compat.<vendor>] mcps = false` in `~/.wth/config.toml` or the corresponding environment variable (`WTH_CURSOR_MCPS_ENABLED`, `WTH_CLAUDE_MCPS_ENABLED`). See [Configuration](05-configuration.md#harness-compatibility) for details. Use `wth inspect` to see which MCP servers were loaded and their vendor origin (`[cursor]`, `[claude]`).
 
 ---
 
@@ -342,7 +342,7 @@ grok inspect --json   # Machine-readable
 ### Debug Logging
 
 ```bash
-RUST_LOG=debug GROK_LOG_FILE=/tmp/grok.log grok
+RUST_LOG=debug WTH_LOG_FILE=/tmp/grok.log grok
 tail -f /tmp/grok.log
 ```
 

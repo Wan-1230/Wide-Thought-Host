@@ -2,11 +2,11 @@
 // Assemble the six per-platform npm packages prior to `npm publish`.
 //
 // For each supported (platform, arch) target this:
-//   1. Brotli-compresses the built binary into `../grok-<platform>/bin/<bin>.br`
+//   1. Brotli-compresses the built binary into `../wth-<platform>/bin/<bin>.br`
 //   2. Stamps the sub-package's version to match the meta package
 //
 // Each per-platform package is its own npm publish target. The meta package
-// (`@gork-build/gork`) lists all six as `optionalDependencies` pinned to
+// (`@wth-build/gork`) lists all six as `optionalDependencies` pinned to
 // the same version; npm installs only the one matching the host's
 // `os` + `cpu` filters.
 //
@@ -28,7 +28,7 @@ const xaiRoot = process.env.XAI_ROOT || path.resolve(__dirname, '..', '..', '..'
 const npmRoot = path.resolve(__dirname, '..', '..');
 
 const NOTICES_SOURCE = path.resolve(
-    npmRoot, '..', '..', 'xai-grok-tools', 'THIRD_PARTY_NOTICES.md');
+    npmRoot, '..', '..', 'xai-wth-tools', 'THIRD_PARTY_NOTICES.md');
 const NOTICES_NAME = 'THIRD_PARTY_NOTICES.md';
 
 const META_PKG_JSON = path.resolve(__dirname, '..', 'package.json');
@@ -38,7 +38,7 @@ const VERSION = meta.version;
 function ensureDir(p) { fs.mkdirSync(path.dirname(p), { recursive: true }); }
 
 async function packPlatform({ platform, arch, envVar, defaultSource, binName }) {
-    const pkgDir = path.join(npmRoot, `grok-${platform}-${arch}`);
+    const pkgDir = path.join(npmRoot, `wth-${platform}-${arch}`);
     const pkgJsonPath = path.join(pkgDir, 'package.json');
 
     if (!fs.existsSync(pkgJsonPath)) {
@@ -73,7 +73,7 @@ async function packPlatform({ platform, arch, envVar, defaultSource, binName }) 
     });
     fs.writeFileSync(outBr, compressed);
     console.log(
-        `[assemble] grok-${platform}-${arch}@${VERSION}: ` +
+        `[assemble] wth-${platform}-${arch}@${VERSION}: ` +
         `${(raw.length / 1048576).toFixed(1)} MB -> ${(compressed.length / 1048576).toFixed(1)} MB ` +
         `(${path.relative(npmRoot, outBr)})`
     );
@@ -83,38 +83,38 @@ async function packPlatform({ platform, arch, envVar, defaultSource, binName }) 
 async function main() {
     const targets = [
         {
-            platform: 'darwin', arch: 'arm64', binName: 'grok',
-            envVar: 'GROK_DARWIN_ARM64',
-            defaultSource: path.join(xaiRoot, 'target', 'release', 'xai-grok-pager'),
+            platform: 'darwin', arch: 'arm64', binName: 'wth',
+            envVar: 'WTH_DARWIN_ARM64',
+            defaultSource: path.join(xaiRoot, 'target', 'release', 'xai-wth-pager'),
         },
         {
-            platform: 'darwin', arch: 'x64', binName: 'grok',
-            envVar: 'GROK_DARWIN_X64',
-            defaultSource: path.join(xaiRoot, 'target', 'x86_64-apple-darwin', 'release', 'xai-grok-pager'),
+            platform: 'darwin', arch: 'x64', binName: 'wth',
+            envVar: 'WTH_DARWIN_X64',
+            defaultSource: path.join(xaiRoot, 'target', 'x86_64-apple-darwin', 'release', 'xai-wth-pager'),
         },
         {
-            platform: 'linux', arch: 'x64', binName: 'grok',
-            envVar: 'GROK_LINUX_X64',
+            platform: 'linux', arch: 'x64', binName: 'wth',
+            envVar: 'WTH_LINUX_X64',
             defaultSource: path.join(xaiRoot, 'target',
                 'explorer_cross_x86_64-unknown-linux-gnu',
-                'x86_64-unknown-linux-gnu', 'release', 'xai-grok-pager'),
+                'x86_64-unknown-linux-gnu', 'release', 'xai-wth-pager'),
         },
         {
-            platform: 'linux', arch: 'arm64', binName: 'grok',
-            envVar: 'GROK_LINUX_ARM64',
+            platform: 'linux', arch: 'arm64', binName: 'wth',
+            envVar: 'WTH_LINUX_ARM64',
             defaultSource: path.join(xaiRoot, 'target',
                 'explorer_cross_aarch64-unknown-linux-gnu',
-                'aarch64-unknown-linux-gnu', 'release', 'xai-grok-pager'),
+                'aarch64-unknown-linux-gnu', 'release', 'xai-wth-pager'),
         },
         {
-            platform: 'win32', arch: 'x64', binName: 'grok.exe',
-            envVar: 'GROK_WIN32_X64',
-            defaultSource: path.join(xaiRoot, 'target', 'x86_64-pc-windows-msvc', 'release', 'xai-grok-pager.exe'),
+            platform: 'win32', arch: 'x64', binName: 'wth.exe',
+            envVar: 'WTH_WIN32_X64',
+            defaultSource: path.join(xaiRoot, 'target', 'x86_64-pc-windows-msvc', 'release', 'xai-wth-pager.exe'),
         },
         {
-            platform: 'win32', arch: 'arm64', binName: 'grok.exe',
-            envVar: 'GROK_WIN32_ARM64',
-            defaultSource: path.join(xaiRoot, 'target', 'aarch64-pc-windows-msvc', 'release', 'xai-grok-pager.exe'),
+            platform: 'win32', arch: 'arm64', binName: 'wth.exe',
+            envVar: 'WTH_WIN32_ARM64',
+            defaultSource: path.join(xaiRoot, 'target', 'aarch64-pc-windows-msvc', 'release', 'xai-wth-pager.exe'),
         },
     ];
 

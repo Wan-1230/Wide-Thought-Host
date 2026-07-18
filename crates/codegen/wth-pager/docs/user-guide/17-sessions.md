@@ -15,7 +15,7 @@ A session is a persistent conversation with full history. It includes:
 - Token usage and turn counts
 - Subagent sessions (when enabled)
 
-Sessions are identified by a unique session ID (a UUIDv7 when Grok generates it; a client may supply its own ID with `-s`) and stored on disk under `~/.wth/sessions/`. Set `GROK_HOME` to override the base directory; when it is unset, Grok uses `~/.wth`.
+Sessions are identified by a unique session ID (a UUIDv7 when Grok generates it; a client may supply its own ID with `-s`) and stored on disk under `~/.wth/sessions/`. Set `WTH_HOME` to override the base directory; when it is unset, Grok uses `~/.wth`.
 
 ---
 

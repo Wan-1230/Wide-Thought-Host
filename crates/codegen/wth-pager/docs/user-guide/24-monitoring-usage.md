@@ -26,7 +26,7 @@ The external stream is:
 ## Quick start
 
 ```bash
-export GROK_EXTERNAL_OTEL=1                  # master switch
+export WTH_EXTERNAL_OTEL=1                  # master switch
 export OTEL_METRICS_EXPORTER=otlp
 export OTEL_LOGS_EXPORTER=otlp
 export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf  # or grpc
@@ -35,7 +35,7 @@ export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer <collector-token>"
 grok
 ```
 
-`GROK_EXTERNAL_OTEL=1` alone enables **nothing** — you must also select at
+`WTH_EXTERNAL_OTEL=1` alone enables **nothing** — you must also select at
 least one exporter. Conversely, the `OTEL_*` vars alone enable nothing
 without the master switch.
 
@@ -43,7 +43,7 @@ without the master switch.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `GROK_EXTERNAL_OTEL` | `0` | Master switch. Distinct from `GROK_TELEMETRY_ENABLED`, which controls vendor product analytics (disabled in Wide Thought Host (WTH)) — the two govern opposite-pointing data flows. |
+| `WTH_EXTERNAL_OTEL` | `0` | Master switch. Distinct from `WTH_TELEMETRY_ENABLED`, which controls vendor product analytics (disabled in Wide Thought Host (WTH)) — the two govern opposite-pointing data flows. |
 | `OTEL_METRICS_EXPORTER` | `none` | `otlp` \| `console` \| `none`. |
 | `OTEL_LOGS_EXPORTER` | `none` | `otlp` \| `console` \| `none`. Gates the event stream. |
 | `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` | `http/protobuf` \| `grpc`. |
@@ -64,7 +64,7 @@ from a fixed, audited attribute set.
 
 > **Migration note:** older releases could share `OTEL_EXPORTER_OTLP_*` with
 > the product's own analytics pipeline. That behavior is deprecated: when
-> `GROK_EXTERNAL_OTEL` is set, product analytics ignores those vars, and the
+> `WTH_EXTERNAL_OTEL` is set, product analytics ignores those vars, and the
 > CLI refuses to activate the external stream in any configuration where
 > product analytics already consumed them — your collector only receives the
 > external stream you opted into.
@@ -87,7 +87,7 @@ otel_log_tool_details = false
 ```
 
 The config keys are `otel_*` under `[telemetry]`; the **env vars keep their
-standard OTEL names** (`GROK_EXTERNAL_OTEL`, `OTEL_*`) for ecosystem
+standard OTEL names** (`WTH_EXTERNAL_OTEL`, `OTEL_*`) for ecosystem
 interop, so the two layers use deliberately different namespaces. The
 `otel_protocol` config key maps to `OTEL_EXPORTER_OTLP_PROTOCOL`.
 
@@ -103,7 +103,7 @@ layers (`external_otel_disabled`, content-gate locks).
 
 | Attribute | Value |
 |---|---|
-| `service.name` | `grok-cli` |
+| `service.name` | `wth-cli` |
 | `service.version`, `client.version` | build/client versions |
 | `app.entrypoint` | `cli` \| `headless` \| `agent` |
 | `terminal.type` | terminal emulator brand |
@@ -114,7 +114,7 @@ Identity attributes (`user.id`, and `organization.id` / `team.id` /
 once authentication completes. `prompt.id` (per-prompt UUID) appears on
 events only, never metrics.
 
-## Metrics (meter scope `ai.xai.grok_code`)
+## Metrics (meter scope `ai.xai.wth_code`)
 
 | Metric | Unit | Attributes |
 |---|---|---|
