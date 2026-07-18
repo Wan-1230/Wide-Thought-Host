@@ -382,9 +382,9 @@ fn version_with_channel() -> &'static str {
 }
 #[derive(Debug, Clone, Parser)]
 #[command(
-    name = "gork",
+    name = "wth",
     version = version_with_channel(),
-    about = "Gork Build TUI",
+    about = "Wide Thought Host TUI",
     disable_version_flag = true,
     next_display_order = None,
     help_template = "\

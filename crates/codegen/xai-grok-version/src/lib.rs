@@ -1,26 +1,24 @@
-//! Installed Gork Build CLI version, lockstepped with shipping binaries.
+//! Wide Thought Host (WTH) CLI version — lockstepped with shipping binaries.
 //!
-//! **Gork Build** is a community privacy fork of xAI Grok Build (same role as
-//! VSCodium vs VS Code): same codebase, no product telemetry, no research
-//! trace uploads, no xAI branding. Model inference still uses the user's
-//! credentials against the Grok API — that is the only network path required
-//! for the agent to work.
+//! **Wide Thought Host (WTH)** is an optimized coding agent harness derived from
+//! gork-build (community privacy fork of xAI Grok Build). Multi-backend LLM
+//! support, enhanced TUI, and deep extensibility.
 
 use semver::Version;
 
-/// Compile-time privacy fork switch. Always `true` in Gork Build.
+/// Compile-time privacy fork switch. Always `true` in WTH.
 /// Upstream Grok Build would set this to `false`.
 pub const PRIVACY_BUILD: bool = true;
 
-/// User-facing product name for this fork.
-pub const PRODUCT_NAME: &str = "Gork Build";
+/// User-facing product name.
+pub const PRODUCT_NAME: &str = "Wide Thought Host";
 
-/// Preferred CLI binary / command name for this fork.
-pub const PRODUCT_CLI: &str = "gork";
+/// Preferred CLI binary / command name.
+pub const PRODUCT_CLI: &str = "wth";
 
 /// One-line positioning (README, `--version` help, welcome copy).
 pub const PRODUCT_TAGLINE: &str =
-    "VSCodium-style community build of Grok Build — vendor telemetry removed";
+    "Optimized coding agent harness — multi-backend, extensible, privacy-first";
 
 /// `true` when research telemetry, Mixpanel, GCS session traces, and similar
 /// non-inference uploads must stay off. Always true while [`PRIVACY_BUILD`].

@@ -74,7 +74,7 @@ pub(super) fn dispatch_show_session_info(app: &mut AppView) -> Vec<Effect> {
 pub(super) fn dispatch_show_privacy_info(app: &mut AppView) -> Vec<Effect> {
     let mut lines = Vec::new();
 
-    lines.push("  Product: Gork Build (privacy fork of Grok Build)");
+    lines.push("  Product: Wide Thought Host (WTH)");
     lines.push("  Client research uploads: disabled (hard-off)");
     lines.push("  Product analytics (Mixpanel / events): disabled");
     lines.push("  Coding data retention: opt-out only (locked in this build)");
@@ -88,7 +88,7 @@ pub(super) fn dispatch_show_privacy_info(app: &mut AppView) -> Vec<Effect> {
     }
 
     lines.push("");
-    lines.push("  Docs: https://github.com/thedavidweng/gork-build");
+    lines.push("  Docs: https://github.com/Wan-1230/Wide-Thought-Host");
     let text = lines.join("\n");
     push_system_to_any_agent(app, &text);
     vec![]
@@ -104,7 +104,7 @@ pub(super) fn set_coding_data_sharing_inner(app: &mut AppView, opted_in: bool) {
 pub(super) fn set_coding_data_sharing(app: &mut AppView, opted_in: bool) -> Vec<Effect> {
     // ── Guard 0: Gork Build locks retention to opt-out ────────────────
     if xai_grok_version::coding_data_retention_locked_opt_out() && opted_in {
-        app.show_toast("\u{2717} Gork Build locks coding data retention to opt-out");
+        app.show_toast("\u{2717} WTH locks coding data retention to opt-out");
         // Keep local state on opt-out even if UI/server was stale.
         set_coding_data_sharing_inner(app, false);
         refresh_open_settings_modals(app);

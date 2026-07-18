@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Privacy egress check: run release `gork` through a local CONNECT proxy and
+# Privacy egress check: run release `wth` through a local CONNECT proxy and
 # fail if denylisted destinations appear in the host log.
 #
 # Does not require MITM / TLS interception — only CONNECT hostnames are recorded.
@@ -8,15 +8,15 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-BIN="${GORK_BIN:-target/release/gork}"
+BIN="${WTH_BIN:-target/release/wth}"
 if [[ ! -x "$BIN" ]]; then
-  echo "Building release gork..."
+  echo "Building release wth..."
   cargo build -p xai-grok-pager-bin --release
-  BIN=target/release/gork
+  BIN=target/release/wth
 fi
 
 BASE_TMP="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
-WORKDIR="${PRIVACY_EGRESS_WORKDIR:-$(mktemp -d "${BASE_TMP}/gork-privacy-egress.XXXXXX")}"
+WORKDIR="${PRIVACY_EGRESS_WORKDIR:-$(mktemp -d "${BASE_TMP}/wth-privacy-egress.XXXXXX")}"
 mkdir -p "$WORKDIR"
 LOG="$WORKDIR/hosts.txt"
 PROXY_PORT="${PRIVACY_EGRESS_PORT:-18080}"
@@ -77,7 +77,7 @@ if [[ ! -s "$LOG" ]] || ! grep -Fiq 'positive-control.test' "$LOG"; then
   echo "log contents:"; cat "$LOG" || true
   exit 1
 fi
-echo "positive control recorded host; clearing log before gork smoke"
+echo "positive control recorded host; clearing log before wth smoke"
 : >"$LOG"
 
 export HTTP_PROXY="http://${LISTEN}"
@@ -93,13 +93,13 @@ mkdir -p "$GROK_HOME"
 export GROK_TELEMETRY_ENABLED=1
 export GROK_TELEMETRY_TRACE_UPLOAD=1
 
-echo "==> gork --version"
+echo "==> wth --version"
 "$BIN" --version
 
-echo "==> gork --help (smoke)"
+echo "==> wth --help (smoke)"
 "$BIN" --help >/dev/null
 
-echo "==> gork update (must refuse vendor install without dialing x.ai)"
+echo "==> wth update (must refuse vendor install without dialing x.ai)"
 set +e
 UPDATE_OUT="$("$BIN" update 2>&1)"
 UPDATE_EC=$?
@@ -110,18 +110,18 @@ if echo "$UPDATE_OUT" | grep -qiE 'never installs from vendor|rebuild from sourc
 elif [[ "$UPDATE_EC" -ne 0 ]]; then
   echo "update exited non-zero (ok for privacy build)"
 else
-  echo "FAIL: gork update exited 0 without privacy refusal message"
+  echo "FAIL: wth update exited 0 without privacy refusal message"
   exit 1
 fi
 
 if ! kill -0 "$PROXY_PID" 2>/dev/null; then
-  echo "FAIL: proxy died during gork smoke"
+  echo "FAIL: proxy died during wth smoke"
   exit 1
 fi
 
 sleep 1
 
-echo "==> Host log after gork:"
+echo "==> Host log after wth:"
 if [[ -s "$LOG" ]]; then
   sort -u "$LOG" | tee "$WORKDIR/hosts.unique.txt"
 else

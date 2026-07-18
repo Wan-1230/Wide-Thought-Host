@@ -29,7 +29,7 @@ const MSG_RUN_UPDATE_MANUAL: &str = "Run `gork update` to get the latest version
 /// Manual reinstall hint for Gork Build (never points at x.ai installers —
 /// those would replace this fork with official Grok Build).
 fn manual_install_cmd() -> &'static str {
-    "git pull && cargo build -p xai-grok-pager-bin --release  # binary: target/release/gork"
+    "git pull && cargo build -p wth-pager-bin --release  # binary: target/release/wth"
 }
 
 /// Build a reinstall hint for a known installer type.
