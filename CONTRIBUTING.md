@@ -1,7 +1,8 @@
-# Contributing to Gork Build
+# Contributing to Wide Thought Host (WTH)
 
-Thanks for helping improve **Gork Build** — the VSCodium-style community
-distribution of [Grok Build](https://github.com/xai-org/grok-build).
+Thanks for helping improve **Wide Thought Host (WTH)** — an optimized coding
+agent harness built on [Grok Build](https://github.com/xai-org/grok-build) /
+[gork-build](https://github.com/thedavidweng/gork-build).
 
 This project accepts external contributions. By submitting a pull request or
 other contribution, you agree that your work is licensed under the same terms
@@ -10,10 +11,10 @@ and [`NOTICE`](NOTICE)).
 
 ## Before you start
 
-1. Read [`PRIVACY.md`](PRIVACY.md). Gork Build hard-disables vendor research
-   telemetry; changes that re-enable product analytics, Mixpanel, or research
-   GCS uploads without an explicit, documented opt-in will be rejected.
-2. Search [existing issues](https://github.com/thedavidweng/gork-build/issues)
+1. Read [`PRIVACY.md`](PRIVACY.md). WTH follows the gork-build privacy-first
+   stance; changes that re-enable vendor telemetry without explicit opt-in
+   will be rejected.
+2. Search [existing issues](https://github.com/Wan-1230/Wide-Thought-Host/issues)
    and PRs to avoid duplicates.
 3. For large design changes, open an issue first so we can align on direction.
 
@@ -27,10 +28,10 @@ Requirements:
   set `$PROTOC`
 
 ```sh
-git clone https://github.com/thedavidweng/gork-build.git
-cd gork-build
-cargo check -p xai-grok-pager-bin
-cargo run -p xai-grok-pager-bin          # launches the TUI binary `gork`
+git clone https://github.com/Wan-1230/Wide-Thought-Host.git
+cd Wide-Thought-Host
+cargo check -p wth-pager-bin
+cargo run -p wth-pager-bin          # launches the TUI binary `wth`
 ```
 
 Useful checks (same gates as GitHub Actions CI):
@@ -38,28 +39,26 @@ Useful checks (same gates as GitHub Actions CI):
 ```sh
 cargo fmt --all -- --check
 cargo clippy --no-deps \
-  -p xai-grok-version -p xai-mixpanel -p xai-grok-telemetry -p xai-grok-update \
+  -p wth-agent -p wth-pager-bin \
   --lib -- -D warnings
-cargo clippy --no-deps -p xai-grok-pager-bin --bins -- -D warnings
-cargo test -p xai-mixpanel --lib
-cargo test -p xai-grok-version --lib
+cargo clippy --no-deps -p wth-pager-bin --bins -- -D warnings
+cargo test -p wth-agent --lib
+cargo test -p wth-config --lib
 ```
 
 Prefer focused tests for the crate you touch over a full workspace run unless
-you are changing shared infrastructure. Full-workspace `cargo clippy -D warnings`
-is not required — the monorepo snapshot is too noisy; CI uses `--no-deps` on the
-privacy crates and the `gork` binary.
+you are changing shared infrastructure.
 
 ## Branching and commits
 
 - Branch from `main`: `git checkout -b fix/short-description`
 - Keep commits focused; one logical change per commit when practical
-- Prefer **imperative, present-tense** subjects (Conventional Commits style is
-  welcome but not mandatory):
+- Prefer **imperative, present-tense** subjects (Conventional Commits style
+  welcome):
 
   ```
-  fix(privacy): keep trace_upload hard-off under remote settings
-  docs: rephrase getting-started for community builds
+  feat(agent): add multi-backend support for gpt-4.1
+  fix(config): update default paths to ~/.wth
   chore: refresh NOTICE attribution
   ```
 
@@ -76,14 +75,14 @@ privacy crates and the `gork` binary.
 3. Keep the PR reviewable: small diffs beat mega-patches. Split mechanical
    renames from behavioral changes when possible.
 4. Update docs (`README.md`, `PRIVACY.md`, user-guide) when behavior changes.
-5. Ensure CI (when configured) and local checks relevant to your change pass.
+5. Ensure CI and local checks relevant to your change pass.
 6. Expect review feedback; please respond or push follow-up commits rather than
    opening a parallel PR.
 
 ### Review bar
 
 - Correctness and safety first
-- Privacy hard-offs remain hard-offs
+- Privacy hard-offs remain hard-offs (no vendor telemetry)
 - No silent reintroduction of vendor branding or tracking
 - Match existing Rust style and module boundaries; avoid drive-by refactors
 
@@ -101,13 +100,16 @@ close or lock discussions that derail the project.
 
 ## Upstream relationship
 
-Gork Build periodically tracks
-[`xai-org/grok-build`](https://github.com/xai-org/grok-build). When porting an
-upstream fix:
+WTH is derived from:
+
+- [`xai-org/grok-build`](https://github.com/xai-org/grok-build) (Apache-2.0)
+- [`thedavidweng/gork-build`](https://github.com/thedavidweng/gork-build) (Apache-2.0)
+
+When porting an upstream fix:
 
 - Prefer a clean cherry-pick or minimal reimplementation
 - Preserve Apache-2.0 attribution (do not strip upstream copyright headers)
-- Re-apply Gork Build privacy/branding deltas if upstream reintroduces tracking
+- Re-apply WTH branding deltas if upstream reintroduces tracking
 
 ## Questions
 

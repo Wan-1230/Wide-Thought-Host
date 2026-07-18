@@ -1,10 +1,10 @@
-# Gork Build CI — lint, privacy tests, and the community `gork` binary.
+# Wide Thought Host (WTH) CI — lint, tests, and the `wth` binary.
 #
-# Layout mirrors a normal Rust project CI (see thedavidweng/sdf-flash-gui):
+# Layout mirrors a normal Rust project CI:
 #   fmt → clippy → tests/build
 # Scoped for this monorepo: full-workspace clippy -D warnings is not practical
-# on the upstream snapshot; clippy covers privacy-critical crates + the pager
-# binary surface. Privacy unit tests stay a separate fast job.
+# on the upstream snapshot; clippy covers core crates + the pager
+# binary surface. Tests stay a separate fast job.
 name: CI
 
 on:
@@ -81,12 +81,12 @@ jobs:
             --lib \
             -- -D warnings
 
-      - name: Clippy gork binary crate
+      - name: Clippy wth binary crate
         # Thin entry crate for the community CLI; --no-deps keeps the job
         # from re-linting the whole pager dependency tree.
         run: |
           cargo clippy --no-deps \
-            -p xai-grok-pager-bin \
+            -p wth-pager-bin \
             --bins \
             -- -D warnings
 
@@ -193,8 +193,8 @@ jobs:
           retention-days: 14
 
   # ── Build ─────────────────────────────────────────────────────────────────
-  build-gork:
-    name: Build gork
+  build-wth:
+    name: Build wth
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -215,30 +215,30 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: build-gork
+          shared-key: build-wth
           cache-targets: "true"
 
-      - name: Build gork (release)
-        run: cargo build -p xai-grok-pager-bin --release
+      - name: Build wth (release)
+        run: cargo build -p wth-pager-bin --release
 
-      - name: Smoke gork CLI
+      - name: Smoke wth CLI
         run: |
           set -euo pipefail
-          BIN=target/release/gork
+          BIN=target/release/wth
           test -x "$BIN"
           "$BIN" --version
           HELP=$("$BIN" --help)
           echo "$HELP" | head -20
-          echo "$HELP" | grep -q 'Gork Build TUI'
-          echo "$HELP" | grep -q 'Usage: gork'
-          # argv0 mapping: binary named gork must not be forced back to grok
+          echo "$HELP" | grep -q 'Wide Thought Host'
+          echo "$HELP" | grep -q 'Usage: wth'
+          # argv0 mapping: binary named wth must not be forced back to grok
           echo "smoke ok"
 
-      - name: Upload gork binary
+      - name: Upload wth binary
         uses: actions/upload-artifact@v7
         with:
-          name: gork-linux-x86_64
-          path: target/release/gork
+          name: wth-linux-x86_64
+          path: target/release/wth
           if-no-files-found: error
           retention-days: 14
 
@@ -246,31 +246,31 @@ jobs:
   # denylisted privacy/vendor hosts appear (no MITM required).
   privacy-egress:
     name: Privacy egress capture
-    needs: [build-gork]
+    needs: [build-wth]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
 
-      - name: Download gork binary
+      - name: Download wth binary
         uses: actions/download-artifact@v7
         with:
-          name: gork-linux-x86_64
+          name: wth-linux-x86_64
           path: target/release
 
       - name: Run privacy egress check
         run: |
           set -euo pipefail
-          chmod +x target/release/gork scripts/privacy_egress_check.sh
-          export PRIVACY_EGRESS_WORKDIR="${RUNNER_TEMP}/gork-privacy-egress"
+          chmod +x target/release/wth scripts/privacy_egress_check.sh
+          export PRIVACY_EGRESS_WORKDIR="${RUNNER_TEMP}/wth-privacy-egress"
           mkdir -p "$PRIVACY_EGRESS_WORKDIR"
-          GORK_BIN=target/release/gork ./scripts/privacy_egress_check.sh
+          WTH_BIN=target/release/wth ./scripts/privacy_egress_check.sh
 
       - name: Upload egress host log
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: privacy-egress-hosts
-          path: ${{ runner.temp }}/gork-privacy-egress/**
+          path: ${{ runner.temp }}/wth-privacy-egress/**
           if-no-files-found: ignore
           retention-days: 14

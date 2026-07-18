@@ -45,13 +45,23 @@ const THEME_CHOICES: &[EnumChoice] = &[
         description: "Follow system dark/light appearance.",
     },
     EnumChoice {
+        canonical: "wth-night",
+        display: "WTH Night",
+        description: "Dark theme with vibrant accents (default).",
+    },
+    EnumChoice {
+        canonical: "wth-day",
+        display: "WTH Day",
+        description: "Light theme for bright environments.",
+    },
+    EnumChoice {
         canonical: "groknight",
-        display: "Grok Night",
+        display: "Grok Night (legacy)",
         description: "Neutral dark with magenta accent.",
     },
     EnumChoice {
         canonical: "grokday",
-        display: "Grok Day",
+        display: "Grok Day (legacy)",
         description: "Light theme for bright environments.",
     },
     EnumChoice {
@@ -455,13 +465,23 @@ const VOICE_STT_LANGUAGE_CHOICES: &[EnumChoice] = &[
 /// the user can pair any theme with any system-appearance bucket.
 const CONCRETE_THEME_CHOICES: &[EnumChoice] = &[
     EnumChoice {
+        canonical: "wth-night",
+        display: "WTH Night",
+        description: "Dark theme with vibrant accents (default).",
+    },
+    EnumChoice {
+        canonical: "wth-day",
+        display: "WTH Day",
+        description: "Light theme for bright environments.",
+    },
+    EnumChoice {
         canonical: "groknight",
-        display: "Grok Night",
+        display: "Grok Night (legacy)",
         description: "Neutral dark with magenta accent.",
     },
     EnumChoice {
         canonical: "grokday",
-        display: "Grok Day",
+        display: "Grok Day (legacy)",
         description: "Light theme for bright environments.",
     },
     EnumChoice {
@@ -603,8 +623,8 @@ pub fn default_settings() -> Vec<SettingMeta> {
                 "light",
             ],
             kind: SettingKind::Enum {
-                // `Option<String>` — `None` resolved to "groknight".
-                default: "groknight",
+                // `Option<String>` — `None` resolved to "wth-night".
+                default: "wth-night",
                 choices: THEME_CHOICES,
                 supports_preview: true,
             },
@@ -619,8 +639,8 @@ pub fn default_settings() -> Vec<SettingMeta> {
             description: "Theme to use when the system is in dark mode (only with theme=auto).",
             keywords: &["auto", "dark", "theme", "system", "appearance", "night"],
             kind: SettingKind::Enum {
-                // `Option<String>` — `None` falls back to "groknight".
-                default: "groknight",
+                // `Option<String>` — `None` falls back to "wth-night".
+                default: "wth-night",
                 choices: CONCRETE_THEME_CHOICES,
                 supports_preview: true,
             },
@@ -635,8 +655,8 @@ pub fn default_settings() -> Vec<SettingMeta> {
             description: "Theme to use when the system is in light mode (only with theme=auto).",
             keywords: &["auto", "light", "theme", "system", "appearance", "day"],
             kind: SettingKind::Enum {
-                // `Option<String>` — `None` falls back to "grokday".
-                default: "grokday",
+                // `Option<String>` — `None` falls back to "wth-day".
+                default: "wth-day",
                 choices: CONCRETE_THEME_CHOICES,
                 supports_preview: true,
             },
@@ -1212,7 +1232,7 @@ pub fn default_settings() -> Vec<SettingMeta> {
             label: "Auto-update",
             description: "Unused in Gork Build. Vendor (x.ai) auto-update is hard-disabled so \
                           this fork is never overwritten by official Grok Build installers. \
-                          Update by rebuilding from the gork-build repository.",
+                          Update by rebuilding from the Wide Thought Host repository.",
             keywords: &[
                 "auto", "update", "updates", "upgrade", "version", "install", "channel",
             ],

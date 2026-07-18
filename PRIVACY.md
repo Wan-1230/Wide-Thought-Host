@@ -1,8 +1,12 @@
-# Gork Build privacy model
+# Wide Thought Host (WTH) — privacy model
 
-Gork Build is a **VSCodium-style** community distribution of xAI Grok Build:
-same agent capabilities, **no product tracking**, **no research data
-collection** on the client.
+Wide Thought Host (WTH) is a community distribution derived from
+[gork-build](https://github.com/thedavidweng/gork-build), which is itself a
+privacy-first fork of [xAI Grok Build](https://github.com/xai-org/grok-build).
+WTH inherits gork-build's privacy hard-offs and extends them.
+
+**Same agent capabilities, no product tracking, no research data collection
+on the client.**
 
 Background (why the hard-offs exist):
 [wire analysis of Grok Build 0.2.93](https://gist.github.com/cereblab/dc9a40bc26120f4540e4e09b75ffb547).
@@ -10,98 +14,46 @@ Background (why the hard-offs exist):
 ## Hard guarantees (this build)
 
 These are compile-time / resolver-level hard-offs. Remote settings, env vars,
-and config files **cannot** re-enable them while
-`xai_grok_version::PRIVACY_BUILD == true` (including product telemetry
-env vars such as `GROK_TELEMETRY_*` and vendor update settings).
-
-**Installer integration tests only:** the optional Cargo feature
-`updater-integration-tests` (never enabled by `cargo run` / product builds)
-plus `GORK_TEST_ALLOW_UPDATE=1` can relax the vendor-update gate so local
-mock download suites work. That feature is not part of any product binary;
-ordinary debug and release builds have no runtime escape hatch.
+and config files **cannot** re-enable them.
 
 1. **Research / trace uploads** — `resolve_trace_upload()` always returns
-   `false`. `get_trace_context` never builds an upload method for GCS session
-   traces, turn_messages archives, etc.
-2. **Data-collection flags** — `AuthManager::is_data_collection_disabled()` is
-   always `true`; `allows_data_collection()` is always `false`.
-3. **Product telemetry** — `resolve_telemetry_mode()` is always `Disabled`.
-   Mixpanel clients are never constructed; `Mixpanel::{track,engage}` are
-   no-ops if anything still calls them.
-4. **Repo change packaging** — `[repo_changes_dedup] enabled` defaults to
-   `false`.
-5. **Vendor auto-update** — hard-disabled. Gork Build never installs from
-   x.ai update channels (`x.ai/cli/install.*`); that path would replace this
-   fork with official Grok Build. Policy is enforced at the bottom-level
-   chokepoint `run_install_script` (and every caller of it). Leader hourly
-   update and minimum-version enforcement also **fail closed** under the
-   privacy build — they refuse vendor install rather than overwrite the binary.
-   Update by rebuilding from this repository or community releases.
-   Product binaries (debug or release) cannot re-enable vendor install via
-   env; see the test-only Cargo feature note above.
-6. **Sentry** — no compile-time DSN; only an explicit runtime `SENTRY_DSN`
-   can enable crash reporting.
+   `false`. Session traces are never uploaded.
+2. **Data-collection flags** — `is_data_collection_disabled()` is always
+   `true`; `allows_data_collection()` is always `false`.
+3. **Product telemetry** — telemetry mode is always `Disabled`. Mixpanel
+   clients are never constructed; any remaining calls are no-ops.
+4. **Vendor auto-update** — hard-disabled. WTH never installs from vendor
+   update channels. Update by rebuilding from source or community releases
+   from this project.
+5. **No vendor branding or tracking** — all vendor-specific analytics
+   identifiers are removed; feature flags cannot re-enable them.
 
-## Required network (not “telemetry”)
+## What still leaves the machine
 
-To run a cloud coding agent you still need:
+**Model inference traffic.** WTH must send prompts and tool results to the
+LLM API you configure in order to function. That is inherent to any cloud
+coding agent — the model needs to see your code to operate on it.
 
-| Destination | Why |
-|-------------|-----|
-| Grok / cli-chat-proxy model API | Inference (`/v1/responses` etc.) |
-| Auth endpoints (OIDC / login) | Your login |
-| Optional user-configured tools | MCP servers, web search, etc. you enable |
+Unlike upstream Grok Build, WTH supports multiple backends (OpenAI,
+Anthropic, xAI, local models), so you can choose where your data goes.
 
-**Anything the agent reads for a task can appear in the model request body.**
-That is inference context, not Gork Build research upload. Prefer not opening
-`.env` / key material in the session; secret redaction exists for some
-telemetry paths but is not a complete guarantee on the model path.
+**Recommendations:**
+- For sensitive work, use a local model via Ollama/vLLM or a self-hosted API
+- Configure `WTH_API_KEY` for each backend individually
+- Review `~/.wth/config.toml` to verify your backend settings
 
-Research / product-analytics hard-offs stop packaging of session traces,
-whole-repo research uploads, and Mixpanel-style events shown in the
-[wire analysis](https://gist.github.com/cereblab/dc9a40bc26120f4540e4e09b75ffb547).
-They do **not** mean the model never sees file contents you ask the agent to
-read — that is still how cloud coding works.
+## What WTH does NOT add
 
-## Network egress inventory
+- No extra research packaging or telemetry layers
+- No third-party analytics (no Mixpanel, no Sentry unless you set `SENTRY_DSN`)
+- No vendor auto-update channels
+- No feature flags from remote servers that can change privacy behavior
 
-Channels the binary *can* touch, and how Gork Build treats them:
+## Verification
 
-| Channel | Default in this build | Notes |
-|---------|----------------------|--------|
-| **Model API** (cli-chat-proxy / `/v1/responses` etc.) | On when you use the agent | Agent-selected context (prompts, tools, file contents read for the task) goes here — required for cloud coding |
-| **Auth** (OIDC / login) | On when you sign in | Credentials / tokens for your account |
-| **Remote settings / managed config** | May fetch when configured | Feature/config pull; cannot re-enable research or product telemetry hard-offs |
-| **Model catalog** | May fetch when listing models | Model metadata for the picker |
-| **Assets** (themes, announcements, static assets) | Optional / as needed | Non-secret presentation content |
-| **Feedback** | User-initiated only | Only if you explicitly submit feedback |
-| **External OTLP** | Off unless you configure an exporter | Product telemetry mode is hard-`Disabled`; custom OTLP is user opt-in |
-| **Sentry** | Off | Only if you set `SENTRY_DSN` |
-| **MCP / plugins** | Off until you enable | User-configured servers and marketplaces you add |
-| **Web search** | Off until you enable | Tool you turn on for the agent |
-| **Update metadata / install** | Vendor install **hard-off** | No `x.ai/cli` install scripts; `run_install_script` fail-closed; leader + minimum-version refuse vendor overwrite. Rebuild from source or community releases |
+The gork-build privacy hard-offs are inherited intact. WTH adds:
+- `WTH_API_KEY` / `WTH_API_BASE_URL` env vars for explicit backend control
+- Multi-backend support so you're not locked into a single vendor's API
+- `~/.wth/config.toml` for transparent configuration
 
-## Server-side retention
-
-Client hard-offs do not control what xAI’s **API servers** log for inference.
-Gork Build locks **coding-data retention to opt-out** (no `/privacy opt-in`,
-settings cannot enable sharing). Local state always stays opted out; the shell
-refuses opt-in over ACP.
-
-Deleting historical research data already uploaded by **upstream** Grok Build
-is a **server-side** operation (upstream `/privacy` + their storage policies).
-This fork cannot wipe objects already in `grok-code-session-traces` by itself.
-
-## What we are not
-
-- Not an offline / local-only LLM product
-- Not affiliated with xAI
-- Not a claim that “zero bytes leave your machine”
-
-## Verification ideas
-
-1. Run under a local HTTPS proxy; confirm no `api.mixpanel.com` and no
-   research `…/v1/storage` content uploads during a normal session.
-2. Inspect logs for `trace.upload.decision` with `uploads_enabled: false` and
-   `data_collection_disabled: true`.
-3. Confirm `xai_grok_version::PRIVACY_BUILD` is `true` in your build.
+Source code is fully open (Apache-2.0). You can audit every network call.
