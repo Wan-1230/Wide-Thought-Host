@@ -1,0 +1,84 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicedoc/webkit/main/schemas/tauri/2.0.0/tauri.conf.json",
+  "productName": "Wide Thought Host",
+  "version": "0.1.0",
+  "identifier": "com.wth.desktop",
+  "build": {
+    "frontendDist": "../ui/dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "cd ui && npm run dev",
+    "beforeBuildCommand": "cd ui && npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Wide Thought Host",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true,
+        "decorations": true,
+        "center": true,
+        "visible": true,
+        "closable": true,
+        "minimizable": true,
+        "maximizable": true
+      }
+    ],
+    "trayIcon": {
+      "id": "wth-tray",
+      "iconPath": "icons/icon.png",
+      "tooltip": "Wide Thought Host",
+      "menuOnLeftClick": false
+    },
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:* ws://localhost:*; img-src 'self' data: blob:; font-src 'self' data:"
+    }
+  },
+  "plugins": {
+    "shell": {
+      "open": true,
+      "scope": [
+        {
+          "name": "terminal-spawn",
+          "cmd": "bash|zsh|powershell|cmd|pwsh",
+          "args": true
+        }
+      ]
+    },
+    "global-shortcut": {
+      "shortcuts": [
+        {
+          "key": "Alt+Space",
+          "description": "Toggle WTH window visibility"
+        }
+      ]
+    },
+    "notification": {
+      "all": true
+    },
+    "fs": {
+      "scope": ["**"]
+    },
+    "dialog": {
+      "all": true
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["deb", "rpm", "appimage", "msi", "nsis", "dmg"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "DeveloperTool",
+    "shortDescription": "Wide Thought Host Desktop Agent",
+    "longDescription": "Wide Thought Host — an open-source AI agent application for desktop. Multi-model, multi-session, with file system access, terminal, and code editing capabilities.",
+    "publisher": "WTH",
+    "copyright": "Apache-2.0"
+  }
+}

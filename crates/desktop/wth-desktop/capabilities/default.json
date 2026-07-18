@@ -1,0 +1,25 @@
+{
+  "identifier": "default",
+  "description": "Default capability for WTH desktop",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:default",
+    "shell:allow-execute",
+    "shell:allow-stdin-write",
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-message",
+    "notification:default",
+    "global-shortcut:default",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "fs:default",
+    "fs:allow-read",
+    "fs:allow-write",
+    "fs:allow-exists",
+    "fs:allow-mkdir",
+    "clipboard-manager:default"
+  ]
+}
