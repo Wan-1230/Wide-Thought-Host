@@ -1,18 +1,18 @@
 # Authentication
 
-Grok supports several authentication methods, including interactive browser login, enterprise single sign-on (SSO), and headless CI/CD runners.
+WTH supports several authentication methods, including interactive browser login, enterprise single sign-on (SSO), and headless CI/CD runners.
 
 ---
 
 ## Browser Login (Default)
 
-On first launch, Grok opens your browser to authenticate with grok.com:
+On first launch, Grok opens your browser to authenticate with x.ai (or your configured backend):
 
 ```bash
 grok
 ```
 
-Grok stores credentials in `~/.grok/auth.json` and reuses them across sessions. Grok refreshes access tokens automatically in the background. When a token can't be refreshed, Grok prompts you to sign in again. Credentials without a server-provided expiry fall back to a 30-day lifetime.
+Grok stores credentials in `~/.wth/auth.json` and reuses them across sessions. Grok refreshes access tokens automatically in the background. When a token can't be refreshed, Grok prompts you to sign in again. Credentials without a server-provided expiry fall back to a 30-day lifetime.
 
 ### Re-authenticate
 
@@ -22,14 +22,14 @@ To switch accounts or resolve an authentication problem, run:
 grok login
 ```
 
-Running `grok login` starts the sign-in flow again, replacing your cached session. By default, it opens your browser and signs in through Grok (xAI) OAuth at `auth.x.ai`. Pass a flag to select a different flow:
+Running `wth login` starts the sign-in flow again, replacing your cached session. By default, it opens your browser and signs in through Grok (xAI) OAuth at `auth.x.ai`. Pass a flag to select a different flow:
 
 | Flag | Description |
 |------|-------------|
 | `--oauth` | Sign in through Grok (xAI) OAuth at `auth.x.ai`. This is the default, so the flag is optional. |
 | `--device-auth` (alias `--device-code`) | Sign in with the device-code flow for headless or remote environments. |
 
-To sign out, run `grok logout`. It takes no flags and clears your cached credentials.
+To sign out, run `wth logout`. It takes no flags and clears your cached credentials.
 
 ---
 
@@ -42,13 +42,13 @@ export XAI_API_KEY="xai-..."
 grok
 ```
 
-Grok uses the API key as a fallback when no session token is active. If you have already signed in interactively, the stored session token takes precedence. To fall back to the API key, run `grok logout` or delete `~/.grok/auth.json`.
+Grok uses the API key as a fallback when no session token is active. If you have already signed in interactively, the stored session token takes precedence. To fall back to the API key, run `wth logout` or delete `~/.wth/auth.json`.
 
 ---
 
 ## OIDC (Customer SSO)
 
-Authenticate developers through your own Identity Provider (IdP) -- such as Okta, Azure AD, or Auth0 -- instead of grok.com.
+Authenticate developers through your own Identity Provider (IdP) -- such as Okta, Azure AD, or Auth0 -- instead of x.ai (or your configured backend).
 
 ### 1. Register a public client in your IdP
 
@@ -61,7 +61,7 @@ Authenticate developers through your own Identity Provider (IdP) -- such as Okta
 Via config file:
 
 ```toml
-# ~/.grok/config.toml
+# ~/.wth/config.toml
 [grok_com_config.oidc]
 issuer = "https://acme.okta.com"
 client_id = "0oa1b2c3d4e5f6g7h8i9"
@@ -80,9 +80,9 @@ You can also override the API endpoint to point at your own proxy:
 export GROK_CLI_CHAT_PROXY_BASE_URL="https://grok-proxy.acme.com/v1"
 ```
 
-### 3. Run `grok`
+### 3. Run `wth`
 
-The CLI discovers endpoints via `{issuer}/.well-known/openid-configuration`, opens the IdP login page, and stores tokens in `~/.grok/auth.json`. Tokens auto-refresh silently via the stored `refresh_token`.
+The CLI discovers endpoints via `{issuer}/.well-known/openid-configuration`, opens the IdP login page, and stores tokens in `~/.wth/auth.json`. Tokens auto-refresh silently via the stored `refresh_token`.
 
 ### Optional fields
 
@@ -111,7 +111,7 @@ When browser-based login isn't possible -- for example, on sandboxed VMs, CI run
 
 1. Grok runs your command via `sh -c "<command>"`
 2. Your binary runs whatever auth flow it needs (SSO, device code, certificate exchange)
-3. **stderr** carries human-readable output, such as login URLs and status messages. Grok reads stderr and surfaces it to the user; in the TUI, it turns the first `https://` URL into a clickable sign-in link.
+3. **stderr** carries human-readable output, such as login URLs and status messages. WTH reads stderr and surfaces it to the user; in the TUI, it turns the first `https://` URL into a clickable sign-in link.
 4. **stdout** is captured by Grok and saved as the access token
 5. Exit 0 = success; exit non-zero = Grok falls back to interactive login
 
@@ -120,9 +120,9 @@ When browser-based login isn't possible -- for example, on sandboxed VMs, CI run
 | Stream | What to print | Who sees it |
 |--------|---------------|-------------|
 | **stdout** | The token -- nothing else | Grok (parsed and stored in auth.json) |
-| **stderr** | Login URLs, status messages, errors | The user (Grok reads stderr and shows the sign-in URL as a clickable link in the TUI) |
+| **stderr** | Login URLs, status messages, errors | The user (WTH reads stderr and shows the sign-in URL as a clickable link in the TUI) |
 
-**Do not print anything to stdout except the token.** No progress messages, no debug output. Grok reads stdout, trims surrounding whitespace, and parses the result as a token.
+**Do not print anything to stdout except the token.** No progress messages, no debug output. WTH reads stdout, trims surrounding whitespace, and parses the result as a token.
 
 ### stdout Token Format
 
@@ -145,7 +145,7 @@ Use JSON if your tokens expire and you want Grok to automatically re-run the bin
 Via config file:
 
 ```toml
-# ~/.grok/config.toml
+# ~/.wth/config.toml
 [auth]
 auth_provider_command = "/usr/local/bin/my-auth-provider"
 auth_provider_label = "Acme Corp"   # optional -- customizes the TUI login button
@@ -230,7 +230,7 @@ export GROK_AUTH_EARLY_INVALIDATION_SECS=0
 
 ## Hot Reload
 
-Grok picks up changes to `~/.grok/auth.json` automatically. If you update credentials externally (for example, with a script that writes new tokens), Grok uses the new credentials on the next API call without a restart.
+Grok picks up changes to `~/.wth/auth.json` automatically. If you update credentials externally (for example, with a script that writes new tokens), Grok uses the new credentials on the next API call without a restart.
 
 ---
 
@@ -239,7 +239,7 @@ Grok picks up changes to `~/.grok/auth.json` automatically. If you update creden
 Grok resolves credentials for each request in this order, highest to lowest:
 
 1. **Per-model `api_key` or `env_key`** -- set under `[model.<name>]` in `config.toml`. Wins whenever present.
-2. **Active session token** -- obtained through browser, OIDC/OAuth2, or external-provider login and stored in `~/.grok/auth.json`.
+2. **Active session token** -- obtained through browser, OIDC/OAuth2, or external-provider login and stored in `~/.wth/auth.json`.
 3. **`XAI_API_KEY`** -- fallback when no session token is active.
 
 When more than one login flow is configured, Grok populates the session token from the first available source, highest to lowest:
@@ -285,7 +285,7 @@ RUST_LOG=debug grok -p "hello" 2> /tmp/grok.log
 
 ### Common fixes
 
-- **"Authentication failed"** -- Run `grok logout` to clear cached credentials, then `grok login` to sign in again.
+- **"Authentication failed"** -- Run `wth logout` to clear cached credentials, then `wth login` to sign in again.
 - **Token expires too quickly** -- Set `auth_token_ttl` or return `expires_in` in your auth provider's JSON output.
 - **OIDC redirect fails** -- Ensure your IdP allows loopback redirect URIs (`http://127.0.0.1/callback`).
 - **External auth provider not found** -- Check that the `auth_provider_command` path is correct and the binary is executable.

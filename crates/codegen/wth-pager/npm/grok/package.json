@@ -1,11 +1,10 @@
 {
-    "name": "@gork-build/gork",
-    "version": "0.1.220-alpha.4",
-    "description": "Gork Build \u2014 community VSCodium-style Grok Build (no vendor telemetry)",
+    "name": "@wth-build/wth",
+    "version": "0.1.0",
+    "description": "Wide Thought Host (WTH) — optimized coding agent harness with multi-backend LLM support",
     "license": "Apache-2.0",
     "bin": {
-        "gork": "bin/grok",
-        "grok": "bin/grok"
+        "wth": "bin/wth"
     },
     "files": [
         "bin/"
@@ -32,11 +31,11 @@
         "@iarna/toml": "^3.0.0"
     },
     "optionalDependencies": {
-        "@gork-build/gork-darwin-arm64": "0.1.220-alpha.4",
-        "@gork-build/gork-darwin-x64": "0.1.220-alpha.4",
-        "@gork-build/gork-linux-arm64": "0.1.220-alpha.4",
-        "@gork-build/gork-linux-x64": "0.1.220-alpha.4",
-        "@gork-build/gork-win32-arm64": "0.1.220-alpha.4",
-        "@gork-build/gork-win32-x64": "0.1.220-alpha.4"
+        "@wth-build/wth-darwin-arm64": "0.1.0",
+        "@wth-build/wth-darwin-x64": "0.1.0",
+        "@wth-build/wth-linux-arm64": "0.1.0",
+        "@wth-build/wth-linux-x64": "0.1.0",
+        "@wth-build/wth-win32-arm64": "0.1.0",
+        "@wth-build/wth-win32-x64": "0.1.0"
     }
 }

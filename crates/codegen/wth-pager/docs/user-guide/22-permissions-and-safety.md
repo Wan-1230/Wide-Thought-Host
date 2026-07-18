@@ -98,7 +98,7 @@ disable_bypass_permissions_mode = true   # default: false. true = locked off.
 
 Do not use `permission_mode` for this; it is a user-switchable default, not a lock. The legacy `[ui] yolo = false` key in `requirements.toml` also disables the mode, for backward compatibility; in `config.toml` the same key remains a togglable preference.
 
-The user-level `~/.grok/requirements.toml` is under the user's control, so a developer can remove the lock by editing that file. For enforcement that users cannot override, deploy the setting in the root-owned system file `/etc/grok/requirements.toml`.
+The user-level `~/.wth/requirements.toml` is under the user's control, so a developer can remove the lock by editing that file. For enforcement that users cannot override, deploy the setting in the root-owned system file `/etc/grok/requirements.toml`.
 
 > **Note:** Grok honors the permission rules in Claude Code's `managed-settings.json`, but not its `disableBypassPermissionsMode` lock. To disable always-approve in Grok, use `requirements.toml` as shown above.
 
@@ -106,7 +106,7 @@ The user-level `~/.grok/requirements.toml` is under the user's control, so a dev
 
 ## Configuring Permissions
 
-Grok reads permission rules from three compatible sources. Rules from all sources are merged into one set; a rule's effect depends on its action (`deny` > `ask` > `allow`), not on which file it came from.
+WTH reads permission rules from three compatible sources. Rules from all sources are merged into one set; a rule's effect depends on its action (`deny` > `ask` > `allow`), not on which file it came from.
 
 ### Where Permission Rules Live (Scopes)
 
@@ -114,7 +114,7 @@ Permission rules can be global (all projects), project-scoped (one repository), 
 
 | Scope | File | Shared with teammates |
 |-------|------|-----------------------|
-| Global (all projects) | `~/.grok/config.toml` | No |
+| Global (all projects) | `~/.wth/config.toml` | No |
 | Project (committed) | `<project>/.grok/config.toml` | Yes (commit it) |
 | Project (personal) | `<project>/.claude/settings.local.json` | No (gitignore it) |
 | Interactive grants | Stored internally by Grok, per project | No |
@@ -123,7 +123,7 @@ Notes on scoping:
 
 - Grok discovers a `.grok/config.toml` at every directory level from the repository root down to your working directory, so a subdirectory can add rules on top of the repo root's.
 - Rules from all scopes are merged into one rule set; `deny` > `ask` > `allow` applies across scopes, so a global `deny` cannot be overridden by a project `allow`.
-- Grok has no native `config.local.toml`. For personal, uncommitted rules in a project, use `.claude/settings.local.json`; Grok reads it directly (see [Claude Code Compatibility](#3-claude-code-compatibility-claudesettingsjson)).
+- Grok has no native `config.local.toml`. For personal, uncommitted rules in a project, use `.claude/settings.local.json`; WTH reads it directly (see [Claude Code Compatibility](#3-claude-code-compatibility-claudesettingsjson)).
 - Interactive "Always allow" decisions are stored outside the repository, scoped to the project (see [Interactive Approvals](#interactive-approvals-and-where-they-persist)).
 
 To stop prompts for a specific command in one project, add a narrow allow rule to that project's `.grok/config.toml` (or `.claude/settings.json`):
@@ -159,7 +159,7 @@ Rule syntax examples:
 
 See [Rule Matching Reference](#rule-matching-reference) for the exact matching semantics, including how chained commands and wildcards are evaluated.
 
-### 2. Native Configuration (`~/.grok/config.toml` and `.grok/config.toml`)
+### 2. Native Configuration (`~/.wth/config.toml` and `.grok/config.toml`)
 
 ```toml
 [permission]
@@ -177,9 +177,9 @@ The structured `tool` field accepts the lowercase names `bash`, `read`, `edit`, 
 
 Because `deny` always wins, you cannot combine these `allow` rules with a catch-all `deny` on `bash` to mean "only allow git/gh"; a `deny tool = "bash"` rule would block `git` and `gh` too. For deny-by-default, use `defaultMode: "dontAsk"` in `.claude/settings.json` or a `PreToolUse` hook (below).
 
-Rules from the global `~/.grok/config.toml` and every project `.grok/config.toml` (from the repo root down to your working directory) are merged into one rule set, alongside any `.claude/settings.json` rules.
+Rules from the global `~/.wth/config.toml` and every project `.grok/config.toml` (from the repo root down to your working directory) are merged into one rule set, alongside any `.claude/settings.json` rules.
 
-Managed configuration deployed by your organization also contributes `[permission]` rules: the system `/etc/grok/managed_config.toml`, and a user-level copy that Grok maintains automatically at `~/.grok/managed_config.toml`. Managed rules merge like rules from any other source, with two properties specific to managed `allow` rules: your own `deny` and `ask` rules win over a managed `allow` (severity ordering), and a catch-all managed `allow` is ignored when always-approve is locked off. For rules that users cannot edit away, use the root-owned system `/etc/grok/requirements.toml`.
+Managed configuration deployed by your organization also contributes `[permission]` rules: the system `/etc/grok/managed_config.toml`, and a user-level copy that Grok maintains automatically at `~/.wth/managed_config.toml`. Managed rules merge like rules from any other source, with two properties specific to managed `allow` rules: your own `deny` and `ask` rules win over a managed `allow` (severity ordering), and a catch-all managed `allow` is ignored when always-approve is locked off. For rules that users cannot edit away, use the root-owned system `/etc/grok/requirements.toml`.
 
 Permission rules from every source are read once, when a session starts. Changes apply to the next session.
 
@@ -202,7 +202,7 @@ allow = [
 
 ### 3. Claude Code Compatibility (`.claude/settings.json`)
 
-Grok reads `~/.claude/settings.json` and `~/.claude/settings.local.json`, plus the project-level `<project>/.claude/settings.json` and `settings.local.json` (walking up to the repo root). The native `.grok` source for permission rules is `config.toml`, described in the section above.
+WTH reads `~/.claude/settings.json` and `~/.claude/settings.local.json`, plus the project-level `<project>/.claude/settings.json` and `settings.local.json` (walking up to the repo root). The native `.grok` source for permission rules is `config.toml`, described in the section above.
 
 Example:
 
@@ -223,7 +223,7 @@ Example:
 }
 ```
 
-Supported `defaultMode` values are `default`, `acceptEdits`, `bypassPermissions`, `dontAsk`, and `plan`. Grok reads `defaultMode` from its canonical location under `permissions`; a top-level `defaultMode` is also accepted when the nested key is absent.
+Supported `defaultMode` values are `default`, `acceptEdits`, `bypassPermissions`, `dontAsk`, and `plan`. WTH reads `defaultMode` from its canonical location under `permissions`; a top-level `defaultMode` is also accepted when the nested key is absent.
 
 `permissions.allow`, `permissions.deny`, and `permissions.ask` entries are translated into native rules and then matched with the semantics in the [Rule Matching Reference](#rule-matching-reference). Translation notes:
 
@@ -310,7 +310,7 @@ When a tool call requires approval, the permission prompt offers these choices:
 A narrower set of options remembers just the specific command, MCP tool, or web-fetch domain being prompted, for example "Always allow `cargo test`". These rows are off by default. Enable them with:
 
 ```toml
-# ~/.grok/config.toml
+# ~/.wth/config.toml
 [ui]
 remember_tool_approvals = true
 ```
@@ -339,7 +339,7 @@ A `PreToolUse` hook can enforce an allow list on the `Bash` tool that applies in
 
 ### Example: Allow Only `git` and `gh`
 
-**`~/.grok/hooks/git-gh-only.json`**
+**`~/.wth/hooks/git-gh-only.json`**
 
 ```json
 {
@@ -360,7 +360,7 @@ A `PreToolUse` hook can enforce an allow list on the `Bash` tool that applies in
 }
 ```
 
-**`~/.grok/hooks/git-gh-only.sh`**
+**`~/.wth/hooks/git-gh-only.sh`**
 
 ```bash
 #!/bin/sh
@@ -397,7 +397,7 @@ done
 ```
 
 ```bash
-chmod +x ~/.grok/hooks/git-gh-only.sh
+chmod +x ~/.wth/hooks/git-gh-only.sh
 ```
 
 This hook denies every `Bash` command unless each chained segment starts with `git` or `gh`, and rejects command substitution, backgrounding, and redirection outright because it cannot verify what they execute. It works in every permission mode.

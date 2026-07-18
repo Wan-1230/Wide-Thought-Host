@@ -1,44 +1,39 @@
-# Gork Build (`@gork-build/gork`)
+# Wide Thought Host (`@wth-build/wth`)
 
-Community VSCodium-style distribution of Grok Build — **vendor telemetry and
-branding removed**.
+Optimized coding agent harness — multi-backend LLM support, enhanced TUI, deep extensibility.
+Derived from [gork-build](https://github.com/thedavidweng/gork-build) /
+[xai-org/grok-build](https://github.com/xai-org/grok-build) (Apache-2.0).
 
-**[Repository](https://github.com/thedavidweng/gork-build)** ·
-**[Privacy](https://github.com/thedavidweng/gork-build/blob/main/PRIVACY.md)** ·
-**[Wire analysis (why)](https://gist.github.com/cereblab/dc9a40bc26120f4540e4e09b75ffb547)**
-
-Upstream credit: based on [xai-org/grok-build](https://github.com/xai-org/grok-build)
-(Apache-2.0). Not affiliated with SpaceXAI / xAI.
+**[Repository](https://github.com/Wan-1230/Wide-Thought-Host)**
 
 ## Install
 
-Prefer building from source for the latest privacy hard-offs:
+Prefer building from source:
 
 ```bash
-git clone https://github.com/thedavidweng/gork-build.git
-cd gork-build
-cargo build -p xai-grok-pager-bin --release
-# → target/release/gork
+git clone https://github.com/Wan-1230/Wide-Thought-Host.git
+cd Wide-Thought-Host
+cargo build -p wth-pager-bin --release
 ```
 
-npm packages (when published) install as:
+Binary: `target/release/wth`
+
+Or install via npm (when published):
 
 ```bash
-npm i -g @gork-build/gork
-gork
+npm install -g @wth-build/wth
 ```
 
-## Get started
+## Configuration
 
-```bash
-gork                    # interactive TUI
-gork -p "Explain this"  # one-shot
+```toml
+# ~/.wth/config.toml
+[backends.openai]
+api_base = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+default_model = "gpt-4.1"
 ```
-
-Authenticate with your Grok / xAI account (or `XAI_API_KEY`) — model inference
-still uses the Grok API. Research uploads and product analytics stay off in
-this build.
 
 ## License
 
-Apache-2.0 — see the repository `LICENSE` and `NOTICE`.
+Apache-2.0. Not affiliated with SpaceXAI / xAI.

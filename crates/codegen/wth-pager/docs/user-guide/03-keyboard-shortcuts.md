@@ -1,6 +1,6 @@
 # Keyboard Shortcuts
 
-Reference for key bindings in the Grok Build TUI. Bindings are built in and cannot currently be remapped.
+Reference for key bindings in the Wide Thought Host (WTH) TUI. Bindings are built in and cannot currently be remapped.
 
 ---
 
@@ -11,14 +11,14 @@ Grok has two input modes that control how you navigate the scrollback:
 - **Simple mode** (default): Arrow keys for navigation, `Shift+Arrow` for turn navigation, `Space` to focus the prompt, and any letter key auto-focuses the prompt.
 - **Vim mode** (opt-in): `j`/`k` for navigation, `H`/`L` for turn navigation, `J`/`K` for response navigation, `h`/`l` for fold, `e`/`E` for expand/collapse, and `i`/`Tab`/`Space` to focus the prompt.
 
-Simple mode is active by default. To switch to Vim mode, set `vim_mode = true` under `[ui]` in `~/.grok/config.toml`, or toggle it at runtime with `/vim-mode`. See [Configuration](05-configuration.md) for details.
+Simple mode is active by default. To switch to Vim mode, set `vim_mode = true` under `[ui]` in `~/.wth/config.toml`, or toggle it at runtime with `/vim-mode`. See [Configuration](05-configuration.md) for details.
 
 The tables below document bindings for both modes. The "Key" column shows the Vim-mode binding, and the "Alt Key" column shows the equivalent in simple mode (arrow keys, etc.).
 
 > **Vim-mode required**: Single-letter and `Shift+letter` bindings in the
 > **Scrollback** context (`j/k`, `h/l`, `g/G`, `L/H`, `y/Y`, `o/O`, `r`,
 > `x`, `e/E`, and the `i` insert-mode alt) require `[ui].vim_mode = true`
-> in `~/.grok/config.toml` (or `/vim-mode` to toggle). Arrow keys, `Tab`,
+> in `~/.wth/config.toml` (or `/vim-mode` to toggle). Arrow keys, `Tab`,
 > `Esc`, `Space`, `PageUp/Down`, and every `Ctrl+letter` shortcut work in
 > both modes.
 
@@ -162,7 +162,7 @@ Non-image files insert their absolute path as text instead of a chip.
 Linux X11 has two independent text selections:
 
 - `Ctrl+V` reads **CLIPBOARD**, the explicit copy/cut selection. It never falls back to PRIMARY. To put text there with `xclip`, use `printf %s "text" | xclip -selection clipboard`.
-- An unmodified middle click in Grok reads **PRIMARY**, the current mouse selection, only when `DISPLAY` is non-empty. Pure X11 can use its native reader fallback; XWayland requires `xclip` or `xsel` on `PATH` so Grok reads the X11 selection rather than Wayland PRIMARY. The press is handled once; the release does not paste again.
+- An unmodified middle click in WTH reads **PRIMARY**, the current mouse selection, only when `DISPLAY` is non-empty. Pure X11 can use its native reader fallback; XWayland requires `xclip` or `xsel` on `PATH` so WTH reads the X11 selection rather than Wayland PRIMARY. The press is handled once; the release does not paste again.
 - `Shift+Insert` is the terminal-native way to paste selected text. Many terminals also use `Shift+middle click` to bypass application mouse reporting.
 
 Over SSH, the remote Grok process usually cannot access the terminal's local X11 selection. Use terminal-native `Shift+Insert` or `Shift+middle click` so the local terminal sends the selected text through the PTY.

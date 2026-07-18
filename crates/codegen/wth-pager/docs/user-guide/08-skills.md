@@ -20,7 +20,7 @@ Grok discovers skills from these directories, in priority order:
 |----------|-------|----------|-------|
 | `./.grok/skills/`, `./.grok/commands/` | Local (CWD) | Highest | Current directory skills / legacy command markdown |
 | `<repo_root>/.grok/skills/`, `…/commands/` | Repo | Medium | Shared across the repo |
-| `~/.grok/skills/`, `~/.grok/commands/` | User | Lowest | Personal skills for all projects |
+| `~/.wth/skills/`, `~/.wth/commands/` | User | Lowest | Personal skills for all projects |
 | `~/.claude/skills/`, `~/.claude/commands/` | User | Lowest | Claude Code compatibility (configurable) |
 | `./.claude/skills/`, `./.claude/commands/` | Local / Repo | High | Project Claude skills and legacy custom slash commands |
 | `~/.cursor/skills/` | User | Lowest | Cursor compatibility (configurable) |
@@ -32,11 +32,11 @@ Flat `*.md` files under a `commands/` directory become user-invocable slash comm
 
 Skill and command discovery does **not** use `.gitignore`. Paths under known skill roots (`.grok/`, `.agents/`, `.claude/`, `.cursor/`) always load when present on disk — teams often ignore `.claude/**` as local-only config while still expecting `/frontend`-style project commands to work. To hide a skill, use `[skills] ignore` in config (not repo ignore rules).
 
-Grok scans the Claude and Cursor skill directories by default. To stop scanning a vendor, set its `skills` cell to `false` under `[compat.cursor]` or `[compat.claude]` in `~/.grok/config.toml`, or set the `GROK_CURSOR_SKILLS_ENABLED` or `GROK_CLAUDE_SKILLS_ENABLED` environment variable to `false`. See [Configuration](05-configuration.md#harness-compatibility) for details. Grok always filters out known vendor-shipped default skills (such as Cursor's `shell`, `canvas`, and `statusline`), regardless of these settings.
+Grok scans the Claude and Cursor skill directories by default. To stop scanning a vendor, set its `skills` cell to `false` under `[compat.cursor]` or `[compat.claude]` in `~/.wth/config.toml`, or set the `GROK_CURSOR_SKILLS_ENABLED` or `GROK_CLAUDE_SKILLS_ENABLED` environment variable to `false`. See [Configuration](05-configuration.md#harness-compatibility) for details. Grok always filters out known vendor-shipped default skills (such as Cursor's `shell`, `canvas`, and `statusline`), regardless of these settings.
 
 ### Additional Skill Directories
 
-Add directories, exclude paths, or disable individual skills via `[skills]` in `~/.grok/config.toml`:
+Add directories, exclude paths, or disable individual skills via `[skills]` in `~/.wth/config.toml`:
 
 ```toml
 [skills]
@@ -56,7 +56,7 @@ Each entry in `paths` is a `SKILL.md` file or a directory that Grok walks recurs
 Each skill lives in its own directory with a `SKILL.md` file:
 
 ```
-~/.grok/skills/
+~/.wth/skills/
   commit/
     SKILL.md
   review-pr/
@@ -92,7 +92,7 @@ Review staged changes and create a commit with a clear, conventional message.
 | Field | Description |
 |-------|-------------|
 | `name` | Skill identifier. Use lowercase letters, digits, and hyphens, up to 64 characters. Grok normalizes spaces and underscores to hyphens. If you omit `name`, Grok uses the skill's directory name. |
-| `description` | What the skill does and when to use it. Grok reads this to decide whether to invoke the skill. If you omit it, Grok uses the first paragraph of the body. |
+| `description` | What the skill does and when to use it. WTH reads this to decide whether to invoke the skill. If you omit it, Grok uses the first paragraph of the body. |
 
 Write a specific `description`. It determines when Grok invokes the skill automatically. Name the trigger phrases and use cases.
 
@@ -131,14 +131,14 @@ When you run `/create-skill`, Grok:
 
 4. **Writes SKILL.md.** Grok writes the frontmatter (`name` and `description`) and a markdown body of instructions, along with any supporting files.
 
-5. **Verifies and confirms.** Grok reads the file back, confirms it wrote correctly, and tells you how to run the skill.
+5. **Verifies and confirms.** WTH reads the file back, confirms it wrote correctly, and tells you how to run the skill.
 
 ### Choosing a Scope
 
 Grok asks where to save the skill:
 
 - **Project** (`<repo_root>/.grok/skills/<name>/`) -- available only in this repository and shareable with teammates through version control. Grok recommends this scope inside a git repository.
-- **User** (`~/.grok/skills/<name>/`) -- available across all your projects.
+- **User** (`~/.wth/skills/<name>/`) -- available across all your projects.
 
 The new skill appears in the slash menu within a few seconds, because Grok reloads skills when files change on disk.
 
@@ -161,7 +161,7 @@ Running a skill loads its instructions into the conversation and directs the mod
 /commit fix the build
 ```
 
-To browse your skills, type `/` to open the slash-command menu. Grok lists every built-in command and skill and filters them as you type. To list skills from the command line instead, run `grok inspect` (see [Viewing Skill Details](#viewing-skill-details)).
+To browse your skills, type `/` to open the slash-command menu. Grok lists every built-in command and skill and filters them as you type. To list skills from the command line instead, run `wth inspect` (see [Viewing Skill Details](#viewing-skill-details)).
 
 ### Qualified Names
 
@@ -169,7 +169,7 @@ When a skill's name collides with another skill or a built-in command, Grok adve
 
 ```
 /local:commit        # The "commit" skill from ./.grok/skills/
-/user:commit         # The "commit" skill from ~/.grok/skills/
+/user:commit         # The "commit" skill from ~/.wth/skills/
 ```
 
 ### Automatic Invocation
@@ -182,7 +182,7 @@ For example, if a skill's description says "Use when the user wants to commit ch
 
 ## Viewing Skill Details
 
-Run `grok inspect` to see every skill Grok discovers, along with the rest of your configuration:
+Run `wth inspect` to see every skill Grok discovers, along with the rest of your configuration:
 
 ```bash
 grok inspect          # Human-readable summary
@@ -199,9 +199,9 @@ The `--json` report includes the full detail for each skill: its `name`, `descri
 
 ## Bundled and Plugin Skills
 
-Grok ships with built-in skills and extracts them to `~/.grok/skills/` on startup -- among them `/create-skill`, `/help`, and `/check-work`. Bundled skills behave like user skills, and a same-named skill in a higher-priority location (local or repo) overrides the bundled copy; `grok inspect` labels the extracted copies `bundled` so they stay distinguishable from skills you authored yourself. (A plugin skill of the same name does not override it; it stays available under its qualified `plugin:name` form.)
+Grok ships with built-in skills and extracts them to `~/.wth/skills/` on startup -- among them `/create-skill`, `/help`, and `/check-work`. Bundled skills behave like user skills, and a same-named skill in a higher-priority location (local or repo) overrides the bundled copy; `wth inspect` labels the extracted copies `bundled` so they stay distinguishable from skills you authored yourself. (A plugin skill of the same name does not override it; it stays available under its qualified `plugin:name` form.)
 
-Skills can also come from plugins. When you install a plugin that includes skills, they appear alongside your user and project skills. `grok inspect` labels each plugin-provided skill with its source as `plugin: <name>`.
+Skills can also come from plugins. When you install a plugin that includes skills, they appear alongside your user and project skills. `wth inspect` labels each plugin-provided skill with its source as `plugin: <name>`.
 
 See the [Plugins guide](09-plugins.md) for more on installing plugins that provide skills.
 
@@ -217,6 +217,6 @@ See the [Plugins guide](09-plugins.md) for more on installing plugins that provi
 
 4. **Keep skills focused.** Write one skill per workflow. A "deploy" skill and a "rollback" skill work better than a single "deploy-and-rollback" skill.
 
-5. **Version-control project skills.** Commit `.grok/skills/` to your repository so the whole team benefits. User skills in `~/.grok/skills/` stay personal and unshared.
+5. **Version-control project skills.** Commit `.grok/skills/` to your repository so the whole team benefits. User skills in `~/.wth/skills/` stay personal and unshared.
 
 6. **Test by running it.** Invoke `/name` and confirm the skill works before you rely on automatic invocation.

@@ -1,6 +1,6 @@
 # Agent Mode (ACP) and IDE Integration
 
-Agent mode runs Grok as an ACP (Agent Client Protocol) server for integration with IDEs, editors, and custom tooling. Unlike single-prompt mode (`grok -p`, which prints one response and exits), agent mode keeps a persistent process running and communicates through structured JSON-RPC messages.
+Agent mode runs Grok as an ACP (Agent Client Protocol) server for integration with IDEs, editors, and custom tooling. Unlike single-prompt mode (`wth -p`, which prints one response and exits), agent mode keeps a persistent process running and communicates through structured JSON-RPC messages.
 
 ---
 
@@ -32,7 +32,7 @@ Clients that use this mode include:
 
 ### Options
 
-These options belong to the `grok agent` command and apply to every mode. Pass them before the mode name, for example `grok agent --model grok-build stdio`. The `stdio` subcommand itself takes no options.
+These options belong to the `wth agent` command and apply to every mode. Pass them before the mode name, for example `wth agent --model grok-build stdio`. The `stdio` subcommand itself takes no options.
 
 | Flag                       | Description                                                       |
 | -------------------------- | ---------------------------------------------------------------- |

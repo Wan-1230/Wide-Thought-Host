@@ -15,7 +15,7 @@ A session is a persistent conversation with full history. It includes:
 - Token usage and turn counts
 - Subagent sessions (when enabled)
 
-Sessions are identified by a unique session ID (a UUIDv7 when Grok generates it; a client may supply its own ID with `-s`) and stored on disk under `~/.grok/sessions/`. Set `GROK_HOME` to override the base directory; when it is unset, Grok uses `~/.grok`.
+Sessions are identified by a unique session ID (a UUIDv7 when Grok generates it; a client may supply its own ID with `-s`) and stored on disk under `~/.wth/sessions/`. Set `GROK_HOME` to override the base directory; when it is unset, Grok uses `~/.wth`.
 
 ---
 
@@ -24,7 +24,7 @@ Sessions are identified by a unique session ID (a UUIDv7 when Grok generates it;
 Grok stores each session in its own directory, grouped by working directory. It URL-encodes the working directory to name the group. When the encoded name exceeds 255 bytes, it instead uses a slug plus a hash and records the original path in a `.cwd` file inside the group.
 
 ```
-~/.grok/sessions/<encoded-cwd>/<session-id>/
+~/.wth/sessions/<encoded-cwd>/<session-id>/
   summary.json            # metadata: summary/title, timestamps, model ID, message counts
   updates.jsonl           # ACP session update stream (conversation + tool calls)
   chat_history.jsonl      # raw chat messages sent to the model
@@ -88,11 +88,11 @@ Resume a specific session by ID:
 grok --resume <session-id>
 ```
 
-Run `grok --resume` without an ID to resume the most recent session for the current directory.
+Run `wth --resume` without an ID to resume the most recent session for the current directory.
 
 ### From the Welcome Screen
 
-When you launch `grok`, the welcome screen lists recent sessions for the current directory. Select one to resume it.
+When you launch `wth`, the welcome screen lists recent sessions for the current directory. Select one to resume it.
 
 ---
 
@@ -230,7 +230,7 @@ The agent persists all session updates automatically. Clients can reconnect and 
 
 ## The grok sessions Subcommand
 
-List or search sessions from the command line. `grok sessions` requires a subcommand:
+List or search sessions from the command line. `wth sessions` requires a subcommand:
 
 ```bash
 # List recent sessions for the current directory
@@ -243,7 +243,7 @@ grok sessions list --limit 50
 grok sessions search "rate limit"
 ```
 
-`grok sessions list` shows sessions for the current working directory, grouped by worktree label. Each row lists the session ID, the creation and update dates, the source status, and the summary. `grok sessions search` combines a local SQLite index with remote results.
+`wth sessions list` shows sessions for the current working directory, grouped by worktree label. Each row lists the session ID, the creation and update dates, the source status, and the summary. `wth sessions search` combines a local SQLite index with remote results.
 
 ---
 
@@ -257,7 +257,7 @@ Worktree sessions are managed internally through the `x.ai/git/worktree/*` exten
 - **Apply**: Merge worktree changes back into the main working directory
 - **Remove**: Clean up a worktree when the session is done
 
-Resume a session in a fresh worktree with `grok -w -r <session-id>`.
+Resume a session in a fresh worktree with `wth -w -r <session-id>`.
 
 ---
 
@@ -271,7 +271,7 @@ Grok stores the conversation as newline-delimited JSON (JSONL). Each line in `up
 - Efficient streaming reads (for session restore)
 - Easy debugging (each line is valid JSON)
 
-The smaller state files -- `summary.json`, `plan.json`, and `signals.json` -- are plain JSON rather than JSONL. JSONL is the source of truth for session content; `grok sessions search` additionally maintains a local SQLite FTS5 index over session titles and prompts for fast keyword search.
+The smaller state files -- `summary.json`, `plan.json`, and `signals.json` -- are plain JSON rather than JSONL. JSONL is the source of truth for session content; `wth sessions search` additionally maintains a local SQLite FTS5 index over session titles and prompts for fast keyword search.
 
 ### Session Metadata
 

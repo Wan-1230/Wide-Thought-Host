@@ -1,6 +1,6 @@
 # Configuration
 
-Grok reads configuration from local config files, environment variables, and
+WTH reads configuration from local config files, environment variables, and
 CLI flags. This document covers the common options.
 
 ---
@@ -11,7 +11,7 @@ Configuration is resolved in this order (highest priority first):
 
 1. **CLI flags** (e.g., `--yolo`, `--model`, `--sandbox`)
 2. **Environment variables** (e.g., `XAI_API_KEY`, `GROK_MEMORY`)
-3. **config.toml** (`~/.grok/config.toml`)
+3. **config.toml** (`~/.wth/config.toml`)
 4. **Managed / requirements config** (local files your org may deploy, e.g.
    `managed_config.toml` / `requirements.toml`)
 5. **Built-in defaults**
@@ -20,7 +20,7 @@ Configuration is resolved in this order (highest priority first):
 
 ## config.toml (Main Configuration)
 
-Location: `~/.grok/config.toml`
+Location: `~/.wth/config.toml`
 
 If the file does not exist, Grok uses built-in defaults. Specify only the values you want to override.
 
@@ -155,7 +155,7 @@ active in the **scrollback** pane. It does not affect the input prompt.
 
 Toggle `vim_mode` at runtime with `/vim-mode`, or from the settings pane
 (`/settings` → **Vim scrollback navigation**). Grok writes the change to
-`[ui] vim_mode` in `~/.grok/config.toml` immediately and applies it to every
+`[ui] vim_mode` in `~/.wth/config.toml` immediately and applies it to every
 future pager session — including new agents and subagents started in the same
 process. There is no separate per-session override; whatever is in
 `config.toml` is the source of truth on next launch.
@@ -166,7 +166,7 @@ navigation, while `simple_mode` controls editing in the prompt.
 #### Screen Mode
 
 The `screen_mode` setting under `[ui]` is the **sticky render-mode
-preference**: whichever mode you last chose explicitly is what a plain `grok`
+preference**: whichever mode you last chose explicitly is what a plain `wth`
 opens with next time.
 
 | Value | Behavior |
@@ -177,7 +177,7 @@ opens with next time.
 
 You normally never edit this key by hand — Grok writes it whenever you pass an
 explicit `--minimal` / `--fullscreen` flag or run `/minimal` / `/fullscreen`.
-A plain `grok` launch only reads it. A CLI flag always wins over the config
+A plain `wth` launch only reads it. A CLI flag always wins over the config
 value for that invocation (and updates it), and `screen_mode` takes precedence
 over the legacy `[terminal] minimal` key in `pager.toml`. Delete the key to
 restore the legacy behavior.
@@ -305,9 +305,9 @@ url = "https://mcp.example.com/api/mcp"  # HTTP/SSE transport
 headers = { "x-mcp-session-id" = "{{session_id}}" }
 ```
 
-MCP servers can also be configured per-project in `.grok/config.toml`. Project-scoped config contributes `[mcp_servers]`, `[plugins]`, and `[permission]` rules; other sections load only from `~/.grok/config.toml`.
+MCP servers can also be configured per-project in `.grok/config.toml`. Project-scoped config contributes `[mcp_servers]`, `[plugins]`, and `[permission]` rules; other sections load only from `~/.wth/config.toml`.
 
-Priority for `[mcp_servers]` and `[plugins]`: `.grok/config.toml` (current dir) > `<repo-root>/.grok/config.toml` > `~/.grok/config.toml`. `[permission]` rules are not overridden by priority; they merge across all files with `deny` > `ask` > `allow` (see [22-permissions-and-safety.md](22-permissions-and-safety.md)).
+Priority for `[mcp_servers]` and `[plugins]`: `.grok/config.toml` (current dir) > `<repo-root>/.grok/config.toml` > `~/.wth/config.toml`. `[permission]` rules are not overridden by priority; they merge across all files with `deny` > `ask` > `allow` (see [22-permissions-and-safety.md](22-permissions-and-safety.md)).
 
 ### Memory
 
@@ -394,7 +394,7 @@ Each cell can be toggled via environment variable or `config.toml`. See the
 environment-variables reference for the env var names. Resolution order:
 env var > config.toml > default (on).
 
-`grok inspect` reports cells that still need session-start resolution as
+`wth inspect` reports cells that still need session-start resolution as
 `?` until a value is available; cells with an explicit env or TOML value
 use that value. Affected discovery entries report
 `compatibilityStatus: "unresolved"` in JSON and `[compat unresolved]` in
@@ -412,7 +412,7 @@ disabled = ["user/a1b2c3d4/noisy-plugin"]
 
 The `[hints]` table holds small persisted UI preferences — mostly "stop asking me" opt-outs. Grok writes these for you when you pick a "don't ask again" / "reset in config.toml" option in the TUI, but you can edit or remove them by hand. Deleting a key restores the default behavior.
 
-`[hints]` is read from the **effective config merge** (same precedence as other settings): system managed → user `managed_config.toml` → user `config.toml` → user `requirements.toml` → system `requirements.toml`. Higher-priority layers override lower ones. The TUI only **writes** opt-outs to user `~/.grok/config.toml`.
+`[hints]` is read from the **effective config merge** (same precedence as other settings): system managed → user `managed_config.toml` → user `config.toml` → user `requirements.toml` → system `requirements.toml`. Higher-priority layers override lower ones. The TUI only **writes** opt-outs to user `~/.wth/config.toml`.
 
 ```toml
 [hints]
@@ -459,7 +459,7 @@ items = ["action-required", "spinner", "activity", "session-name", "grok"]
 | `sleep_prevention` | bool | `true` | Keep the display awake while the agent is working (macOS/Linux). |
 | `progress_bar` | bool | `true` | Show a progress indicator in the terminal tab (OSC 9;4). |
 | `title.enabled` | bool | `true` | Set the terminal title to reflect agent state. |
-| `title.items` | array | (see above) | Items shown in the title bar. Options: `action-required`, `spinner`, `activity`, `session-name`, `cwd`, `model`, `turn-timer`, `grok`. |
+| `title.items` | array | (see above) | Items shown in the title bar. Options: `action-required`, `spinner`, `activity`, `session-name`, `cwd`, `model`, `turn-timer`, `wth`. |
 
 #### Terminal Support Matrix
 
@@ -530,7 +530,7 @@ Then restart tmux. If passthrough is not available (tmux < 3.3), set
 
 **Focus tracking not working:**
 Some terminals do not report focus events. If `condition = "unfocused"` never
-fires, try `condition = "always"` as a fallback. Grok supports focus tracking
+fires, try `condition = "always"` as a fallback. WTH supports focus tracking
 in every detected terminal except Apple Terminal and unrecognized terminals.
 
 **Sleep prevention not taking effect:**
@@ -590,7 +590,7 @@ default = "company-grok"
 [model.company-grok]
 model = "grok-build"
 base_url = "https://grok-proxy.acme.com/"
-name = "Grok Build Latest (Proxy)"
+name = "Wide Thought Host (WTH) Latest (Proxy)"
 context_window = 128000
 
 [features]
@@ -601,7 +601,7 @@ telemetry = false
 
 ## pager.toml (Appearance Configuration)
 
-Location: `~/.grok/pager.toml`
+Location: `~/.wth/pager.toml`
 
 Controls the visual appearance and behavior of the TUI. Changes are applied on restart.
 
@@ -765,7 +765,7 @@ Key environment variables. See the README for the complete list.
 
 | Variable | Description |
 |----------|-------------|
-| `GROK_HOME` | Override config directory (default: `~/.grok`) |
+| `GROK_HOME` | Override config directory (default: `~/.wth`) |
 | `GROK_RESPECT_GITIGNORE` | Force gitignore filtering on (`1`) or off (`0`); overrides `[tools] respect_gitignore` |
 
 ### Telemetry
@@ -782,16 +782,16 @@ Key environment variables. See the README for the complete list.
 
 | Path | Description |
 |------|-------------|
-| `~/.grok/config.toml` | Main configuration file |
-| `~/.grok/pager.toml` | TUI appearance configuration |
-| `~/.grok/auth.json` | Authentication credentials (auto-managed) |
-| `~/.grok/sessions/` | Persisted sessions (organized by working directory) |
-| `~/.grok/memory/` | Cross-session memory files and index |
-| `~/.grok/skills/` | User-scoped skill definitions |
-| `~/.grok/plugins/` | User-scoped plugins |
-| `~/.grok/agents/` | User-scoped agent definitions |
-| `~/.grok/lsp.json` | LSP server configuration (user-scoped) |
-| `~/.grok/logs/` | Internal log files (for example `unified.jsonl`, MCP server logs) |
+| `~/.wth/config.toml` | Main configuration file |
+| `~/.wth/pager.toml` | TUI appearance configuration |
+| `~/.wth/auth.json` | Authentication credentials (auto-managed) |
+| `~/.wth/sessions/` | Persisted sessions (organized by working directory) |
+| `~/.wth/memory/` | Cross-session memory files and index |
+| `~/.wth/skills/` | User-scoped skill definitions |
+| `~/.wth/plugins/` | User-scoped plugins |
+| `~/.wth/agents/` | User-scoped agent definitions |
+| `~/.wth/lsp.json` | LSP server configuration (user-scoped) |
+| `~/.wth/logs/` | Internal log files (for example `unified.jsonl`, MCP server logs) |
 | `.grok/config.toml` | Project-scoped MCP servers, plugins, and permission rules |
 | `.grok/skills/` | Project-scoped skill definitions |
 | `.grok/plugins/` | Project-scoped plugins |
@@ -807,7 +807,7 @@ Some configuration can be set per-project by placing files in `.grok/` within yo
 
 | File | What it configures |
 |------|--------------------|
-| `.grok/config.toml` | MCP servers, plugins, permission rules, and the `[mcp] max_output_bytes` tool-result cap (other sections load only from `~/.grok/config.toml`) |
+| `.grok/config.toml` | MCP servers, plugins, permission rules, and the `[mcp] max_output_bytes` tool-result cap (other sections load only from `~/.wth/config.toml`) |
 | `.grok/skills/` | Project-specific skills |
 | `.grok/hooks/` | Project-specific lifecycle hooks |
 | `.grok/agents/` | Project-specific agent definitions |
@@ -825,14 +825,14 @@ Language servers power passive diagnostics and the optional `lsp` tool (see the 
 
 | Source | Location | Scope |
 |--------|----------|-------|
-| User | `~/.grok/lsp.json` | All projects |
+| User | `~/.wth/lsp.json` | All projects |
 | Project | `.grok/lsp.json` | Current repository |
 | Plugin | A trusted plugin's `.lsp.json` file, or an inline `lspServers` block in its `plugin.json` | Wherever the plugin is enabled |
 
 When the same server name is defined by more than one source, it is resolved in this order (highest priority first):
 
 1. **Project** -- `.grok/lsp.json`
-2. **User** -- `~/.grok/lsp.json`
+2. **User** -- `~/.wth/lsp.json`
 3. **Plugins** -- file-based `.lsp.json`, then inline `lspServers`, in plugin load order
 
 Project and user entries replace lower-priority ones with the same name. Plugin entries only add servers whose names are not already defined by a local file, so a local `lsp.json` always wins over a plugin. Plugin LSP servers load only after the plugin is trusted (see [Plugins](09-plugins.md)).

@@ -1,7 +1,7 @@
 # Getting Started
 
-**Gork Build** is a terminal-based AI coding assistant — a community
-distribution of Grok Build with vendor telemetry and branding removed. It runs
+**Wide Thought Host (WTH)** is a terminal-based AI coding assistant — a community
+distribution of Wide Thought Host (WTH) with vendor telemetry and branding removed. It runs
 as a TUI (Terminal User Interface) that understands your codebase, executes
 shell commands, edits files, searches the web, and manages tasks.
 
@@ -9,19 +9,19 @@ You can use it interactively as a full-screen TUI, run it headlessly for
 scripting and CI/CD, or integrate it into editors via the Agent Client Protocol
 (ACP).
 
-> Gork Build is not affiliated with SpaceXAI / xAI. Upstream source:
+> Wide Thought Host (WTH) is not affiliated with SpaceXAI / xAI. Upstream source:
 > [xai-org/grok-build](https://github.com/xai-org/grok-build).
 
 ---
 
 ## Installation
 
-### Build from source (recommended for Gork Build)
+### Build from source (recommended for Wide Thought Host (WTH))
 
 ```bash
 git clone https://github.com/thedavidweng/gork-build.git
 cd gork-build
-cargo build -p xai-grok-pager-bin --release
+cargo build -p wth-pager-bin --release
 # binary: target/release/gork
 install -m 755 target/release/gork ~/.local/bin/gork   # or copy onto your PATH
 ```
@@ -34,8 +34,8 @@ gork --version
 
 ### Upstream binary installer (optional)
 
-The official Grok Build installers from x.ai install the **vendor** binary, not
-this community build. Prefer building Gork Build from this repository. If you
+The official Wide Thought Host (WTH) installers from x.ai install the **vendor** binary, not
+this community build. Prefer building Wide Thought Host (WTH) from this repository. If you
 still need the upstream binary for comparison:
 
 ```bash
@@ -47,15 +47,15 @@ irm https://x.ai/cli/install.ps1 | iex                 # Windows PowerShell
 
 ## First Launch
 
-Start Gork Build by running:
+Start Wide Thought Host (WTH) by running:
 
 ```bash
 gork
 ```
 
-On first launch, the TUI opens your browser to authenticate with grok.com (or
+On first launch, the TUI opens your browser to authenticate with x.ai (or your configured backend) (or
 your configured OIDC issuer). After you sign in, credentials are stored in
-`~/.grok/auth.json` and refreshed automatically when possible.
+`~/.wth/auth.json` and refreshed automatically when possible.
 
 If you prefer API key authentication (e.g., for CI/CD or environments without a
 browser), set the `XAI_API_KEY` environment variable instead:
@@ -72,7 +72,7 @@ including OIDC, external auth providers, and device code flow.
 
 ## Basic Interaction
 
-Once authenticated, Gork Build presents a full-screen TUI with two main areas:
+Once authenticated, Wide Thought Host (WTH) presents a full-screen TUI with two main areas:
 
 - **Scrollback** -- the conversation history showing your prompts, model
   responses, tool calls, file edits, and more.
@@ -106,7 +106,7 @@ The `@` operator opens a fuzzy file picker. By default it respects `.gitignore` 
 By default, Grok asks for permission before executing shell commands or editing files. You can approve individually or toggle always-approve mode:
 
 - Press `Ctrl+O` to toggle always-approve mode
-- Use the `--yolo` flag at launch: `grok --yolo`
+- Use the `--yolo` flag at launch: `wth --yolo`
 - Type `/always-approve` in the prompt to toggle the mode
 
 ---
@@ -115,11 +115,11 @@ By default, Grok asks for permission before executing shell commands or editing 
 
 ### Sessions
 
-Every conversation is a **session**. Sessions are automatically saved to `~/.grok/sessions/` and can be resumed later. Each session tracks the full conversation history, tool calls, file edits, and task state.
+Every conversation is a **session**. Sessions are automatically saved to `~/.wth/sessions/` and can be resumed later. Each session tracks the full conversation history, tool calls, file edits, and task state.
 
 - Start a new session: `Ctrl+N` or `/new`
 - Resume a previous session: `/resume` in the TUI, or `--resume <ID>` from the CLI
-- Continue the most recent session: `grok -c`
+- Continue the most recent session: `wth -c`
 
 ### Scrollback
 
@@ -172,7 +172,7 @@ See [Slash Commands](04-slash-commands.md) for the complete reference.
 grok "fix the failing auth test and run it"
 
 # Initial prompt in a new git worktree. Use --worktree=<name> (with `=`) so the
-# prompt isn't swallowed as the worktree name — `grok -w "refactor module X"`
+# prompt isn't swallowed as the worktree name — `wth -w "refactor module X"`
 # would treat "refactor module X" as the worktree label, not the prompt.
 grok --worktree=feat "refactor module X"
 
@@ -198,7 +198,7 @@ grok --resume <session-id>
 # Continue the most recent session
 grok -c
 
-# Experimental scrollback-native render mode. Sticky: plain `grok` reopens in
+# Experimental scrollback-native render mode. Sticky: plain `wth` reopens in
 # the mode last chosen via --minimal/--fullscreen (or /minimal//fullscreen).
 grok --minimal
 
@@ -237,10 +237,10 @@ grok -p "Review changes for bugs" --output-format json --yolo | jq -r '.text'
 
 ## Project Rules (AGENTS.md)
 
-Add per-project instructions by creating an `AGENTS.md` file in your repository. Grok reads these files and injects their contents as a project-instructions message at the start of the conversation:
+Add per-project instructions by creating an `AGENTS.md` file in your repository. WTH reads these files and injects their contents as a project-instructions message at the start of the conversation:
 
 ```
-~/.grok/AGENTS.md           # Global rules (apply to all projects)
+~/.wth/AGENTS.md           # Global rules (apply to all projects)
 <repo-root>/AGENTS.md       # Repository-level rules
 <cwd>/AGENTS.md             # Directory-level rules (highest priority)
 ```

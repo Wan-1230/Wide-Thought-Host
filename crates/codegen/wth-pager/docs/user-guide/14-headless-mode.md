@@ -235,7 +235,7 @@ Grok may also emit `max_turns_reached` and `auto_compact_*` events; treat the li
 
 ## Session Management in Headless Mode
 
-By default, each `grok -p` invocation creates a fresh session. To maintain context across calls, use session flags.
+By default, each `wth -p` invocation creates a fresh session. To maintain context across calls, use session flags.
 
 ### Named Sessions (`-s`)
 
@@ -454,7 +454,7 @@ Key environment variables that affect headless mode:
 | Variable                        | Description                                                   |
 | ------------------------------- | ------------------------------------------------------------- |
 | `XAI_API_KEY`        | API key for authentication (required when no browser login)   |
-| `GROK_HOME`                    | Override config directory (default: `~/.grok`)                |
+| `GROK_HOME`                    | Override config directory (default: `~/.wth`)                |
 | `GROK_LOG_FILE`                | Path to a log file (used verbatim as the path; works in headless and TUI, honors `RUST_LOG`) |
 | `RUST_LOG`                     | Log level filter (e.g. `debug`). Headless logs to stderr.     |
 
@@ -483,9 +483,9 @@ grok -p "Run the test suite" --yolo
 For headless use, authenticate with one of:
 
 - **`XAI_API_KEY`** — simplest for CI. See [Environment Variables](#environment-variables-for-headless) above.
-- **`grok login --device-auth`** (or `--device-code`) — no browser needed on the target machine.
+- **`wth login --device-auth`** (or `--device-code`) — no browser needed on the target machine.
   See [Authentication > Device Code Flow](02-authentication.md#device-code-flow).
-- **`grok login`** — browser-based OAuth2 on machines with a GUI.
+- **`wth login`** — browser-based OAuth2 on machines with a GUI.
 
 If you've previously logged in, cached credentials are used automatically.
 
@@ -495,7 +495,7 @@ If you've previously logged in, cached credentials are used automatically.
 
 - Headless mode starts a **fresh session by default**. Use `-r/--resume` or `-c/--continue` to maintain context across calls.
 - The `--output-format json` response always includes a `sessionId` you can use with `--resume` for follow-up calls.
-- Combine `--yolo` with `--rules` to set guardrails: `grok -p "..." --yolo --rules "Never delete files"`.
+- Combine `--yolo` with `--rules` to set guardrails: `wth -p "..." --yolo --rules "Never delete files"`.
 - For debugging, raise the log level and capture stderr: `RUST_LOG=debug grok -p "..." 2> debug.log`.
 
 ---
@@ -514,7 +514,7 @@ the scope small.
 
 ## File Locations
 
-Grok stores data in `~/.grok` (override with `GROK_HOME`; see [Environment Variables for Headless](#environment-variables-for-headless)):
+Grok stores data in `~/.wth` (override with `GROK_HOME`; see [Environment Variables for Headless](#environment-variables-for-headless)):
 
 | Path                     | Contents                              |
 | ------------------------ | ------------------------------------- |
@@ -531,9 +531,9 @@ Grok stores data in `~/.grok` (override with `GROK_HOME`; see [Environment Varia
 | `trace-exports/`         | Session trace exports                 |
 | `worktrees/`             | Git worktree metadata                 |
 
-### Read-Only `~/.grok`
+### Read-Only `~/.wth`
 
-For containers or CI, mount `~/.grok` read-only:
+For containers or CI, mount `~/.wth` read-only:
 
 - Pre-populate `auth.json` or use `XAI_API_KEY`
 - Session persistence fails silently (ephemeral)
@@ -588,6 +588,6 @@ On SIGINT/SIGTERM:
 - Session state saved up to the last completed tool call
 - File modifications by tools are **not rolled back**
 - Exit code is **130** for SIGINT (`128 + 2`) and **143** for SIGTERM (`128 + 15`); CI pipelines can distinguish these from a normal error (exit code `1`)
-- Resume: `grok -p "continue" --resume "<id>"` or `grok -p "continue" --continue`
+- Resume: `wth -p "continue" --resume "<id>"` or `wth -p "continue" --continue`
 
 See [Session Management in Headless Mode](#session-management-in-headless-mode) for details on named sessions and the `-s`/`-r`/`-c` flags.

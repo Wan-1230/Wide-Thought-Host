@@ -1,7 +1,7 @@
-# Gork Build User Guide
+# Wide Thought Host (WTH) User Guide
 
-Learn how to install, configure, and extend **Gork Build** — the community
-VSCodium-style distribution of Grok Build (vendor telemetry and branding
+Learn how to install, configure, and extend **Wide Thought Host (WTH)** — the community
+VSCodium-style distribution of Wide Thought Host (WTH) (vendor telemetry and branding
 removed). Model access still uses your Grok / xAI credentials.
 
 ---
@@ -22,7 +22,7 @@ Start here. These guides cover what you need on your first day.
 
 ## Tier 2: Core Feature Docs
 
-Customize and extend Gork Build.
+Customize and extend Wide Thought Host (WTH).
 
 | # | Document | Description |
 |---|----------|-------------|
@@ -39,11 +39,11 @@ Customize and extend Gork Build.
 
 ## Tier 3: Advanced Usage Docs
 
-Automate, script, and integrate Gork Build with other systems.
+Automate, script, and integrate Wide Thought Host (WTH) with other systems.
 
 | # | Document | Description |
 |---|----------|-------------|
-| 14 | [Headless Mode and Scripting](14-headless-mode.md) | `grok -p`, output formats, CI/CD integration, and piping |
+| 14 | [Headless Mode and Scripting](14-headless-mode.md) | `wth -p`, output formats, CI/CD integration, and piping |
 | 15 | [Agent Mode and IDE Integration](15-agent-mode.md) | ACP stdio transport, WebSocket relay, and SDK integration |
 | 16 | [Subagents and Personas](16-subagents.md) | Parallel child sessions, agent types, personas, and capability modes |
 | 17 | [Session Management](17-sessions.md) | Save, load, resume, rewind, compact, and the session persistence format |

@@ -6,7 +6,7 @@ Project rules let you configure Grok per project or directory. By placing an AGE
 
 ## What Are Project Rules?
 
-Project rules are Markdown files that Grok reads and adds to its context. Grok follows their content for every interaction in that tree.
+Project rules are Markdown files that WTH reads and adds to its context. Grok follows their content for every interaction in that tree.
 
 This is the primary mechanism for teaching Grok about your project's conventions, so you need not restate them each session.
 
@@ -43,7 +43,7 @@ Grok scans the Claude and Cursor rules directories by default. To disable scanni
 
 Grok scans for project rules in this order:
 
-1. **Global rules**: `~/.grok/` (applies to all projects)
+1. **Global rules**: `~/.wth/` (applies to all projects)
 2. **Repo rules**: If inside a git repo, every directory from the repo root down to the current working directory (inclusive)
 3. **CWD-only**: If not inside a git repo, only the current working directory
 
@@ -69,7 +69,7 @@ Grok orders the files from the repo root to the current working directory, so fi
 ### Auto-Loading Behavior
 
 - Grok loads the files from the repo root to the current working directory automatically at session start.
-- When Grok reads, lists, or edits files in directories outside that initial set, it detects any project instruction files there, notes their paths, and reads them when they apply to the task.
+- When WTH reads, lists, or edits files in directories outside that initial set, it detects any project instruction files there, notes their paths, and reads them when they apply to the task.
 
 ---
 
@@ -189,7 +189,7 @@ Beyond AGENTS.md files, the `.grok/` directory in your project root can contain 
 
 | Path | Purpose |
 |------|---------|
-| `.grok/config.toml` | Project-scoped MCP servers, plugins, and permission rules (other settings load only from `~/.grok/config.toml`) |
+| `.grok/config.toml` | Project-scoped MCP servers, plugins, and permission rules (other settings load only from `~/.wth/config.toml`) |
 | `.grok/skills/` | Project-scoped skill definitions |
 | `.grok/plugins/` | Project-scoped plugins |
 | `.grok/agents/` | Project-scoped agent definitions |
@@ -202,7 +202,7 @@ These are all optional. See the respective guides for details on each.
 
 ## Inspecting Loaded Rules
 
-Use `grok inspect` to see all loaded project instructions:
+Use `wth inspect` to see all loaded project instructions:
 
 ```bash
 grok inspect
@@ -222,7 +222,7 @@ This shows each project instruction file it finds, with its path and approximate
 
 4. **Use subdirectory scoping for large repos.** Different parts of a monorepo may have different conventions. Use per-directory AGENTS.md to scope rules appropriately.
 
-5. **Version control your rules.** Commit AGENTS.md to the repository so the whole team benefits. User-specific overrides belong in `~/.grok/` (global rules).
+5. **Version control your rules.** Commit AGENTS.md to the repository so the whole team benefits. User-specific overrides belong in `~/.wth/` (global rules).
 
 6. **Do not duplicate documentation.** AGENTS.md should contain actionable instructions, not a copy of your project's README. Link to external docs if needed.
 

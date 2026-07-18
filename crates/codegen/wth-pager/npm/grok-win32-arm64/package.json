@@ -1,7 +1,7 @@
 {
-    "name": "@gork-build/gork-win32-arm64",
+    "name": "@wth-build/wth-win32-arm64",
     "version": "0.2.0-dev",
-    "description": "win32-arm64 binary for @gork-build/gork. Do not install directly; install @gork-build/gork instead.",
+    "description": "win32-arm64 binary for @wth-build/wth. Do not install directly; install @wth-build/wth instead.",
     "license": "Apache-2.0",
     "files": [
         "bin/",

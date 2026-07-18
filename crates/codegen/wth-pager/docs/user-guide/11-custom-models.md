@@ -6,7 +6,7 @@ Grok connects to custom model endpoints for alternative providers, self-hosted m
 
 ## Default Models
 
-By default, Grok uses models hosted by xAI (Grok API), and new sessions start with `grok-build`. Default models require no configuration. Authenticate with `grok login` or an API key, then start a session.
+By default, Grok uses models hosted by xAI (Grok API), and new sessions start with `grok-build`. Default models require no configuration. Authenticate with `wth login` or an API key, then start a session.
 
 List all available models:
 
@@ -44,7 +44,7 @@ Press `Ctrl+M` from the scrollback pane to open the model picker. It lists all a
 
 ### Config Default
 
-Set a persistent default in `~/.grok/config.toml`:
+Set a persistent default in `~/.wth/config.toml`:
 
 ```toml
 [models]
@@ -55,7 +55,7 @@ default = "grok-build"
 
 ## Supported API Backends
 
-Grok supports three API backends. Set `api_backend` in your `[model.*]` config to choose which protocol the model uses:
+WTH supports three API backends. Set `api_backend` in your `[model.*]` config to choose which protocol the model uses:
 
 | Value | API | Default |
 |-------|-----|---------|
@@ -71,7 +71,7 @@ To send provider-specific authentication or version headers -- for example, Anth
 
 ## Configuring Custom Models
 
-Add custom model endpoints in `~/.grok/config.toml` under `[model.<name>]` sections:
+Add custom model endpoints in `~/.wth/config.toml` under `[model.<name>]` sections:
 
 ```toml
 [model.my-model]
@@ -95,7 +95,7 @@ Grok resolves the API key in this order:
 
 1. The `api_key` field in the model config
 2. The environment variable(s) named by `env_key` — a single string or an array of names. The first set, non-empty value wins (for example `env_key = ["ANTHROPIC_AUTH_TOKEN", "LC_ANTHROPIC_AUTH_TOKEN"]` for SSH `LC_*` forwarding)
-3. Your signed-in session token (from `grok login`), for a model with no `api_key`/`env_key` of its own
+3. Your signed-in session token (from `wth login`), for a model with no `api_key`/`env_key` of its own
 4. The `XAI_API_KEY` environment variable (global fallback; Grok also accepts `GROK_CODE_XAI_API_KEY` for backward compatibility)
 
 ### Context Window
@@ -273,7 +273,7 @@ When you use `[endpoints]` with partial model overrides, Grok inherits the `base
 
 ### Auth Behavior
 
-When you set `models_base_url`, Grok uses API key auth (`Authorization: Bearer`) instead of session auth. You do not need `grok login` -- the API key is enough.
+When you set `models_base_url`, Grok uses API key auth (`Authorization: Bearer`) instead of session auth. You do not need `wth login` -- the API key is enough.
 
 ---
 
@@ -343,7 +343,7 @@ default = "company-grok"
 [model.company-grok]
 model = "grok-build"
 base_url = "https://grok-proxy.acme.com/"
-name = "Grok Build Latest (Proxy)"
+name = "Wide Thought Host (WTH) Latest (Proxy)"
 context_window = 128000
 
 [features]

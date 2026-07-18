@@ -1,7 +1,7 @@
 {
-    "name": "@gork-build/gork-linux-x64",
+    "name": "@wth-build/wth-linux-x64",
     "version": "0.2.0-dev",
-    "description": "linux-x64 binary for @gork-build/gork. Do not install directly; install @gork-build/gork instead.",
+    "description": "linux-x64 binary for @wth-build/wth. Do not install directly; install @wth-build/wth instead.",
     "license": "Apache-2.0",
     "files": [
         "bin/",
