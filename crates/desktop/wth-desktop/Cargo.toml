@@ -20,14 +20,14 @@ tauri-plugin-fs = "2"
 tauri-plugin-process = "2"
 tauri-plugin-clipboard-manager = "2"
 
-# WTH core crates (local)
-wth-agent = { path = "../../codegen/wth-agent" }
-wth-config = { path = "../../codegen/wth-config" }
-wth-config-types = { path = "../../codegen/wth-config-types" }
-wth-models = { path = "../../codegen/wth-models" }
-wth-tool-protocol = { path = "../../common/wth-tool-protocol" }
-wth-tool-runtime = { path = "../../common/wth-tool-runtime" }
-wth-tool-types = { path = "../../common/wth-tool-types" }
+# WTH core crates (local — package names retained for compatibility)
+xai-grok-agent = { path = "../../codegen/wth-agent" }
+xai-grok-config = { path = "../../codegen/wth-config" }
+xai-grok-config-types = { path = "../../codegen/wth-config-types" }
+xai-grok-models = { path = "../../codegen/wth-models" }
+xai-tool-protocol = { path = "../../common/wth-tool-protocol" }
+xai-tool-runtime = { path = "../../common/wth-tool-runtime" }
+xai-tool-types = { path = "../../common/wth-tool-types" }
 
 # xAI shell crates (for Agent runtime)
 xai-grok-shell = { path = "../../codegen/xai-grok-shell" }

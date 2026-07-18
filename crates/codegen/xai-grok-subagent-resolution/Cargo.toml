@@ -14,7 +14,7 @@ xai-grok-sampling-types = { path = "../xai-grok-sampling-types" }
 xai-grok-tools = { path = "../xai-grok-tools" }
 xai-tool-types.workspace = true
 # TODO(phase2): add these when resolve_subagent_spec() composition is implemented:
-# xai-grok-agent = { path = "../xai-grok-agent" }  # AgentDefinition lookup
+# xai-grok-agent = { path = "../wth-agent" }  # AgentDefinition lookup
 # xai-fast-worktree = { path = "../xai-fast-worktree" }  # worktree creation
 
 [dev-dependencies]

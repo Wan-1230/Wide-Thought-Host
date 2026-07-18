@@ -3,6 +3,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/desktop/wth-desktop",
     "crates/build/xai-proto-build",
     "crates/codegen/ptyctl",
     "crates/codegen/ptyctl-cli",
