@@ -71,14 +71,13 @@ pub async fn terminal_write(
     id: String,
     data: String,
 ) -> Result<(), String> {
-    let terminals = state.terminals.lock().map_err(|e| e.to_string())?;
-    if let Some(handle) = terminals.sessions.get(&id) {
-        if let Some(ref writer) = handle.writer {
+    let mut terminals = state.terminals.lock().map_err(|e| e.to_string())?;
+    if let Some(handle) = terminals.sessions.get_mut(&id) {
+        if let Some(ref mut writer) = handle.writer {
             use std::io::Write;
-            let mut w = writer;
-            w.write_all(data.as_bytes())
+            writer.write_all(data.as_bytes())
                 .map_err(|e| format!("Terminal write error: {}", e))?;
-            w.flush().map_err(|e| format!("Terminal flush error: {}", e))?;
+            writer.flush().map_err(|e| format!("Terminal flush error: {}", e))?;
         }
     }
     Ok(())
