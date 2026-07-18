@@ -330,7 +330,7 @@ fn open_supergrok_upsell(
             label: "Upgrade to Premium Plus".into(),
             description: "Get the most out of WTH. Highest usage limits.".into(),
             preview: None,
-            // No Heavy-specific URL exists; the /supergrok page lists
+            // No Heavy-specific URL exists; the /repo page lists
             // both plans, so both upgrade options land there.
             id: Some(UPSELL_URL_UPGRADE.into()),
         },

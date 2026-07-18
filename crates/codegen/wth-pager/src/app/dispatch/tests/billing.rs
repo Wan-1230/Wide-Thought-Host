@@ -190,7 +190,7 @@ fn upsell_non_max_qa_heading_is_spending_cap_when_payg_on() {
 }
 
 #[test]
-fn upsell_non_max_upgrade_url_is_supergrok() {
+fn upsell_non_max_upgrade_url_is_repo() {
     let mut app = test_app_with_agent();
     open_upsell_qa(
         &mut app,
@@ -826,12 +826,12 @@ fn free_usage_upsell_shows_two_options_with_exact_labels() {
     assert_eq!(q.question, "You hit your free usage limit.");
     let expected = [
         (
-            "Upgrade to SuperGrok",
+            "Upgrade to Premium",
             "For everyday coding and productivity tasks",
             Some(UPSELL_URL_UPGRADE),
         ),
         (
-            "Upgrade to SuperGrok Heavy",
+            "Upgrade to Premium Plus",
             "Get the most out of WTH. Highest usage limits.",
             Some(UPSELL_URL_UPGRADE),
         ),
@@ -966,11 +966,11 @@ fn restricted_command_submit_opens_two_option_upsell() {
         )
     ));
     let q = &qv.questions[0];
-    assert_eq!(q.question, "Unlock all features with SuperGrok.");
+    assert_eq!(q.question, "Unlock all features with Premium.");
     assert_eq!(q.options.len(), 2);
-    assert_eq!(q.options[0].label, "Upgrade to SuperGrok");
+    assert_eq!(q.options[0].label, "Upgrade to Premium");
     assert_eq!(q.options[0].id.as_deref(), Some(UPSELL_URL_UPGRADE));
-    assert_eq!(q.options[1].label, "Upgrade to SuperGrok Heavy");
+    assert_eq!(q.options[1].label, "Upgrade to Premium Plus");
     assert_eq!(q.options[1].id.as_deref(), Some(UPSELL_URL_UPGRADE));
 }
 
