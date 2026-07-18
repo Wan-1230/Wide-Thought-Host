@@ -38,6 +38,18 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .manage(app_state)
         .setup(|app| {
+            // Initialize workspace root from WTH_HOME or home dir
+            let ws_root = std::env::var("WTH_HOME")
+                .ok()
+                .map(std::path::PathBuf::from)
+                .or_else(|| {
+                    #[allow(deprecated)]
+                    std::env::home_dir()
+                })
+                .unwrap_or_else(|| std::path::PathBuf::from("."));
+            std::fs::create_dir_all(&ws_root).ok();
+            ipc::filesystem::set_workspace_root(&ws_root);
+
             // Build system tray
             let _tray = tray::build_tray(app.handle())?;
 

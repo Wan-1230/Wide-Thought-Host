@@ -12,9 +12,11 @@ use std::sync::OnceLock;
 static WORKSPACE_ROOT: OnceLock<PathBuf> = OnceLock::new();
 
 /// Set the allowed workspace root. All filesystem IPC operations are
-/// confined to this directory and its descendants.
+/// confined to this directory and its descendants. The path is canonicalized
+/// before storing.
 pub fn set_workspace_root(path: &Path) {
-    let _ = WORKSPACE_ROOT.set(path.to_path_buf());
+    let canonical = dunce::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let _ = WORKSPACE_ROOT.set(canonical);
 }
 
 /// Returns the workspace root if set, otherwise the user's home directory.
@@ -65,16 +67,16 @@ pub async fn file_read(args: FileReadArgs) -> Result<String, String> {
     std::fs::read_to_string(&path).map_err(|e| format!("Failed to read {}: {}", args.path, e))
 }
 
-/// Write content to a file.
+/// Write content to a file (creates or overwrites).
 #[tauri::command]
 pub async fn file_write(args: FileWriteArgs) -> Result<(), String> {
-    let path = sanitize_path(&args.path)?;
+    let path = sanitize_parent(&args.path)?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| format!("Failed to create parent dir: {}", e))?;
     }
     std::fs::write(&path, &args.content)
-        .map_err(|e| format!("Failed to write {}: {}", args.path, e))
+        .map_err(|_| format!("Failed to write file"))
 }
 
 /// Delete a file (directories are not deletable via this command).
@@ -136,16 +138,51 @@ fn list_dir(path: &PathBuf, recursive: bool) -> Result<Vec<FileEntry>, String> {
 }
 
 /// Prevent directory traversal attacks and confine access to the workspace root.
+///
+/// The path must already exist (uses canonicalize). For write operations
+/// on new files, use [`sanitize_parent`] instead.
 fn sanitize_path(raw: &str) -> Result<PathBuf, String> {
     let path = PathBuf::from(raw);
     let canonical = dunce::canonicalize(&path)
         .map_err(|e| format!("Path not found: {}", e))?;
 
-    // Confine to workspace root
-    let root = workspace_root();
-    if !canonical.starts_with(root) {
-        return Err(format!("Access denied: path is outside the workspace"));
-    }
-
+    check_workspace_confined(&canonical)?;
     Ok(canonical)
+}
+
+/// Like [`sanitize_path`] but validates the parent directory, allowing
+/// operations on files that don't exist yet (e.g. `file_write` creating a new file).
+fn sanitize_parent(raw: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(raw);
+    if let Some(parent) = path.parent() {
+        if parent.as_os_str().is_empty() {
+            // Relative path with no parent component — use cwd
+            let cwd = std::env::current_dir().map_err(|e| format!("cwd: {}", e))?;
+            check_workspace_confined(&cwd)?;
+            return Ok(dunce::canonicalize(&cwd)
+                .unwrap_or(cwd)
+                .join(path.file_name().unwrap_or_default()));
+        }
+        // Canonicalize the parent, then rejoin the filename
+        let canonical_parent = dunce::canonicalize(parent)
+            .map_err(|e| format!("Parent dir not found: {}", e))?;
+        check_workspace_confined(&canonical_parent)?;
+        Ok(canonical_parent.join(path.file_name().unwrap_or_default()))
+    } else {
+        // No parent (e.g. just a filename) — use cwd
+        let cwd = std::env::current_dir().map_err(|e| format!("cwd: {}", e))?;
+        check_workspace_confined(&cwd)?;
+        Ok(dunce::canonicalize(&cwd)
+            .unwrap_or(cwd)
+            .join(path.file_name().unwrap_or_default()))
+    }
+}
+
+/// Check that a canonical path is within the workspace root.
+fn check_workspace_confined(path: &Path) -> Result<(), String> {
+    let root = workspace_root();
+    if !path.starts_with(root) {
+        return Err("Access denied: path is outside the workspace".into());
+    }
+    Ok(())
 }
