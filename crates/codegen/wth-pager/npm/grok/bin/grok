@@ -21,7 +21,7 @@ const zlib = require('zlib');
 const pkgName = '@wth-build/wth';
 const IS_WINDOWS = process.platform === 'win32';
 const EXE = IS_WINDOWS ? '.exe' : '';
-const BIN_NAME = .wth.{EXE}`;
+const BIN_NAME = `wth${EXE}`;
 const CANONICAL_DIR = path.join(os.homedir(), '.wth', 'bin');
 const CANONICAL_PATH = path.join(CANONICAL_DIR, BIN_NAME);
 

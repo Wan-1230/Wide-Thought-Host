@@ -638,7 +638,7 @@ test('non-wth files in bin dir are not touched by cleanup', () => {
         fs.writeFileSync(path.join(binDir, 'other-tool'), 'should-stay');
         fs.writeFileSync(path.join(binDir, 'README.md'), 'should-stay');
 
-        // Grok versions
+        // WTH versions
         fs.writeFileSync(path.join(binDir, 'wth-0.1.138'), 'old1');
         fs.writeFileSync(path.join(binDir, 'wth-0.1.139'), 'old2');
         fs.writeFileSync(path.join(binDir, 'wth-0.1.140'), 'current');
