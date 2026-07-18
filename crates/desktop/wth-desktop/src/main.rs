@@ -52,16 +52,6 @@ pub fn run() {
             // Build system tray
             let _tray = tray::build_tray(app.handle())?;
 
-            // Register global shortcuts
-            #[cfg(desktop)]
-            {
-                use tauri_plugin_global_shortcut::GlobalShortcutExt;
-                app.handle()
-                    .plugin(
-                        tauri_plugin_global_shortcut::Builder::new().build(),
-                    )?;
-            }
-
             tracing::info!("Wide Thought Host desktop started");
             Ok(())
         })
