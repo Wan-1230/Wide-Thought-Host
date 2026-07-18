@@ -1,18 +1,68 @@
 {
-  "default": "grok-build",
-  "web_search": "grok-4.20-multi-agent",
-  "image_description": "grok-build",
-  "session_summary": "grok-build",
+  "default": "gpt-4.1",
+  "web_search": "gpt-4.1",
+  "image_description": "gpt-4.1",
+  "session_summary": "gpt-4.1-mini",
   "models": [
     {
+      "model": "gpt-4.1",
+      "name": "GPT-4.1 (OpenAI)",
+      "description": "Best for advanced coding tasks via OpenAI API",
+      "context_window": 1000000,
+      "temperature": 0.7,
+      "top_p": 0.95,
+      "api_backend": "chat_completions",
+      "supported_in_api": true
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "name": "GPT-4.1 Mini (OpenAI)",
+      "description": "Fast, cost-effective model for summaries and simple tasks",
+      "context_window": 1000000,
+      "temperature": 0.7,
+      "top_p": 0.95,
+      "api_backend": "chat_completions",
+      "supported_in_api": true
+    },
+    {
+      "model": "claude-sonnet-4-20250514",
+      "name": "Claude Sonnet 4 (Anthropic)",
+      "description": "Anthropic's balanced coding model via Messages API",
+      "context_window": 200000,
+      "temperature": 0.7,
+      "top_p": 0.95,
+      "api_backend": "messages",
+      "supported_in_api": true
+    },
+    {
+      "model": "claude-opus-4-20250514",
+      "name": "Claude Opus 4 (Anthropic)",
+      "description": "Anthropic's most capable model for complex reasoning",
+      "context_window": 200000,
+      "temperature": 0.7,
+      "top_p": 0.95,
+      "api_backend": "messages",
+      "supported_in_api": true
+    },
+    {
       "model": "grok-build",
-      "name": "Grok Build",
-      "description": "Best for advanced coding tasks",
+      "name": "Grok Build (xAI)",
+      "description": "xAI's coding agent model via Responses API",
       "context_window": 500000,
       "temperature": 0.7,
       "top_p": 0.95,
       "api_backend": "responses",
       "supported_in_api": false
+    },
+    {
+      "model": "deepseek-chat",
+      "name": "DeepSeek V3",
+      "description": "Cost-effective model via OpenAI-compatible API",
+      "context_window": 128000,
+      "temperature": 0.7,
+      "top_p": 0.95,
+      "api_backend": "chat_completions",
+      "supported_in_api": true
     }
   ]
 }

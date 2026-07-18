@@ -36,11 +36,23 @@ pub struct CompactionPolicy {
 impl Default for CompactionPolicy {
     fn default() -> Self {
         Self {
-            auto_compact_threshold_percent: 85,
+            /// Compact at 70% context usage instead of 85% — reduces risk
+            /// of context overflow on large tool outputs and leaves headroom
+            /// for multi-turn reasoning without truncation.
+            auto_compact_threshold_percent: 70,
             compact_model: None,
-            memory_flush_enabled: false,
-            wall_clock_budget_secs: 300,
-            two_pass_enabled: false,
+            /// Enable memory flush by default: before compaction, ask the
+            /// model to summarize key facts, decisions, and context worth
+            /// preserving. This increases cache-hit potential across
+            /// compaction boundaries.
+            memory_flush_enabled: true,
+            /// Tighter wall-clock budget (120s vs 300s) — reasoning
+            /// runaways waste tokens quickly; cut and retry sooner.
+            wall_clock_budget_secs: 120,
+            /// Enable two-pass compaction: background summarize the
+            /// history prefix (pass 1), then merge with the recent tail
+            /// (pass 2). Reduces summary latency for large histories.
+            two_pass_enabled: true,
         }
     }
 }
