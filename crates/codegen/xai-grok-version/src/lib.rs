@@ -92,8 +92,8 @@ mod tests {
             coding_data_retention_locked_opt_out(),
             "coding data retention must be locked opt-out under PRIVACY_BUILD"
         );
-        assert_eq!(PRODUCT_CLI, "gork");
-        assert_eq!(PRODUCT_NAME, "Gork Build");
+        assert_eq!(PRODUCT_CLI, "wth");
+        assert_eq!(PRODUCT_NAME, "Wide Thought Host");
     }
 
     /// Display formatting invariant matrix — verifies label appending
