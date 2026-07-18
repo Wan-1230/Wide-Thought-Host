@@ -1,10 +1,32 @@
 //! IPC commands for local filesystem operations.
 //!
 //! Safety: all paths are validated against the user's project workspace.
-//! Directory traversal attacks are prevented by canonicalization checks.
+//! Directory traversal attacks are prevented by canonicalization checks
+//! and workspace root confinement.
 
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
+
+/// The workspace root — set once on first access via [`set_workspace_root`].
+static WORKSPACE_ROOT: OnceLock<PathBuf> = OnceLock::new();
+
+/// Set the allowed workspace root. All filesystem IPC operations are
+/// confined to this directory and its descendants.
+pub fn set_workspace_root(path: &Path) {
+    let _ = WORKSPACE_ROOT.set(path.to_path_buf());
+}
+
+/// Returns the workspace root if set, otherwise the user's home directory.
+fn workspace_root() -> &'static Path {
+    WORKSPACE_ROOT.get().map(|p| p.as_path()).unwrap_or_else(|| {
+        static HOME: OnceLock<PathBuf> = OnceLock::new();
+        HOME.get_or_init(|| {
+            dirs::home_dir().unwrap_or_else(|| PathBuf::from("."))
+        })
+        .as_path()
+    })
+}
 
 #[derive(Debug, Serialize)]
 pub struct FileEntry {
@@ -55,17 +77,15 @@ pub async fn file_write(args: FileWriteArgs) -> Result<(), String> {
         .map_err(|e| format!("Failed to write {}: {}", args.path, e))
 }
 
-/// Delete a file.
+/// Delete a file (directories are not deletable via this command).
 #[tauri::command]
 pub async fn file_delete(path: String) -> Result<(), String> {
     let p = sanitize_path(&path)?;
     if p.is_dir() {
-        std::fs::remove_dir_all(&p)
-            .map_err(|e| format!("Failed to delete dir {}: {}", path, e))
-    } else {
-        std::fs::remove_file(&p)
-            .map_err(|e| format!("Failed to delete file {}: {}", path, e))
+        return Err("Cannot delete directories. Use your file manager.".into());
     }
+    std::fs::remove_file(&p)
+        .map_err(|_| format!("Failed to delete file"))
 }
 
 /// List files in a directory.
@@ -115,16 +135,16 @@ fn list_dir(path: &PathBuf, recursive: bool) -> Result<Vec<FileEntry>, String> {
     Ok(entries)
 }
 
-/// Prevent directory traversal attacks.
+/// Prevent directory traversal attacks and confine access to the workspace root.
 fn sanitize_path(raw: &str) -> Result<PathBuf, String> {
     let path = PathBuf::from(raw);
-    let canonical = path
-        .canonicalize()
-        .map_err(|e| format!("Invalid path '{}': {}", raw, e))?;
+    let canonical = dunce::canonicalize(&path)
+        .map_err(|e| format!("Path not found: {}", e))?;
 
-    // Basic check: reject paths containing ".." after canonicalization
-    if canonical.to_string_lossy().contains("..") {
-        return Err(format!("Path traversal detected: {}", raw));
+    // Confine to workspace root
+    let root = workspace_root();
+    if !canonical.starts_with(root) {
+        return Err(format!("Access denied: path is outside the workspace"));
     }
 
     Ok(canonical)
