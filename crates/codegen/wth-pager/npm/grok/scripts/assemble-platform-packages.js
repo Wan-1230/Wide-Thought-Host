@@ -24,11 +24,11 @@ const zlib = require('zlib');
 
 const brotliCompress = promisify(zlib.brotliCompress);
 
-const xaiRoot = process.env.XAI_ROOT || path.resolve(__dirname, '..', '..', '..', '..', '..');
+const wthRoot = process.env.WTH_ROOT || path.resolve(__dirname, '..', '..', '..', '..', '..');
 const npmRoot = path.resolve(__dirname, '..', '..');
 
 const NOTICES_SOURCE = path.resolve(
-    npmRoot, '..', '..', 'xai-wth-tools', 'THIRD_PARTY_NOTICES.md');
+    npmRoot, '..', '..', 'wth-tools', 'THIRD_PARTY_NOTICES.md');
 const NOTICES_NAME = 'THIRD_PARTY_NOTICES.md';
 
 const META_PKG_JSON = path.resolve(__dirname, '..', 'package.json');
@@ -85,36 +85,36 @@ async function main() {
         {
             platform: 'darwin', arch: 'arm64', binName: 'wth',
             envVar: 'WTH_DARWIN_ARM64',
-            defaultSource: path.join(xaiRoot, 'target', 'release', 'xai-wth-pager'),
+            defaultSource: path.join(wthRoot, 'target', 'release', 'wth-pager'),
         },
         {
             platform: 'darwin', arch: 'x64', binName: 'wth',
             envVar: 'WTH_DARWIN_X64',
-            defaultSource: path.join(xaiRoot, 'target', 'x86_64-apple-darwin', 'release', 'xai-wth-pager'),
+            defaultSource: path.join(wthRoot, 'target', 'x86_64-apple-darwin', 'release', 'wth-pager'),
         },
         {
             platform: 'linux', arch: 'x64', binName: 'wth',
             envVar: 'WTH_LINUX_X64',
-            defaultSource: path.join(xaiRoot, 'target',
+            defaultSource: path.join(wthRoot, 'target',
                 'explorer_cross_x86_64-unknown-linux-gnu',
-                'x86_64-unknown-linux-gnu', 'release', 'xai-wth-pager'),
+                'x86_64-unknown-linux-gnu', 'release', 'wth-pager'),
         },
         {
             platform: 'linux', arch: 'arm64', binName: 'wth',
             envVar: 'WTH_LINUX_ARM64',
-            defaultSource: path.join(xaiRoot, 'target',
+            defaultSource: path.join(wthRoot, 'target',
                 'explorer_cross_aarch64-unknown-linux-gnu',
-                'aarch64-unknown-linux-gnu', 'release', 'xai-wth-pager'),
+                'aarch64-unknown-linux-gnu', 'release', 'wth-pager'),
         },
         {
             platform: 'win32', arch: 'x64', binName: 'wth.exe',
             envVar: 'WTH_WIN32_X64',
-            defaultSource: path.join(xaiRoot, 'target', 'x86_64-pc-windows-msvc', 'release', 'xai-wth-pager.exe'),
+            defaultSource: path.join(wthRoot, 'target', 'x86_64-pc-windows-msvc', 'release', 'wth-pager.exe'),
         },
         {
             platform: 'win32', arch: 'arm64', binName: 'wth.exe',
             envVar: 'WTH_WIN32_ARM64',
-            defaultSource: path.join(xaiRoot, 'target', 'aarch64-pc-windows-msvc', 'release', 'xai-wth-pager.exe'),
+            defaultSource: path.join(wthRoot, 'target', 'aarch64-pc-windows-msvc', 'release', 'wth-pager.exe'),
         },
     ];
 
