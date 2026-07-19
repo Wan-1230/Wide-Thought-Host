@@ -30,17 +30,17 @@ export function ChatView() {
   const handleSend = async () => {
     if (!input.trim() || !activeSessionId || isStreaming) return;
 
-    const 用户Msg: ChatMessage = {
+    const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
-      role: "用户",
+      role: "user",
       content: input.trim(),
       timestamp: new Date().toISOString(),
     };
 
-    addMessage(activeSessionId, 用户Msg);
+    addMessage(activeSessionId, userMsg);
     addMessage(activeSessionId, {
       id: crypto.randomUUID(),
-      role: "助手",
+      role: "assistant",
       content: "",
       timestamp: new Date().toISOString(),
     });
@@ -51,12 +51,12 @@ export function ChatView() {
     try {
       await agentSend({
         session_id: activeSessionId,
-        content: 用户Msg.content,
+        content: userMsg.content,
       });
     } catch (e) {
       addMessage(activeSessionId, {
         id: crypto.randomUUID(),
-        role: "系统",
+        role: "system",
         content: `错误：${String(e)}`,
         timestamp: new Date().toISOString(),
       });
