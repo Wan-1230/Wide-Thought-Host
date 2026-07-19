@@ -136,8 +136,14 @@ export function ChatView() {
 }
 
 function MessageBubble({ message }: { message: ChatMessage }) {
-  const isUser = message.role === "用户";
-  const isSystem = message.role === "系统";
+  const isUser = message.role === "user";
+  const isSystem = message.role === "system";
+
+  const roleLabel: Record<string, string> = {
+    user: "用户",
+    assistant: "助手",
+    system: "系统",
+  };
 
   return (
     <div className={`mb-4 animate-fade-in ${isUser ? "flex justify-end" : ""}`}>
@@ -147,13 +153,13 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           isUser ? "justify-end" : ""
         }`}
       >
-        {message.role === "助手" && (
+        {message.role === "assistant" && (
           <Bot size={14} className="text-accent-purple" />
         )}
         {isUser && <User size={14} className="text-accent-blue" />}
         {isSystem && <Wrench size={14} className="text-accent-orange" />}
         <span className="text-[10px] text-gray-500 uppercase font-medium">
-          {message.role}
+          {roleLabel[message.role] || message.role}
         </span>
       </div>
 
