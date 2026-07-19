@@ -49,7 +49,7 @@ export default function App() {
           addMessage(sid, {
             id: crypto.randomUUID(),
             role: "system",
-            content: `Error: ${chunk.message}`,
+            content: `错误：${chunk.message}`,
             timestamp: new Date().toISOString(),
           });
           setStreaming(sid, false);
@@ -64,11 +64,11 @@ export default function App() {
 
   const handleNewSession = async () => {
     try {
-      const session = await sessionCreate("New Session", "gpt-4.1");
+      const session = await sessionCreate("新会话", "gpt-4.1");
       setSessions([session, ...sessions]);
       setActiveSession(session.id);
     } catch (e) {
-      console.error("Failed to create session:", e);
+      console.error("创建会话失败：", e);
     }
   };
 
@@ -87,7 +87,7 @@ export default function App() {
             }`}
           >
             <PanelLeft size={14} />
-            Sessions
+            会话
           </button>
           <button
             onClick={() => setLeftPanel("files")}
@@ -98,7 +98,7 @@ export default function App() {
             }`}
           >
             <Folder size={14} />
-            Files
+            文件
           </button>
         </div>
 
@@ -129,7 +129,7 @@ export default function App() {
           <button
             onClick={() => setRightPanel(rightPanel === "chat" ? "terminal" : "chat")}
             className="p-1.5 rounded hover:bg-surface-3 text-gray-500 hover:text-gray-300 transition-colors"
-            title={rightPanel === "chat" ? "Show Terminal" : "Show Chat"}
+            title={rightPanel === "chat" ? "显示终端" : "显示对话"}
           >
             {rightPanel === "chat" ? <Terminal size={16} /> : <PanelRight size={16} />}
           </button>
@@ -141,7 +141,7 @@ export default function App() {
             <ChatView />
           ) : (
             <div className="h-full flex items-center justify-center text-gray-500">
-              <p className="text-sm">Terminal panel — coming soon</p>
+              <p className="text-sm">终端面板 — 即将推出</p>
             </div>
           )}
         </div>

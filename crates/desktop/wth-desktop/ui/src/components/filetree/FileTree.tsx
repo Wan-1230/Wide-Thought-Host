@@ -31,17 +31,17 @@ export function FileTree() {
       {/* Path bar */}
       <div className="p-2 border-b border-surface-4">
         <div className="text-[10px] text-gray-500 truncate px-1" title={rootPath}>
-          {rootPath || "No workspace"}
+          {rootPath || "无工作区"}
         </div>
       </div>
 
       {/* File list */}
       <div className="flex-1 overflow-y-auto py-1">
         {loading ? (
-          <div className="text-xs text-gray-500 text-center mt-4">Loading...</div>
+          <div className="text-xs text-gray-500 text-center mt-4">加载中...</div>
         ) : entries.length === 0 ? (
           <div className="text-xs text-gray-500 text-center mt-4">
-            Empty directory
+            空目录
           </div>
         ) : (
           entries.map((entry) => (

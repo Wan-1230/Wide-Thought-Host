@@ -30,17 +30,17 @@ export function ChatView() {
   const handleSend = async () => {
     if (!input.trim() || !activeSessionId || isStreaming) return;
 
-    const userMsg: ChatMessage = {
+    const 用户Msg: ChatMessage = {
       id: crypto.randomUUID(),
-      role: "user",
+      role: "用户",
       content: input.trim(),
       timestamp: new Date().toISOString(),
     };
 
-    addMessage(activeSessionId, userMsg);
+    addMessage(activeSessionId, 用户Msg);
     addMessage(activeSessionId, {
       id: crypto.randomUUID(),
-      role: "assistant",
+      role: "助手",
       content: "",
       timestamp: new Date().toISOString(),
     });
@@ -51,13 +51,13 @@ export function ChatView() {
     try {
       await agentSend({
         session_id: activeSessionId,
-        content: userMsg.content,
+        content: 用户Msg.content,
       });
     } catch (e) {
       addMessage(activeSessionId, {
         id: crypto.randomUUID(),
-        role: "system",
-        content: `Error: ${String(e)}`,
+        role: "系统",
+        content: `错误：${String(e)}`,
         timestamp: new Date().toISOString(),
       });
       setStreaming(activeSessionId, false);
@@ -83,8 +83,7 @@ export function ChatView() {
                 Wide Thought Host
               </h2>
               <p className="text-sm text-gray-500">
-                Start a conversation. I can read and write files, run terminal
-                commands, and help you build anything.
+                开始对话。我可以读写文件、运行终端命令，帮你构建任何东西。
               </p>
             </div>
           </div>
@@ -98,7 +97,7 @@ export function ChatView() {
         {isStreaming && (
           <div className="flex items-center gap-2 text-gray-500 text-xs mt-2 animate-fade-in">
             <Loader2 size={12} className="animate-spin" />
-            Thinking...
+            思考中...
           </div>
         )}
       </div>
@@ -111,7 +110,7 @@ export function ChatView() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Message Wide Thought Host..."
+            placeholder="给 WTH 发消息..."
             rows={1}
             className="flex-1 bg-surface-2 border border-surface-4 rounded-lg px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 resize-none focus:outline-none focus:border-accent-blue transition-colors max-h-32"
             style={{ minHeight: "42px" }}
@@ -129,7 +128,7 @@ export function ChatView() {
           </button>
         </div>
         <div className="text-[10px] text-gray-500 mt-1.5 text-center">
-          Enter to send · Shift+Enter for newline
+          回车发送 · Shift+回车换行
         </div>
       </div>
     </div>
@@ -137,8 +136,8 @@ export function ChatView() {
 }
 
 function MessageBubble({ message }: { message: ChatMessage }) {
-  const isUser = message.role === "user";
-  const isSystem = message.role === "system";
+  const isUser = message.role === "用户";
+  const isSystem = message.role === "系统";
 
   return (
     <div className={`mb-4 animate-fade-in ${isUser ? "flex justify-end" : ""}`}>
@@ -148,7 +147,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           isUser ? "justify-end" : ""
         }`}
       >
-        {message.role === "assistant" && (
+        {message.role === "助手" && (
           <Bot size={14} className="text-accent-purple" />
         )}
         {isUser && <User size={14} className="text-accent-blue" />}
@@ -173,7 +172,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         ) : (
           <div className="flex items-center gap-2 text-gray-500">
             <Loader2 size={12} className="animate-spin" />
-            Thinking...
+            思考中...
           </div>
         )}
 
@@ -208,7 +207,7 @@ function ToolCallBubble({ call }: { call: ToolCall }) {
               {JSON.stringify(call.result, null, 2)}
             </pre>
           ) : (
-            <span className="text-gray-500">Running...</span>
+            <span className="text-gray-500">运行中...</span>
           )}
         </div>
       )}

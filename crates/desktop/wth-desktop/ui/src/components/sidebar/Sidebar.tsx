@@ -31,14 +31,14 @@ export function Sidebar({ sessions, activeId, onSelect, onNew }: SidebarProps) {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search sessions..."
+            placeholder="搜索会话..."
             className="w-full bg-surface-2 border border-surface-4 rounded-md py-1.5 pl-8 pr-3 text-xs text-gray-300 placeholder-gray-500 focus:outline-none focus:border-accent-blue transition-colors"
           />
         </div>
         <button
           onClick={onNew}
           className="p-1.5 rounded-md bg-accent-blue/10 hover:bg-accent-blue/20 text-accent-blue transition-colors"
-          title="New Session"
+          title="新会话"
         >
           <Plus size={16} />
         </button>
@@ -48,7 +48,7 @@ export function Sidebar({ sessions, activeId, onSelect, onNew }: SidebarProps) {
       <div className="flex-1 overflow-y-auto px-2">
         {filtered.length === 0 ? (
           <div className="text-center text-gray-500 text-xs mt-8 px-4">
-            {search ? "No matching sessions" : "No sessions yet.\nClick + to create one."}
+            {search ? "无匹配会话" : "暂无会话\n点击 + 创建新会话"}
           </div>
         ) : (
           filtered.map((session) => (
@@ -65,7 +65,7 @@ export function Sidebar({ sessions, activeId, onSelect, onNew }: SidebarProps) {
               <div className="flex-1 min-w-0">
                 <div className="text-xs font-medium truncate">{session.title}</div>
                 <div className="text-[10px] text-gray-500">
-                  {session.message_count} messages · {session.model}
+                  {session.message_count} 条消息 · {session.model}
                 </div>
               </div>
             </button>
@@ -76,7 +76,7 @@ export function Sidebar({ sessions, activeId, onSelect, onNew }: SidebarProps) {
       {/* Footer */}
       <div className="p-2 border-t border-surface-4">
         <div className="text-[10px] text-gray-500 text-center">
-          {sessions.length} session{sessions.length !== 1 ? "s" : ""}
+          {sessions.length} 个会话
         </div>
       </div>
     </div>
