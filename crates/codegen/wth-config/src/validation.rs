@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use crate::env_bool;
 use crate::loader::{apply_version_overrides_with_registered, load_toml_file};
-use crate::paths::{system_config_dir, user_grok_home};
+use crate::paths::{system_config_dir, user_wth_home};
 use crate::version_overrides::{VersionOverrideError, apply_version_overrides};
 
 use prod_mc_cli_chat_proxy_types::FAIL_CLOSED_KEY;
@@ -63,7 +63,7 @@ pub struct RequirementsLayer {
 /// [`load_merged_requirements`].
 pub fn requirements_layers() -> Vec<RequirementsLayer> {
     let mut out = Vec::new();
-    if let Some(user_path) = user_grok_home().map(|g| g.join("requirements.toml"))
+    if let Some(user_path) = user_wth_home().map(|g| g.join("requirements.toml"))
         && let Some(value) = load_requirements_layer(&user_path)
     {
         out.push(RequirementsLayer {
@@ -107,7 +107,7 @@ pub fn load_merged_requirements() -> Option<toml::Value> {
 }
 
 pub(crate) fn load_requirements() -> Option<toml::Value> {
-    load_user_requirements(user_grok_home().as_deref())
+    load_user_requirements(user_wth_home().as_deref())
 }
 
 /// User requirements layer from `<home>/requirements.toml`, or `None` with no
@@ -216,7 +216,7 @@ fn validate_requirements_value(
 /// Validates all requirements layers (user + system files, and macOS MDM). Call
 /// once at startup from the binary's `main()`; exit on `Err`.
 pub fn validate_requirements() -> Result<(), RequirementsError> {
-    validate_user_requirements(user_grok_home().as_deref())?;
+    validate_user_requirements(user_wth_home().as_deref())?;
     if let Some(dir) = system_config_dir() {
         validate_requirements_layer(&dir.join("requirements.toml"))?;
     }

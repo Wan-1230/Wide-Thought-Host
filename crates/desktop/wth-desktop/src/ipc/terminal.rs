@@ -5,7 +5,7 @@
 
 use crate::state::{AppState, TerminalHandle, TerminalSessions};
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{Emitter, State};
 
 #[derive(Debug, Serialize)]
 pub struct TerminalInfo {

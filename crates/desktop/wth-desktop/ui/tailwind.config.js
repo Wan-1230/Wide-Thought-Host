@@ -6,18 +6,19 @@ export default {
     extend: {
       colors: {
         surface: {
-          0: "#0d1117",
-          1: "#161b22",
-          2: "#1c2129",
-          3: "#21262d",
-          4: "#2a2f38",
+          0: "var(--surface-0)",
+          1: "var(--surface-1)",
+          2: "var(--surface-2)",
+          3: "var(--surface-3)",
+          4: "var(--surface-4)",
         },
         accent: {
-          blue: "#58a6ff",
-          green: "#3fb950",
-          orange: "#d2991d",
-          red: "#f85149",
-          purple: "#bc8cff",
+          blue: "var(--accent-blue)",
+          green: "var(--accent-green)",
+          orange: "var(--accent-orange)",
+          red: "var(--accent-red)",
+          purple: "var(--accent-purple)",
+          primary: "var(--accent-primary)",
         },
       },
       fontFamily: {

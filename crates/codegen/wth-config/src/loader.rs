@@ -5,7 +5,7 @@
 
 use std::path::Path;
 
-use crate::paths::{system_config_dir, user_grok_home};
+use crate::paths::{system_config_dir, user_wth_home};
 use crate::validation::{load_requirements, load_system_requirements};
 use crate::version_overrides::{self, apply_version_overrides};
 
@@ -81,14 +81,14 @@ pub fn load_config_file(path: &Path) -> std::io::Result<toml::Value> {
 }
 
 pub fn load_from_disk() -> std::io::Result<toml::Value> {
-    load_user_config_layer(user_grok_home().as_deref(), "config.toml")
+    load_user_config_layer(user_wth_home().as_deref(), "config.toml")
 }
 
 /// Managed config filename, shared by the loaders in this module.
 pub const MANAGED_CONFIG_FILENAME: &str = "managed_config.toml";
 
 pub fn load_managed_config() -> std::io::Result<toml::Value> {
-    load_user_config_layer(user_grok_home().as_deref(), MANAGED_CONFIG_FILENAME)
+    load_user_config_layer(user_wth_home().as_deref(), MANAGED_CONFIG_FILENAME)
 }
 
 /// Load a user-tier config layer from `<home>/<filename>`. With no resolvable
@@ -125,7 +125,7 @@ pub struct ManagedConfigLayer {
 /// Absent layers are skipped; unparsable layers are skipped with a warning.
 /// One bad layer never drops the others.
 pub fn managed_config_layers() -> Vec<ManagedConfigLayer> {
-    managed_config_layers_at(system_config_dir().as_deref(), user_grok_home().as_deref())
+    managed_config_layers_at(system_config_dir().as_deref(), user_wth_home().as_deref())
 }
 
 /// [`managed_config_layers`] with explicit directories.

@@ -5,6 +5,14 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::{fs, iter};
 
+/// Platform-appropriate "discard output" device path. Unix uses `/dev/null`,
+/// Windows uses `NUL`. Used for `protoc --descriptor_set_out=<path>` so protoc
+/// has somewhere to (not) write the descriptor set we throw away.
+#[cfg(windows)]
+const NULL_DEV: &str = "NUL";
+#[cfg(not(windows))]
+const NULL_DEV: &str = "/dev/null";
+
 /// Find the protoc well-known types include directory.
 ///
 /// When PROTOC is set (e.g., in Bazel), the include directory is typically
@@ -115,9 +123,18 @@ impl XaiProtoBuilder {
         // Can only process one input file when using --dependency_out=FILE.
         for proto in protos {
             let mut command = Command::new(protoc.unwrap_or(Path::new("protoc")));
+            // Windows has no /dev/stdout equivalent — CON is the console, not
+            // stdout-as-a-file. Write the dependency list to a temp file and
+            // read it back. --descriptor_set_out uses the platform's null
+            // device (NUL on Windows, /dev/null on Unix) since we discard it.
+            let dep_file = tempfile::NamedTempFile::new()
+                .context("failed to create temp file for protoc dependency output")?;
             command
-                .arg("--dependency_out=/dev/stdout")
-                .arg("--descriptor_set_out=/dev/null");
+                .arg(format!(
+                    "--dependency_out={}",
+                    dep_file.path().display()
+                ))
+                .arg(format!("--descriptor_set_out={NULL_DEV}"));
 
             // Add protoc's well-known types include directory first (if found).
             // This is needed for Bazel sandboxed builds where protoc and its
@@ -143,14 +160,14 @@ impl XaiProtoBuilder {
                 return Err(anyhow::anyhow!("protoc command failed"));
             }
 
-            let output =
-                String::from_utf8(output.stdout).context("protoc command output not UTF-8")?;
+            let dep_output = std::fs::read_to_string(dep_file.path())
+                .context("failed to read protoc dependency output file")?;
 
-            let mut lines = output.lines();
+            let mut lines = dep_output.lines();
             let first_line = lines.next().context("protoc command output is empty")?;
-            let prefix = "/dev/null:";
-            let rem = first_line.strip_prefix(prefix).with_context(|| {
-                format!("protoc command output must start with /dev/null: {output:?}")
+            let prefix = format!("{NULL_DEV}:");
+            let rem = first_line.strip_prefix(prefix.as_str()).with_context(|| {
+                format!("protoc command output must start with {prefix}: {dep_output:?}")
             })?;
             for line in iter::once(rem).chain(lines) {
                 let line = line.trim();

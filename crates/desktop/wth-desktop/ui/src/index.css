@@ -2,6 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ========================================
+   CSS 变量 — 双主题（深色默认 / 浅色 .light）
+   ======================================== */
+
+/* 深色主题（默认） */
+:root,
+.dark {
+  --surface-0: #0d1117;
+  --surface-1: #161b22;
+  --surface-2: #1c2129;
+  --surface-3: #21262d;
+  --surface-4: #30363d;
+  --accent-blue: #58a6ff;
+  --accent-green: #3fb950;
+  --accent-orange: #d2991d;
+  --accent-red: #f85149;
+  --accent-purple: #bc8cff;
+  --accent-primary: #58a6ff;
+  --text-primary: #e6edf3;
+  --text-muted: #8b949e;
+  --text-dim: #484f58;
+  --bg-body: #0d1117;
+}
+
+/* 浅色主题 */
+.light {
+  --surface-0: #ffffff;
+  --surface-1: #f7f8fa;
+  --surface-2: #eef0f4;
+  --surface-3: #e4e6eb;
+  --surface-4: #d0d3d8;
+  --accent-blue: #6c5ce7;
+  --accent-green: #00b894;
+  --accent-orange: #e17055;
+  --accent-red: #d63031;
+  --accent-purple: #a29bfe;
+  --accent-primary: #6c5ce7;
+  --text-primary: #1a1a2e;
+  --text-muted: #8e8e93;
+  --text-dim: #b0b0b8;
+  --bg-body: #ffffff;
+}
+
+/* ========================================
+   全局重置 & 排版
+   ======================================== */
+
 * {
   margin: 0;
   padding: 0;
@@ -16,13 +63,16 @@ html, body, #root {
 
 body {
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #0d1117;
-  color: #e6edf3;
+  background: var(--bg-body);
+  color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Scrollbar styling */
+/* ========================================
+   滚动条 — 适配双主题
+   ======================================== */
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -31,17 +81,20 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #30363d;
+  background: var(--surface-4);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #484f58;
+  background: var(--text-dim);
 }
 
-/* Code blocks in markdown */
+/* ========================================
+   代码块 / Markdown 基础样式
+   ======================================== */
+
 pre {
-  background: #161b22 !important;
-  border: 1px solid #30363d;
+  background: var(--surface-1) !important;
+  border: 1px solid var(--surface-4);
   border-radius: 6px;
   padding: 12px;
   overflow-x: auto;
@@ -52,11 +105,79 @@ code {
   font-size: 13px;
 }
 
-/* Animations */
+/* ========================================
+   动画 — 微交互令牌
+   ======================================== */
+
+/* 过渡令牌：统一所有 UI 元素的过渡节奏 */
+:root {
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
 .animate-fade-in {
   animation: fadeIn 0.2s ease-out;
+}
+
+/* ========================================
+   焦点环 — 键盘可访问性
+   ======================================== */
+
+:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ========================================
+   选中文本样式
+   ======================================== */
+
+::selection {
+  background: var(--accent-primary);
+  color: #ffffff;
+}
+
+/* ========================================
+   平滑过渡基类
+   ======================================== */
+
+.btn-transition {
+  transition: background var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out),
+              opacity var(--duration-fast) var(--ease-out);
+}
+
+/* ========================================
+   代码块强化
+   ======================================== */
+
+pre {
+  background: var(--surface-1) !important;
+  border: 1px solid var(--surface-4);
+  border-radius: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  line-height: 1.55;
+}
+
+code {
+  font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+  font-size: 13px;
+}
+
+/* 行内代码 */
+:not(pre) > code {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  font-size: 0.85em;
 }

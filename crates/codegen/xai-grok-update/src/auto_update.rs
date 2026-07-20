@@ -3330,9 +3330,15 @@ mod tests {
     #[test]
     fn test_reinstall_hint_internal_points_at_gork_source_build() {
         let hint = reinstall_hint("internal");
+        // Hint must point at a source rebuild (cargo build) targeting the
+        // WTH binary — not the upstream x.ai installers. The substring
+        // check uses `wth-pager-bin` (the real package name) rather than
+        // the historical `gork` name, which has been retired as part of
+        // the grok-build → wth rename. See `manual_install_cmd` for the
+        // authoritative command string.
         assert!(
-            hint.contains("cargo build") && hint.contains("gork"),
-            "Gork Build reinstall must point at source rebuild, not x.ai installers: {hint}"
+            hint.contains("cargo build") && hint.contains("wth-pager-bin"),
+            "WTH reinstall must point at source rebuild, not x.ai installers: {hint}"
         );
         assert!(
             !hint.contains("curl -fsSL https://x.ai/cli") && !hint.contains("irm https://x.ai/cli"),

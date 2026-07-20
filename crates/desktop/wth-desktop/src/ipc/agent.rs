@@ -4,7 +4,7 @@
 
 use crate::state::{AgentHandle, AppState};
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{Emitter, State};
 
 /// Incoming message from the frontend.
 #[derive(Debug, Deserialize)]
@@ -151,7 +151,7 @@ async fn run_agent(
             });
             Ok(())
         }
-        _ = async {
+        result = async {
             // TODO: Integrate with wth-agent / xai-grok-shell Agent runtime
             // For now, emit placeholder streaming chunks
             let chunks = vec![

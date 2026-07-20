@@ -8,7 +8,7 @@
 
 use std::path::Path;
 
-use crate::paths::user_grok_home;
+use crate::paths::user_wth_home;
 
 /// Sync marker; staleness keys on this, not mtimes.
 const MANAGED_CONFIG_CACHE_FILE: &str = "managed_config_cache.json";
@@ -47,7 +47,7 @@ pub enum ServingIdentity {
 /// Whether to refetch for `identity`: no marker, past the timer, different identity, or a served artifact now missing.
 /// Best-effort — callers continue without managed config on failure.
 pub fn is_managed_config_stale_for(identity: &ServingIdentity) -> bool {
-    managed_config_stale_at(user_grok_home().as_deref(), identity)
+    managed_config_stale_at(user_wth_home().as_deref(), identity)
 }
 
 /// Fields a successful sync records. A struct (destructured without `..`) so a new field is
@@ -62,7 +62,7 @@ pub struct SyncMarker<'a> {
 
 /// Record a successful sync (best-effort; called even for a config-less principal so it doesn't refetch every tick).
 pub fn mark_managed_config_synced(marker: SyncMarker<'_>) {
-    if let Some(home) = user_grok_home() {
+    if let Some(home) = user_wth_home() {
         mark_managed_config_synced_at(&home, marker);
     }
 }
@@ -73,7 +73,7 @@ pub fn mark_managed_config_synced(marker: SyncMarker<'_>) {
 /// removed key never reports the previous deployment's id. Team-path syncs store
 /// a team id and no fingerprint, so they never match.
 pub fn managed_deployment_id(key_fingerprint: &str) -> Option<String> {
-    managed_deployment_id_at(user_grok_home()?.as_path(), key_fingerprint)
+    managed_deployment_id_at(user_wth_home()?.as_path(), key_fingerprint)
 }
 
 fn managed_deployment_id_at(home: &Path, key_fingerprint: &str) -> Option<String> {
@@ -155,7 +155,7 @@ pub fn managed_config_identity_changed(
     new_principal: Option<&str>,
     new_key_fingerprint: Option<&str>,
 ) -> bool {
-    user_grok_home().is_some_and(|home| {
+    user_wth_home().is_some_and(|home| {
         managed_config_identity_changed_at(&home, new_principal, new_key_fingerprint)
     })
 }
@@ -248,7 +248,7 @@ impl TamperSignals {
 /// Cache unusable now: different identity, a served artifact missing, or no marker. The session-start refresh blocks
 /// (bounded) on this but not timer-staleness, so a present same-identity cache never delays startup offline.
 pub fn is_managed_config_hard_stale_for(identity: &ServingIdentity) -> bool {
-    match user_grok_home() {
+    match user_wth_home() {
         Some(home) => is_managed_config_hard_stale_for_at(&home, identity),
         None => false,
     }
@@ -299,7 +299,7 @@ fn is_managed_config_hard_stale_for_at(home: &Path, identity: &ServingIdentity) 
 /// opt-in, catches edits the marker can't, and a fail-closed marker then REQUIRES an
 /// authentic sidecar); the dark build uses only the best-effort marker decision.
 pub fn managed_policy_compromised_for(identity: &ServingIdentity) -> bool {
-    user_grok_home().is_some_and(|home| managed_policy_compromised_for_at(&home, identity))
+    user_wth_home().is_some_and(|home| managed_policy_compromised_for_at(&home, identity))
 }
 
 /// Apply writes the policy files before the sidecar with no lock shared with gate

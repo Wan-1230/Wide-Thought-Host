@@ -1,8 +1,193 @@
+// ChatView — 聊天主区组件。
+//
+// 显示当前 active session 的消息流（含 markdown 渲染 + 代码高亮），
+// 以及底部输入区（textarea + 发送按钮）。
+//
+// 状态从 Zustand store 读取：messages、streaming、activeSessionId。
+// 发送消息通过 IPC agent_send → Rust 后端 → wth 二进制 → 流式回显。
+//
+// 配色沿用 Tailwind surface-N + accent-N 色板。
+
 import { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import {
+  Send,
+  Square,
+  Bot,
+  AlertCircle,
+  Wrench,
+  ChevronRight,
+  ChevronDown,
+  Brain,
+} from "lucide-react";
 import { useChatStore } from "@/stores/chat";
-import { agentSend } from "@/lib/ipc";
+import { agentSend, agentAbort } from "@/lib/ipc";
 import type { ChatMessage, ToolCall } from "@/stores/chat";
-import { Send, Square, Bot, User, Wrench, Loader2 } from "lucide-react";
+
+/// 渲染单条 tool call 卡片（折叠式）。
+function ToolCallCard({ call }: { call: ToolCall }) {
+  const [expanded, setExpanded] = useState(false);
+  const argStr = JSON.stringify(call.arguments, null, 2);
+  const resultStr =
+    call.result !== undefined ? JSON.stringify(call.result, null, 2) : null;
+
+  return (
+    <div className="my-2 border rounded-lg overflow-hidden text-xs" style={{ borderColor: "var(--surface-4)", background: "var(--surface-1)" }}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-surface-2 transition-colors"
+      >
+        {expanded ? (
+          <ChevronDown size={12} style={{ color: "var(--text-muted)" }} />
+        ) : (
+          <ChevronRight size={12} style={{ color: "var(--text-muted)" }} />
+        )}
+        <Wrench size={12} className="text-accent-orange" />
+        <span className="font-mono" style={{ color: "var(--text-primary)" }}>{call.name}</span>
+        {resultStr === null && (
+          <span className="ml-auto text-[10px] text-accent-orange animate-pulse">
+            运行中…
+          </span>
+        )}
+      </button>
+      {expanded && (
+        <div className="border-t px-3 py-2 space-y-2" style={{ borderColor: "var(--surface-4)" }}>
+          <div>
+            <div className="text-[10px] uppercase mb-1" style={{ color: "var(--text-muted)" }}>参数</div>
+            <pre className="font-mono overflow-x-auto text-[11px]" style={{ color: "var(--text-primary)" }}>
+              {argStr}
+            </pre>
+          </div>
+          {resultStr !== null && (
+            <div>
+              <div className="text-[10px] uppercase mb-1" style={{ color: "var(--text-muted)" }}>结果</div>
+              <pre className="font-mono overflow-x-auto text-[11px] max-h-48 overflow-y-auto" style={{ color: "var(--text-primary)" }}>
+                {resultStr}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/// 渲染单条消息。
+function MessageBubble({ msg }: { msg: ChatMessage }) {
+  if (msg.role === "user") {
+    return (
+      <div className="flex justify-end mb-4">
+        <div className="max-w-[78%]">
+          <div
+            className="rounded-2xl rounded-tr-sm px-4 py-2.5 animate-fade-in"
+            style={{
+              background: "var(--surface-2)",
+              color: "var(--text-primary)",
+              border: "1px solid var(--surface-4)",
+            }}
+          >
+            <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+              {msg.content}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (msg.role === "system") {
+    return (
+      <div className="flex items-center justify-center my-3 animate-fade-in">
+        <div
+          className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-full"
+          style={{ background: "var(--surface-2)", color: "var(--text-dim)" }}
+        >
+          <AlertCircle size={11} />
+          {msg.content}
+        </div>
+      </div>
+    );
+  }
+
+  // assistant
+  return (
+    <div className="flex items-start gap-3 mb-4 animate-fade-in">
+      <div
+        className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5"
+        style={{ background: "var(--surface-3)" }}
+      >
+        <Bot size={14} style={{ color: "var(--accent-purple)" }} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div
+          className="rounded-2xl rounded-tl-sm px-4 py-2.5"
+          style={{
+            background: "var(--surface-1)",
+            border: "1px solid var(--surface-4)",
+            color: "var(--text-primary)",
+          }}
+        >
+          <div className="prose prose-sm max-w-none break-words leading-relaxed"
+            style={{ color: "var(--text-primary)" }}>
+            <ReactMarkdown
+              components={{
+                code({ node, className, children, ...props }: any) {
+                  const match = /language-(\w+)/.exec(className || "");
+                  const isInline = !className;
+                  if (isInline) {
+                    return (
+                      <code
+                        className="px-1.5 py-0.5 rounded font-mono text-[12px]"
+                        style={{ background: "var(--surface-3)", color: "var(--accent-orange)" }}
+                        {...props}
+                      >
+                        {children}
+                      </code>
+                    );
+                  }
+                  return (
+                    <SyntaxHighlighter
+                      style={oneDark}
+                      language={match ? match[1] : "text"}
+                      PreTag="div"
+                      customStyle={{
+                        margin: 0,
+                        background: "var(--surface-0)",
+                        border: "1px solid var(--surface-4)",
+                        borderRadius: "8px",
+                        fontSize: "12px",
+                      }}
+                    >
+                      {String(children).replace(/\n$/, "")}
+                    </SyntaxHighlighter>
+                  );
+                },
+              }}
+            >
+              {msg.content || ""}
+            </ReactMarkdown>
+          </div>
+        </div>
+        {msg.tool_calls && msg.tool_calls.length > 0 && (
+          <div className="mt-2">
+            {msg.tool_calls.map((tc) => (
+              <ToolCallCard key={tc.id} call={tc} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/// 流式光标 — 当 streaming=true 时显示跳动方块。
+function StreamingCursor() {
+  return (
+    <span className="inline-block w-2 h-4 bg-accent-blue ml-0.5 animate-pulse align-middle" />
+  );
+}
 
 export function ChatView() {
   const {
@@ -10,34 +195,49 @@ export function ChatView() {
     messages,
     streaming,
     addMessage,
+    appendToLastMessage,
     setStreaming,
   } = useChatStore();
 
   const [input, setInput] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const sessionMessages = activeSessionId ? messages[activeSessionId] || [] : [];
+  const sessionMessages = activeSessionId
+    ? messages[activeSessionId] || []
+    : [];
   const isStreaming = activeSessionId ? streaming[activeSessionId] || false : false;
 
+  // 消息流变化时滚到底部
   useEffect(() => {
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: "smooth",
-    });
-  }, [sessionMessages]);
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [sessionMessages.length, sessionMessages[sessionMessages.length - 1]?.content]);
+
+  // textarea 自适应高度
+  useEffect(() => {
+    if (textareaRef.current) {
+      const el = textareaRef.current;
+      el.style.height = "auto";
+      el.style.height = Math.min(el.scrollHeight, 200) + "px";
+    }
+  }, [input]);
 
   const handleSend = async () => {
-    if (!input.trim() || !activeSessionId || isStreaming) return;
+    if (!activeSessionId) return;
+    const content = input.trim();
+    if (!content || isStreaming) return;
 
-    const userMsg: ChatMessage = {
+    // 添加 user 消息到 store
+    addMessage(activeSessionId, {
       id: crypto.randomUUID(),
       role: "user",
-      content: input.trim(),
+      content,
       timestamp: new Date().toISOString(),
-    };
+    });
 
-    addMessage(activeSessionId, userMsg);
+    // 添加占位的 assistant 消息（流式 chunk 会 appendToLastMessage）
     addMessage(activeSessionId, {
       id: crypto.randomUUID(),
       role: "assistant",
@@ -45,178 +245,126 @@ export function ChatView() {
       timestamp: new Date().toISOString(),
     });
 
-    setInput("");
     setStreaming(activeSessionId, true);
+    setInput("");
 
     try {
       await agentSend({
         session_id: activeSessionId,
-        content: userMsg.content,
+        content,
       });
-    } catch (e) {
+    } catch (err) {
+      console.error("发送失败：", err);
       addMessage(activeSessionId, {
         id: crypto.randomUUID(),
         role: "system",
-        content: `错误：${String(e)}`,
+        content: `发送失败：${err}`,
         timestamp: new Date().toISOString(),
       });
       setStreaming(activeSessionId, false);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleAbort = async () => {
+    if (!activeSessionId) return;
+    try {
+      await agentAbort(activeSessionId);
+      setStreaming(activeSessionId, false);
+    } catch (err) {
+      console.error("中止失败：", err);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Enter 发送 / Shift+Enter 换行
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   };
 
+  // 空状态
+  if (!activeSessionId) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center select-none" style={{ color: "var(--text-dim)" }}>
+        <div className="mb-4 w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: "var(--surface-2)" }}>
+          <Brain size={24} className="opacity-40" />
+        </div>
+        <p className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>Wide Thought Host</p>
+        <p className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>选择一个会话或新建开始对话</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-full flex flex-col">
-      {/* Messages */}
+    <div className="h-full flex flex-col bg-surface-0">
+      {/* 消息流 */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
         {sessionMessages.length === 0 ? (
-          <div className="h-full flex items-center justify-center">
-            <div className="text-center max-w-md">
-              <Bot size={48} className="mx-auto mb-4 text-gray-500" />
-              <h2 className="text-lg font-semibold text-gray-300 mb-2">
-                Wide Thought Host
-              </h2>
-              <p className="text-sm text-gray-500">
-                开始对话。我可以读写文件、运行终端命令，帮你构建任何东西。
-              </p>
-            </div>
+          <div className="h-full flex items-center justify-center select-none" style={{ color: "var(--text-dim)" }}>
+            <p className="text-xs">输入消息开始对话</p>
           </div>
         ) : (
-          sessionMessages.map((msg) => (
-            <MessageBubble key={msg.id} message={msg} />
-          ))
-        )}
-
-        {/* Streaming indicator */}
-        {isStreaming && (
-          <div className="flex items-center gap-2 text-gray-500 text-xs mt-2 animate-fade-in">
-            <Loader2 size={12} className="animate-spin" />
-            思考中...
-          </div>
+          sessionMessages.map((msg, idx) => {
+            const isLast = idx === sessionMessages.length - 1;
+            const showCursor =
+              isLast && msg.role === "assistant" && isStreaming;
+            return (
+              <div key={msg.id}>
+                <MessageBubble msg={msg} />
+                {showCursor && <StreamingCursor />}
+              </div>
+            );
+          })
         )}
       </div>
 
-      {/* Input */}
-      <div className="border-t border-surface-4 p-3 bg-surface-1">
-        <div className="flex items-end gap-2 max-w-4xl mx-auto">
+      {/* 输入区 */}
+      <div className="border-t px-4 py-3" style={{ background: "var(--surface-1)", borderColor: "var(--surface-4)" }}>
+        <div className="flex items-end gap-2">
           <textarea
-            ref={inputRef}
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="给 WTH 发消息..."
-            rows={1}
-            className="flex-1 bg-surface-2 border border-surface-4 rounded-lg px-4 py-2.5 text-sm text-gray-200 placeholder-gray-500 resize-none focus:outline-none focus:border-accent-blue transition-colors max-h-32"
-            style={{ minHeight: "42px" }}
-          />
-          <button
-            onClick={isStreaming ? undefined : handleSend}
             disabled={isStreaming}
-            className={`p-2.5 rounded-lg transition-colors ${
-              isStreaming
-                ? "bg-red-500/10 text-red-400 hover:bg-red-500/20"
-                : "bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/20"
-            }`}
-          >
-            {isStreaming ? <Square size={18} /> : <Send size={18} />}
-          </button>
-        </div>
-        <div className="text-[10px] text-gray-500 mt-1.5 text-center">
-          回车发送 · Shift+回车换行
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MessageBubble({ message }: { message: ChatMessage }) {
-  const isUser = message.role === "user";
-  const isSystem = message.role === "system";
-
-  const roleLabel: Record<string, string> = {
-    user: "用户",
-    assistant: "助手",
-    system: "系统",
-  };
-
-  return (
-    <div className={`mb-4 animate-fade-in ${isUser ? "flex justify-end" : ""}`}>
-      {/* Role indicator */}
-      <div
-        className={`flex items-center gap-2 mb-1 ${
-          isUser ? "justify-end" : ""
-        }`}
-      >
-        {message.role === "assistant" && (
-          <Bot size={14} className="text-accent-purple" />
-        )}
-        {isUser && <User size={14} className="text-accent-blue" />}
-        {isSystem && <Wrench size={14} className="text-accent-orange" />}
-        <span className="text-[10px] text-gray-500 uppercase font-medium">
-          {roleLabel[message.role] || message.role}
-        </span>
-      </div>
-
-      {/* Content */}
-      <div
-        className={`max-w-[85%] rounded-lg px-4 py-2.5 text-sm leading-relaxed ${
-          isUser
-            ? "bg-accent-blue/10 border border-accent-blue/20 text-gray-100"
-            : isSystem
-            ? "bg-accent-orange/10 border border-accent-orange/20 text-gray-300"
-            : "bg-surface-2 border border-surface-4 text-gray-200"
-        }`}
-      >
-        {message.content ? (
-          <div className="whitespace-pre-wrap break-words">{message.content}</div>
-        ) : (
-          <div className="flex items-center gap-2 text-gray-500">
-            <Loader2 size={12} className="animate-spin" />
-            思考中...
-          </div>
-        )}
-
-        {/* Tool calls */}
-        {message.tool_calls?.map((tc) => (
-          <ToolCallBubble key={tc.id} call={tc} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ToolCallBubble({ call }: { call: ToolCall }) {
-  const [expanded, setExpanded] = useState(false);
-
-  return (
-    <div className="mt-2 border border-surface-4 rounded-md overflow-hidden">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-2 px-3 py-1.5 bg-surface-3 hover:bg-surface-4 transition-colors text-xs"
-      >
-        <Wrench size={12} className="text-accent-green" />
-        <span className="text-accent-green font-medium">{call.name}</span>
-        {call.result !== undefined && (
-          <span className="text-gray-500 ml-auto">✓</span>
-        )}
-      </button>
-      {expanded && (
-        <div className="px-3 py-2 text-xs text-gray-400 bg-surface-2 font-mono max-h-32 overflow-y-auto">
-          {call.result !== undefined ? (
-            <pre className="whitespace-pre-wrap">
-              {JSON.stringify(call.result, null, 2)}
-            </pre>
+            placeholder={isStreaming ? "正在生成…" : "输入消息，Enter 发送"}
+            rows={1}
+            className="flex-1 resize-none rounded-xl px-4 py-2.5 text-sm leading-relaxed
+              placeholder:text-xs focus:outline-none
+              disabled:opacity-50 font-sans
+              transition-shadow duration-150"
+            style={{
+              background: "var(--surface-0)",
+              border: "1px solid var(--surface-4)",
+              color: "var(--text-primary)",
+            }}
+          />
+          {isStreaming ? (
+            <button
+              onClick={handleAbort}
+              title="中止"
+              className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center
+                transition-all duration-150 hover:scale-105 active:scale-95"
+              style={{ background: "var(--surface-3)", color: "var(--accent-red)" }}
+            >
+              <Square size={13} />
+            </button>
           ) : (
-            <span className="text-gray-500">运行中...</span>
+            <button
+              onClick={handleSend}
+              disabled={!input.trim()}
+              title="发送"
+              className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center
+                transition-all duration-150 hover:scale-105 active:scale-95
+                disabled:opacity-30 disabled:scale-100 disabled:cursor-not-allowed"
+              style={{ background: "var(--accent-primary)", color: "#ffffff" }}
+            >
+              <Send size={14} />
+            </button>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

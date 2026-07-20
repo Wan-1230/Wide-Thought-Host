@@ -8,12 +8,12 @@
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, Runtime,
+    AppHandle, Emitter, Manager, Runtime,
 };
 
 pub fn build_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let show_item = MenuItemBuilder::with_id("show", "Show/Hide")
-        .accelerator("Alt+Space")
+        .accelerator("Alt+W")
         .build(app)?;
     let new_session_item = MenuItemBuilder::with_id("new_session", "New Session")
         .accelerator("CmdOrCtrl+N")

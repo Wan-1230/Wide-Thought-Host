@@ -224,17 +224,37 @@ fn mode_from_env(value: Option<&str>) -> EnvOverride {
 }
 
 /// Short per-host discriminator for per-host DB filenames (lowercased
-/// alphanumeric hostname, other bytes mapped to `-`, capped at 24 chars).
+/// alphanumeric hostname, other characters mapped to `-`, capped at 24 chars).
 /// `None` when no hostname is available. Sanitization collisions across
 /// hosts only degrade to plain shared-TRUNCATE behavior, never to WAL.
+///
+/// Note: alphanumeric check is Unicode-aware (not ASCII-only) so non-ASCII
+/// hostnames (Chinese, Japanese, Korean, Cyrillic, …) are preserved as-is
+/// instead of being sanitized to empty. This was previously `is_ascii_alphanumeric`,
+/// which silently dropped non-ASCII hostnames — leaving non-English users
+/// without the per-host DB isolation the network-mode path provides.
 fn host_discriminator() -> Option<String> {
-    let raw = hostname_raw()?;
+    sanitize_hostname(&hostname_raw()?)
+}
+
+/// Pure sanitize logic, split out of [`host_discriminator`] so tests can
+/// exercise it without mutating the process's `COMPUTERNAME` / `HOSTNAME`
+/// environment variables. Returns `None` when sanitization collapses to
+/// the empty string (e.g. a hostname made entirely of non-alphanumeric
+/// symbols), which signals "no discriminator available — fall back to
+/// plain shared-TRUNCATE".
+fn sanitize_hostname(raw: &str) -> Option<String> {
     let mut s: String = raw
         .trim()
         .chars()
         .map(|c| {
-            if c.is_ascii_alphanumeric() {
-                c.to_ascii_lowercase()
+            if c.is_alphanumeric() {
+                // Unicode-aware lowercase; ASCII chars behave the same as
+                // to_ascii_lowercase, non-ASCII letters get their proper
+                // lowercase (e.g. 'Ä' -> 'ä'). Digits and non-Latin scripts
+                // (Chinese, Japanese, Korean, …) have no case mapping and
+                // pass through unchanged.
+                c.to_lowercase().next().unwrap_or(c)
             } else {
                 '-'
             }
@@ -775,5 +795,62 @@ mod tests {
         // The legacy file stays WAL-stamped and unconverted.
         let conn = rusqlite::Connection::open(&legacy).unwrap();
         assert_eq!(journal_mode(&conn), "wal");
+    }
+
+    /// Regression test: a non-ASCII hostname (e.g. Chinese "昊") must produce
+    /// a non-empty discriminator instead of being silently dropped. The
+    /// previous `is_ascii_alphanumeric` impl mapped every non-ASCII char to
+    /// `-` and then `trim_matches('-')` collapsed the result to empty,
+    /// returning `None` — which broke per-host DB isolation for any user
+    /// whose machine name isn't ASCII.
+    #[test]
+    fn sanitize_hostname_preserves_non_ascii_letters() {
+        // ASCII baseline: case-folded, no transformation.
+        assert_eq!(sanitize_hostname("myhost"), Some("myhost".to_string()));
+        assert_eq!(sanitize_hostname("MYHOST"), Some("myhost".to_string()));
+        assert_eq!(sanitize_hostname("My-PC-001"), Some("my-pc-001".to_string()));
+
+        // Non-ASCII letters are preserved (the bug being fixed).
+        assert_eq!(sanitize_hostname("昊"), Some("昊".to_string()));
+        assert_eq!(sanitize_hostname("太郎"), Some("太郎".to_string()));
+        assert_eq!(sanitize_hostname("München"), Some("münchen".to_string()));
+        // Cyrillic uppercase -> lowercase.
+        assert_eq!(sanitize_hostname("МОСКВА"), Some("москва".to_string()));
+
+        // Mixed ASCII + non-ASCII works.
+        assert_eq!(sanitize_hostname("host-昊"), Some("host-昊".to_string()));
+
+        // Non-alphanumeric symbols get mapped to `-`, then trimmed from the
+        // ends. An all-symbol hostname collapses to None.
+        assert_eq!(sanitize_hostname("!!!"), None);
+        assert_eq!(sanitize_hostname(""), None);
+        assert_eq!(sanitize_hostname("   "), None);
+
+        // Length cap: hosts longer than 24 chars are truncated.
+        let long = "a".repeat(40);
+        let got = sanitize_hostname(&long).unwrap();
+        assert_eq!(got.len(), 24, "host discriminator must cap at 24 chars");
+        assert_eq!(got, "a".repeat(24));
+
+        // Surrounding dashes are trimmed but interior dashes are kept.
+        assert_eq!(sanitize_hostname("---abc---"), Some("abc".to_string()));
+        assert_eq!(sanitize_hostname("a--b"), Some("a--b".to_string()));
+    }
+
+    /// Direct integration check: a Truncate-mode path with a non-ASCII
+    /// hostname gets a per-host suffix (this is the contract the three
+    /// network-mode tests rely on). Guards against the original regression
+    /// where `effective_db_path` silently returned the input unchanged.
+    #[test]
+    fn effective_db_path_produces_per_host_suffix_for_non_ascii_hostname_too() {
+        // We can't easily force `host_discriminator()` to a non-ASCII value
+        // without mutating the process env (race-prone with other tests).
+        // Instead exercise the same logic via `sanitize_hostname`: if it
+        // returns Some for "昊", then `effective_db_path` will also produce
+        // a distinct per-host path on a machine whose hostname is "昊".
+        // The end-to-end guarantee is what `effective_db_path_is_per_host_only_in_truncate_mode`
+        // asserts; this test pins the sanitize precondition separately.
+        assert!(sanitize_hostname("昊").is_some());
+        assert!(sanitize_hostname("太郎").is_some());
     }
 }

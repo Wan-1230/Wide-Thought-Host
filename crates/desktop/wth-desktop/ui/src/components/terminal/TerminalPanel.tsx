@@ -1,0 +1,185 @@
+// Terminal — 嵌入式终端组件。
+//
+// 基于 xterm.js，通过 Rust PTY IPC 与系统 shell 通信。
+// 目前 PTY 集成待完成，显示欢迎信息并支持基础交互。
+
+import { useEffect, useRef, useCallback, useState } from "react";
+import { Terminal as XTerm } from "xterm";
+import { FitAddon } from "@xterm/addon-fit";
+import "xterm/css/xterm.css";
+import { terminalSpawn, terminalWrite, terminalKill, onAgentStream } from "@/lib/ipc";
+import { Terminal as TerminalIcon, Trash2, Plus } from "lucide-react";
+
+interface TabInfo {
+  id: string;
+  pid: number;
+  title: string;
+}
+
+export function TerminalPanel() {
+  const termRef = useRef<HTMLDivElement>(null);
+  const xtermRef = useRef<XTerm | null>(null);
+  const fitRef = useRef<FitAddon | null>(null);
+  const [tabs, setTabs] = useState<TabInfo[]>([]);
+  const [activeTab, setActiveTab] = useState<string | null>(null);
+  const spawnRequested = useRef(false);
+
+  const createTab = useCallback(async () => {
+    try {
+      const info = await terminalSpawn();
+      const newTab: TabInfo = {
+        id: info.id,
+        pid: info.pid,
+        title: `终端 ${tabs.length + 1}`,
+      };
+      setTabs((prev) => [...prev, newTab]);
+      setActiveTab(info.id);
+      return info.id;
+    } catch (e) {
+      console.error("终端创建失败：", e);
+      return null;
+    }
+  }, [tabs.length]);
+
+  // 启动时自动创建首个终端
+  useEffect(() => {
+    if (!spawnRequested.current && tabs.length === 0) {
+      spawnRequested.current = true;
+      createTab();
+    }
+  }, [createTab, tabs.length]);
+
+  // 初始化 xterm
+  useEffect(() => {
+    if (!termRef.current || !activeTab) return;
+
+    // 清理旧实例
+    if (xtermRef.current) {
+      xtermRef.current.dispose();
+    }
+
+    const fitAddon = new FitAddon();
+    const term = new XTerm({
+      cursorBlink: true,
+      cursorStyle: "bar",
+      fontSize: 13,
+      fontFamily: '"Cascadia Code", "JetBrains Mono", "Fira Code", monospace',
+      theme: {
+        background: "#0d1117",
+        foreground: "#e6edf3",
+        cursor: "#58a6ff",
+        selectionBackground: "#264f78",
+      },
+      allowProposedApi: true,
+      allowTransparency: false,
+    });
+
+    term.loadAddon(fitAddon);
+    term.open(termRef.current);
+    fitAddon.fit();
+
+    term.onData((data) => {
+      terminalWrite(activeTab, data).catch(() => {});
+    });
+
+    xtermRef.current = term;
+    fitRef.current = fitAddon;
+
+    const handleResize = () => fitAddon.fit();
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      term.dispose();
+    };
+  }, [activeTab]);
+
+  // 监听终端输出
+  useEffect(() => {
+    if (!activeTab) return;
+
+    let unsub: (() => void) | undefined;
+    
+    import("@tauri-apps/api/event").then(({ listen }) => {
+      listen<{ id: string; data: string }>("terminal:data", (event) => {
+        if (event.payload.id === activeTab && xtermRef.current) {
+          xtermRef.current.write(event.payload.data);
+        }
+      }).then((fn) => { unsub = fn; });
+    });
+
+    return () => {
+      unsub?.();
+    };
+  }, [activeTab]);
+
+  const handleCloseTab = useCallback(async (id: string) => {
+    try {
+      await terminalKill(id);
+    } catch {}
+    setTabs((prev) => {
+      const next = prev.filter((t) => t.id !== id);
+      if (activeTab === id) {
+        setActiveTab(next.length > 0 ? next[next.length - 1].id : null);
+      }
+      return next;
+    });
+  }, [activeTab]);
+
+  return (
+    <div className="h-full flex flex-col bg-surface-0">
+      {/* 标签栏 */}
+      <div
+        className="flex items-center border-b px-1 gap-0.5"
+        style={{ background: "var(--surface-1)", borderColor: "var(--surface-4)" }}
+      >
+        {tabs.map((tab) => (
+          <div
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`group flex items-center gap-1.5 px-3 py-1.5 rounded-t-md text-xs cursor-pointer border-b-2 transition-colors ${
+              activeTab === tab.id
+                ? "border-accent-primary bg-surface-0"
+                : "border-transparent hover:bg-surface-2"
+            }`}
+            style={{
+              color: activeTab === tab.id ? "var(--accent-primary)" : "var(--text-muted)",
+            }}
+          >
+            <TerminalIcon size={11} />
+            {tab.title}
+            <button
+              onClick={(e) => { e.stopPropagation(); handleCloseTab(tab.id); }}
+              className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-surface-3 transition-opacity"
+              style={{ color: "var(--text-dim)" }}
+            >
+              <Trash2 size={10} />
+            </button>
+          </div>
+        ))}
+        <button
+          onClick={createTab}
+          className="p-1.5 ml-1 rounded hover:bg-surface-2 transition-colors"
+          style={{ color: "var(--text-muted)" }}
+          title="新建终端"
+        >
+          <Plus size={13} />
+        </button>
+      </div>
+
+      {/* 终端容器 */}
+      <div className="flex-1 overflow-hidden p-1">
+        {activeTab ? (
+          <div
+            ref={termRef}
+            className="h-full w-full rounded-md overflow-hidden"
+          />
+        ) : (
+          <div className="h-full flex items-center justify-center" style={{ color: "var(--text-muted)" }}>
+            <p className="text-sm">点击 + 创建终端</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
