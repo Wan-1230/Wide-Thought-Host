@@ -13,11 +13,24 @@ export interface Attachment {
   mime_type: string;
 }
 
+export interface ApiConfig {
+  api_base: string;
+  api_key: string;
+  model: string;
+}
+
+export interface ChatHistoryMessage {
+  role: string;
+  content: string;
+}
+
 export interface AgentMessage {
   session_id: string;
   content: string;
   attachments?: Attachment[];
   model?: string;
+  api_config?: ApiConfig;
+  history?: ChatHistoryMessage[];
 }
 
 export interface StreamChunk {

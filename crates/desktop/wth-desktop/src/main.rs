@@ -7,6 +7,8 @@
 //! - Monaco code editor with diff review
 //! - System tray & global shortcuts
 
+#![windows_subsystem = "windows"]
+
 mod ipc;
 mod state;
 mod tray;

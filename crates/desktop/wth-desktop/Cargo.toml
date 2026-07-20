@@ -43,6 +43,8 @@ xai-grok-shared = { path = "../../codegen/xai-grok-shared" }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+reqwest = { workspace = true }
+futures = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }

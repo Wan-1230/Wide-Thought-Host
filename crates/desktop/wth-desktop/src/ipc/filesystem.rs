@@ -93,6 +93,11 @@ pub async fn file_delete(path: String) -> Result<(), String> {
 /// List files in a directory.
 #[tauri::command]
 pub async fn file_list(args: FileListArgs) -> Result<Vec<FileEntry>, String> {
+    // "." 或空路径：使用 workspace_root 本身
+    if args.path.is_empty() || args.path == "." {
+        let root = workspace_root().to_path_buf();
+        return list_dir(&root, args.recursive);
+    }
     let path = sanitize_path(&args.path)?;
     list_dir(&path, args.recursive)
 }

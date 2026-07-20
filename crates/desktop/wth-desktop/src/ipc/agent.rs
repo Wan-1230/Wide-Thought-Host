@@ -1,24 +1,51 @@
 //! IPC commands for agent interaction.
 //!
-//! Bridges the Tauri frontend with wth-agent / xai-grok-shell runtime.
+//! Calls OpenAI-compatible chat completions API with streaming (SSE).
+//! API key and endpoint are configured through the frontend settings.
 
 use crate::state::{AgentHandle, AppState};
+use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, State};
 
 /// Incoming message from the frontend.
 #[derive(Debug, Deserialize)]
 pub struct AgentMessage {
-    /// Session identifier
     pub session_id: String,
-    /// User message content
     pub content: String,
-    /// Optional file attachments (base64 or paths)
     #[serde(default)]
     pub attachments: Vec<Attachment>,
-    /// Model override for this message
     #[serde(default)]
     pub model: Option<String>,
+    /// API configuration from frontend settings
+    #[serde(default)]
+    pub api_config: ApiConfig,
+    /// Conversation history (previous messages for multi-turn)
+    #[serde(default)]
+    pub history: Vec<ChatMessage>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ChatMessage {
+    pub role: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct ApiConfig {
+    #[serde(default = "default_api_base")]
+    pub api_base: String,
+    #[serde(default)]
+    pub api_key: String,
+    #[serde(default = "default_model")]
+    pub model: String,
+}
+
+fn default_api_base() -> String {
+    "https://api.openai.com/v1".into()
+}
+fn default_model() -> String {
+    "gpt-4.1".into()
 }
 
 #[derive(Debug, Deserialize)]
@@ -29,7 +56,8 @@ pub struct Attachment {
     pub mime_type: String,
 }
 
-/// Outgoing streaming chunk to the frontend.
+// ─── Streaming payload ─────────────────────────────────
+
 #[derive(Debug, Clone, Serialize)]
 pub struct AgentStreamChunk {
     pub session_id: String,
@@ -40,22 +68,10 @@ pub struct AgentStreamChunk {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum StreamPayload {
-    /// A text delta from the assistant
     TextDelta { delta: String },
-    /// A tool call has started
-    ToolCallStart {
-        tool_id: String,
-        tool_name: String,
-        arguments: serde_json::Value,
-    },
-    /// A tool call completed
-    ToolCallEnd {
-        tool_id: String,
-        result: serde_json::Value,
-    },
-    /// The assistant response is complete
+    ToolCallStart { tool_id: String, tool_name: String, arguments: serde_json::Value },
+    ToolCallEnd { tool_id: String, result: serde_json::Value },
     Done { usage: Option<UsageInfo> },
-    /// An error occurred
     Error { message: String },
 }
 
@@ -66,9 +82,8 @@ pub struct UsageInfo {
     pub total_tokens: u64,
 }
 
-/// Send a message to the agent and stream the response back.
-///
-/// The frontend receives `agent:stream` events for each chunk.
+// ─── Commands ──────────────────────────────────────────
+
 #[tauri::command]
 pub async fn agent_send(
     state: State<'_, AppState>,
@@ -76,48 +91,41 @@ pub async fn agent_send(
     message: AgentMessage,
 ) -> Result<(), String> {
     let session_id = message.session_id.clone();
-
-    // Set up abort channel
     let (abort_tx, abort_rx) = tokio::sync::oneshot::channel::<()>();
 
     {
         let mut agents = state.agents.lock().map_err(|e| e.to_string())?;
         agents.current = Some(session_id.clone());
-        agents.sessions.insert(
-            session_id.clone(),
-            AgentHandle {
-                id: session_id.clone(),
-                title: format!("Session {}", &session_id[..8.min(session_id.len())]),
-                running: true,
-                abort_tx: Some(abort_tx),
-            },
-        );
+        agents.sessions.insert(session_id.clone(), AgentHandle {
+            id: session_id.clone(),
+            title: format!("Session {}", &session_id[..8.min(session_id.len())]),
+            running: true,
+            abort_tx: Some(abort_tx),
+        });
     }
 
-    // Spawn the agent execution in background
     let agent_state = state.inner().agents.clone();
     let window_clone = window.clone();
     let sid = session_id.clone();
 
     tokio::spawn(async move {
         let result = run_agent(sid.clone(), message, window_clone, abort_rx).await;
-
-        // Mark agent as not running
         if let Ok(mut agents) = agent_state.lock() {
             if let Some(handle) = agents.sessions.get_mut(&sid) {
                 handle.running = false;
             }
         }
-
         if let Err(e) = result {
-            tracing::error!("Agent run error for session {}: {}", sid, e);
+            let _ = window.emit("agent:stream", AgentStreamChunk {
+                session_id: sid.clone(),
+                payload: StreamPayload::Error { message: e },
+            });
         }
     });
 
     Ok(())
 }
 
-/// Abort a running agent session.
 #[tauri::command]
 pub async fn agent_abort(
     state: State<'_, AppState>,
@@ -133,54 +141,145 @@ pub async fn agent_abort(
     Ok(())
 }
 
-/// Internal: execute the agent with streaming.
+// ─── Core: Streaming LLM call ─────────────────────────
+
 async fn run_agent(
     session_id: String,
     message: AgentMessage,
     window: tauri::Window,
-    _abort_rx: tokio::sync::oneshot::Receiver<()>,
+    abort_rx: tokio::sync::oneshot::Receiver<()>,
 ) -> Result<(), String> {
+    let api_base = message
+        .api_config
+        .api_base
+        .trim_end_matches('/')
+        .to_string();
+    let api_key = message.api_config.api_key.trim().to_string();
+    let model = message.api_config.model.clone();
+
+    if api_key.is_empty() {
+        return Err("请先在设置中配置 API Key".into());
+    }
+
+    let url = format!("{}/chat/completions", api_base);
+
+    // Build messages array: system + history + current user message
+    let mut messages: Vec<serde_json::Value> = vec![serde_json::json!({
+        "role": "system",
+        "content": "你是 Wide Thought Host，一个专业的 AI 编码助手。请用中文回答问题，代码注释尽量用中文。"
+    })];
+
+    for h in &message.history {
+        messages.push(serde_json::json!({
+            "role": h.role,
+            "content": h.content
+        }));
+    }
+
+    messages.push(serde_json::json!({
+        "role": "user",
+        "content": message.content
+    }));
+
+    let body = serde_json::json!({
+        "model": model,
+        "messages": messages,
+        "stream": true,
+    });
+
+    let client = reqwest::Client::new();
+    let resp = match client
+        .post(&url)
+        .header("Authorization", format!("Bearer {}", api_key))
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send()
+        .await
+    {
+        Ok(r) => {
+            if !r.status().is_success() {
+                let status = r.status();
+                let err_body = r.text().await.unwrap_or_default();
+                return Err(format!("API 错误 ({}): {}", status, err_body));
+            }
+            r
+        }
+        Err(e) => return Err(format!("请求失败: {}", e)),
+    };
+
+    let sid = session_id.clone();
+    let win = window.clone();
+
+    let handle = tokio::spawn(async move {
+        let mut stream = resp.bytes_stream();
+        let mut buffer = String::new();
+
+        while let Some(chunk_result) = stream.next().await {
+            let chunk = match chunk_result {
+                Ok(c) => c,
+                Err(e) => {
+                    let _ = win.emit("agent:stream", AgentStreamChunk {
+                        session_id: sid.clone(),
+                        payload: StreamPayload::Error { message: format!("流读取错误: {}", e) },
+                    });
+                    return;
+                }
+            };
+
+            let text = String::from_utf8_lossy(&chunk);
+            buffer.push_str(&text);
+
+            // Process complete SSE lines
+            while let Some(line_end) = buffer.find('\n') {
+                let line = buffer[..line_end].trim().to_string();
+                buffer = buffer[line_end + 1..].to_string();
+
+                if line.is_empty() { continue; }
+                if line == "data: [DONE]" {
+                    let _ = win.emit("agent:stream", AgentStreamChunk {
+                        session_id: sid.clone(),
+                        payload: StreamPayload::Done { usage: None },
+                    });
+                    return;
+                }
+                if let Some(data) = line.strip_prefix("data: ") {
+                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
+                        if let Some(choices) = parsed["choices"].as_array() {
+                            for choice in choices {
+                                if let Some(delta) = choice["delta"]["content"].as_str() {
+                                    if !delta.is_empty() {
+                                        let _ = win.emit("agent:stream", AgentStreamChunk {
+                                            session_id: sid.clone(),
+                                            payload: StreamPayload::TextDelta { delta: delta.to_string() },
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let _ = win.emit("agent:stream", AgentStreamChunk {
+            session_id: sid.clone(),
+            payload: StreamPayload::Done { usage: None },
+        });
+    });
+
+    let abort_handle = handle.abort_handle();
+    let abort_sid = session_id.clone();
     tokio::select! {
-        _ = _abort_rx => {
-            // Agent was aborted
+        _ = abort_rx => {
             let _ = window.emit("agent:stream", AgentStreamChunk {
-                session_id: session_id.clone(),
-                payload: StreamPayload::Error {
-                    message: "Agent aborted by user".into(),
-                },
+                session_id: abort_sid,
+                payload: StreamPayload::Error { message: "已中止".into() },
             });
+            abort_handle.abort();
             Ok(())
         }
-        result = async {
-            // TODO: Integrate with wth-agent / xai-grok-shell Agent runtime
-            // For now, emit placeholder streaming chunks
-            let chunks = vec![
-                StreamPayload::TextDelta {
-                    delta: format!("Processing: \"{}\"\n\n", message.content),
-                },
-                StreamPayload::TextDelta {
-                    delta: "I am Wide Thought Host, your AI agent. ".into(),
-                },
-                StreamPayload::TextDelta {
-                    delta: "The desktop integration is under active development.".into(),
-                },
-                StreamPayload::Done {
-                    usage: Some(UsageInfo {
-                        prompt_tokens: 42,
-                        completion_tokens: 15,
-                        total_tokens: 57,
-                    }),
-                },
-            ];
-
-            for chunk in chunks {
-                let _ = window.emit("agent:stream", AgentStreamChunk {
-                    session_id: session_id.clone(),
-                    payload: chunk,
-                });
-                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-            }
-            Ok::<_, String>(())
-        } => { result }
+        result = async { handle.await.map_err(|e| format!("流处理错误: {}", e)) } => {
+            result
+        }
     }
 }

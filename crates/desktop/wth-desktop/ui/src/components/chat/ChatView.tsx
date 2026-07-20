@@ -1,6 +1,5 @@
 // ChatView — 聊天主区组件。
-//
-// 显示当前 active session 的消息流（含 markdown 渲染 + 代码高亮），
+
 // 以及底部输入区（textarea + 发送按钮）。
 //
 // 状态从 Zustand store 读取：messages、streaming、activeSessionId。
@@ -25,6 +24,7 @@ import {
 import { useChatStore } from "@/stores/chat";
 import { agentSend, agentAbort } from "@/lib/ipc";
 import type { ChatMessage, ToolCall } from "@/stores/chat";
+import wthBanner from "@/assets/wth-banner.png";
 
 /// 渲染单条 tool call 卡片（折叠式）。
 function ToolCallCard({ call }: { call: ToolCall }) {
@@ -189,7 +189,7 @@ function StreamingCursor() {
   );
 }
 
-export function ChatView() {
+export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
   const {
     activeSessionId,
     messages,
@@ -249,9 +249,36 @@ export function ChatView() {
     setInput("");
 
     try {
+      // 读取 API 配置（从新的提供商设置读取）
+      interface LlmProvider {
+        id: string; name: string; baseUrl: string; apiKey: string; model: string;
+      }
+      const providers: LlmProvider[] = (() => {
+        try { const raw = localStorage.getItem("wth-llm-providers"); if (raw) return JSON.parse(raw); } catch {}
+        return [];
+      })();
+      const defaultId = localStorage.getItem("wth-default-provider") || "deepseek-v4-flash";
+      const active = providers.find((p) => p.id === defaultId) || providers[0];
+
+      const apiConfig = active
+        ? { api_base: active.baseUrl || "https://api.openai.com/v1", api_key: active.apiKey || "", model: active.model || "deepseek-V4-flash" }
+        : { api_base: localStorage.getItem("wth-api-base") || "https://api.openai.com/v1", api_key: localStorage.getItem("wth-api-key") || "", model: "deepseek-V4-flash" };
+
+      // Build conversation history (last 20 messages, exclude empty messages)
+      const history: { role: string; content: string }[] = [];
+      const msgList = sessionMessages;
+      const recentMsgs = msgList.slice(-20);
+      for (const m of recentMsgs) {
+        if (m.content && (m.role === "user" || m.role === "assistant")) {
+          history.push({ role: m.role, content: m.content });
+        }
+      }
+
       await agentSend({
         session_id: activeSessionId,
         content,
+        api_config: apiConfig,
+        history,
       });
     } catch (err) {
       console.error("发送失败：", err);
@@ -283,15 +310,68 @@ export function ChatView() {
     }
   };
 
-  // 空状态
+  // 空状态 — WTH banner + 居中 CTA
   if (!activeSessionId) {
     return (
-      <div className="h-full flex flex-col items-center justify-center select-none" style={{ color: "var(--text-dim)" }}>
-        <div className="mb-4 w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: "var(--surface-2)" }}>
-          <Brain size={24} className="opacity-40" />
+      <div
+        className="h-full w-full flex flex-col items-center justify-center select-none"
+        style={{ color: "var(--text-primary)" }}
+      >
+        {/* WTH logo 横幅（顶部居中） */}
+        <img
+          src={wthBanner}
+          alt="Wide Thought Host"
+          className="max-w-xs w-2/3 h-auto object-contain mb-6"
+        />
+
+        {/* 副标题 */}
+        <p
+          className="text-sm mb-8"
+          style={{ color: "var(--text-muted)" }}
+        >
+          你的 AI 编码代理
+        </p>
+
+        {/* 居中 pill 提示 + 按钮 */}
+        <div className="w-full max-w-md px-6">
+          <button
+            onClick={onNewSession}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-full
+              transition-all duration-200 ease-out
+              hover:scale-[1.01] active:scale-[0.99]"
+            style={{
+              background: "var(--surface-1)",
+              border: "1px solid var(--surface-3)",
+            }}
+          >
+            <span
+              className="w-6 h-6 rounded-full flex items-center justify-center"
+              style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}
+            >
+              <Brain size={12} />
+            </span>
+            <span
+              className="text-sm flex-1 text-left"
+              style={{ color: "var(--text-muted)" }}
+            >
+              你今天想做什么？
+            </span>
+            <span
+              className="text-[10px] font-mono px-1.5 py-0.5 rounded"
+              style={{ background: "var(--surface-2)", color: "var(--text-dim)" }}
+            >
+              Enter
+            </span>
+          </button>
         </div>
-        <p className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>Wide Thought Host</p>
-        <p className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>选择一个会话或新建开始对话</p>
+
+        {/* 推荐操作 */}
+        <div className="flex items-center gap-2 mt-4 text-[11px]" style={{ color: "var(--text-dim)" }}>
+          <span>支持</span>
+          <span className="px-1.5 py-0.5 rounded" style={{ background: "var(--surface-2)" }}>GPT-4.1</span>
+          <span className="px-1.5 py-0.5 rounded" style={{ background: "var(--surface-2)" }}>Claude 4</span>
+          <span className="px-1.5 py-0.5 rounded" style={{ background: "var(--surface-2)" }}>DeepSeek</span>
+        </div>
       </div>
     );
   }
@@ -320,49 +400,59 @@ export function ChatView() {
       </div>
 
       {/* 输入区 */}
-      <div className="border-t px-4 py-3" style={{ background: "var(--surface-1)", borderColor: "var(--surface-4)" }}>
-        <div className="flex items-end gap-2">
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isStreaming}
-            placeholder={isStreaming ? "正在生成…" : "输入消息，Enter 发送"}
-            rows={1}
-            className="flex-1 resize-none rounded-xl px-4 py-2.5 text-sm leading-relaxed
-              placeholder:text-xs focus:outline-none
-              disabled:opacity-50 font-sans
+      <div className="px-6 py-4" style={{ background: "var(--bg-body)" }}>
+        <div className="max-w-2xl mx-auto">
+          <div
+            className="flex items-end gap-1 rounded-3xl pl-4 pr-1.5 py-1.5
               transition-shadow duration-150"
             style={{
-              background: "var(--surface-0)",
-              border: "1px solid var(--surface-4)",
-              color: "var(--text-primary)",
+              background: "var(--surface-1)",
+              border: "1px solid var(--surface-3)",
             }}
-          />
-          {isStreaming ? (
-            <button
-              onClick={handleAbort}
-              title="中止"
-              className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center
-                transition-all duration-150 hover:scale-105 active:scale-95"
-              style={{ background: "var(--surface-3)", color: "var(--accent-red)" }}
-            >
-              <Square size={13} />
-            </button>
-          ) : (
-            <button
-              onClick={handleSend}
-              disabled={!input.trim()}
-              title="发送"
-              className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center
-                transition-all duration-150 hover:scale-105 active:scale-95
-                disabled:opacity-30 disabled:scale-100 disabled:cursor-not-allowed"
-              style={{ background: "var(--accent-primary)", color: "#ffffff" }}
-            >
-              <Send size={14} />
-            </button>
-          )}
+          >
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isStreaming}
+              placeholder={isStreaming ? "正在生成…" : "输入消息…"}
+              rows={1}
+              className="flex-1 resize-none bg-transparent border-none px-0 py-2 text-sm leading-relaxed
+                placeholder:text-[13px] focus:outline-none
+                disabled:opacity-50 font-sans"
+              style={{ color: "var(--text-primary)" }}
+            />
+            {isStreaming ? (
+              <button
+                onClick={handleAbort}
+                title="中止"
+                className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center
+                  transition-all duration-150 hover:scale-105 active:scale-95"
+                style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}
+              >
+                <Square size={11} />
+              </button>
+            ) : (
+              <button
+                onClick={handleSend}
+                disabled={!input.trim()}
+                title="发送"
+                className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center
+                  transition-all duration-150 hover:scale-105 active:scale-95
+                  disabled:opacity-20 disabled:scale-100 disabled:cursor-not-allowed"
+                style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}
+              >
+                <Send size={13} />
+              </button>
+            )}
+          </div>
+          <div
+            className="text-center text-[10px] mt-1.5"
+            style={{ color: "var(--text-dim)" }}
+          >
+            Enter 发送 · Shift+Enter 换行
+          </div>
         </div>
       </div>
     </div>
