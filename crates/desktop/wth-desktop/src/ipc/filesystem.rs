@@ -6,28 +6,12 @@
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
-
-/// The workspace root — set once on first access via [`set_workspace_root`].
-static WORKSPACE_ROOT: OnceLock<PathBuf> = OnceLock::new();
-
-/// Set the allowed workspace root. All filesystem IPC operations are
-/// confined to this directory and its descendants. The path is canonicalized
-/// before storing.
-pub fn set_workspace_root(path: &Path) {
-    let canonical = dunce::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-    let _ = WORKSPACE_ROOT.set(canonical);
-}
-
-/// Returns the workspace root if set, otherwise the user's home directory.
-fn workspace_root() -> &'static Path {
-    WORKSPACE_ROOT.get().map(|p| p.as_path()).unwrap_or_else(|| {
-        static HOME: OnceLock<PathBuf> = OnceLock::new();
-        HOME.get_or_init(|| {
-            dirs::home_dir().unwrap_or_else(|| PathBuf::from("."))
-        })
-        .as_path()
-    })
+fn workspace_root(state: &crate::state::AppState) -> Result<PathBuf, String> {
+    state
+        .workspace_root
+        .read()
+        .map(|root| root.clone())
+        .map_err(|e| e.to_string())
 }
 
 #[derive(Debug, Serialize)]
@@ -62,43 +46,56 @@ pub struct FileListArgs {
 
 /// Read a file from the filesystem.
 #[tauri::command]
-pub async fn file_read(args: FileReadArgs) -> Result<String, String> {
-    let path = sanitize_path(&args.path)?;
+pub async fn file_read(
+    args: FileReadArgs,
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<String, String> {
+    let root = workspace_root(&state)?;
+    let path = sanitize_path(&args.path, &root)?;
     std::fs::read_to_string(&path).map_err(|e| format!("Failed to read {}: {}", args.path, e))
 }
 
 /// Write content to a file (creates or overwrites).
 #[tauri::command]
-pub async fn file_write(args: FileWriteArgs) -> Result<(), String> {
-    let path = sanitize_parent(&args.path)?;
+pub async fn file_write(
+    args: FileWriteArgs,
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<(), String> {
+    let root = workspace_root(&state)?;
+    let path = sanitize_parent(&args.path, &root)?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| format!("Failed to create parent dir: {}", e))?;
     }
-    std::fs::write(&path, &args.content)
-        .map_err(|_| format!("Failed to write file"))
+    std::fs::write(&path, &args.content).map_err(|_| format!("Failed to write file"))
 }
 
 /// Delete a file (directories are not deletable via this command).
 #[tauri::command]
-pub async fn file_delete(path: String) -> Result<(), String> {
-    let p = sanitize_path(&path)?;
+pub async fn file_delete(
+    path: String,
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<(), String> {
+    let root = workspace_root(&state)?;
+    let p = sanitize_path(&path, &root)?;
     if p.is_dir() {
         return Err("Cannot delete directories. Use your file manager.".into());
     }
-    std::fs::remove_file(&p)
-        .map_err(|_| format!("Failed to delete file"))
+    std::fs::remove_file(&p).map_err(|_| format!("Failed to delete file"))
 }
 
 /// List files in a directory.
 #[tauri::command]
-pub async fn file_list(args: FileListArgs) -> Result<Vec<FileEntry>, String> {
+pub async fn file_list(
+    args: FileListArgs,
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<Vec<FileEntry>, String> {
+    let root = workspace_root(&state)?;
     // "." 或空路径：使用 workspace_root 本身
     if args.path.is_empty() || args.path == "." {
-        let root = workspace_root().to_path_buf();
         return list_dir(&root, args.recursive);
     }
-    let path = sanitize_path(&args.path)?;
+    let path = sanitize_path(&args.path, &root)?;
     list_dir(&path, args.recursive)
 }
 
@@ -146,37 +143,36 @@ fn list_dir(path: &PathBuf, recursive: bool) -> Result<Vec<FileEntry>, String> {
 ///
 /// The path must already exist (uses canonicalize). For write operations
 /// on new files, use [`sanitize_parent`] instead.
-fn sanitize_path(raw: &str) -> Result<PathBuf, String> {
+fn sanitize_path(raw: &str, root: &Path) -> Result<PathBuf, String> {
     let path = PathBuf::from(raw);
-    let canonical = dunce::canonicalize(&path)
-        .map_err(|e| format!("Path not found: {}", e))?;
+    let canonical = dunce::canonicalize(&path).map_err(|e| format!("Path not found: {}", e))?;
 
-    check_workspace_confined(&canonical)?;
+    check_workspace_confined(&canonical, root)?;
     Ok(canonical)
 }
 
 /// Like [`sanitize_path`] but validates the parent directory, allowing
 /// operations on files that don't exist yet (e.g. `file_write` creating a new file).
-fn sanitize_parent(raw: &str) -> Result<PathBuf, String> {
+fn sanitize_parent(raw: &str, root: &Path) -> Result<PathBuf, String> {
     let path = PathBuf::from(raw);
     if let Some(parent) = path.parent() {
         if parent.as_os_str().is_empty() {
             // Relative path with no parent component — use cwd
             let cwd = std::env::current_dir().map_err(|e| format!("cwd: {}", e))?;
-            check_workspace_confined(&cwd)?;
+            check_workspace_confined(&cwd, root)?;
             return Ok(dunce::canonicalize(&cwd)
                 .unwrap_or(cwd)
                 .join(path.file_name().unwrap_or_default()));
         }
         // Canonicalize the parent, then rejoin the filename
-        let canonical_parent = dunce::canonicalize(parent)
-            .map_err(|e| format!("Parent dir not found: {}", e))?;
-        check_workspace_confined(&canonical_parent)?;
+        let canonical_parent =
+            dunce::canonicalize(parent).map_err(|e| format!("Parent dir not found: {}", e))?;
+        check_workspace_confined(&canonical_parent, root)?;
         Ok(canonical_parent.join(path.file_name().unwrap_or_default()))
     } else {
         // No parent (e.g. just a filename) — use cwd
         let cwd = std::env::current_dir().map_err(|e| format!("cwd: {}", e))?;
-        check_workspace_confined(&cwd)?;
+        check_workspace_confined(&cwd, root)?;
         Ok(dunce::canonicalize(&cwd)
             .unwrap_or(cwd)
             .join(path.file_name().unwrap_or_default()))
@@ -184,8 +180,7 @@ fn sanitize_parent(raw: &str) -> Result<PathBuf, String> {
 }
 
 /// Check that a canonical path is within the workspace root.
-fn check_workspace_confined(path: &Path) -> Result<(), String> {
-    let root = workspace_root();
+fn check_workspace_confined(path: &Path, root: &Path) -> Result<(), String> {
     if !path.starts_with(root) {
         return Err("Access denied: path is outside the workspace".into());
     }

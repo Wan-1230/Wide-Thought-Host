@@ -181,3 +181,11 @@ code {
   background: var(--surface-2);
   font-size: 0.85em;
 }
+
+@layer components {
+  .control { @apply rounded-lg border px-3 py-2 text-xs outline-none; background: var(--surface-0); border-color: var(--surface-3); color: var(--text-primary); }
+  .panel-row { @apply flex items-center gap-3 rounded-xl border px-4 py-3; background: var(--surface-1); border-color: var(--surface-3); }
+  .small-btn { @apply inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs hover:opacity-75; background: var(--surface-2); color: var(--text-primary); }
+  .icon-btn { @apply rounded-lg p-2 hover:opacity-70; color: var(--text-muted); }
+  .primary-btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-xs font-medium disabled:opacity-40; background: var(--text-primary); color: var(--surface-0); }
+}

@@ -139,11 +139,19 @@ mod tests {
         // explicit test so a regression surfaces in the test report, not
         // just as a panic on first access.
         let parsed: Value = serde_json::from_str(DEFAULT_MODELS_JSON).unwrap();
-        let default = parsed["default"].as_str().expect("'default' must be a string");
-        let models = parsed["models"].as_array().expect("'models' must be an array");
+        let default = parsed["default"]
+            .as_str()
+            .expect("'default' must be a string");
+        let models = parsed["models"]
+            .as_array()
+            .expect("'models' must be an array");
         let ids: Vec<&str> = models
             .iter()
-            .map(|m| m["model"].as_str().expect("each entry needs a 'model' string"))
+            .map(|m| {
+                m["model"]
+                    .as_str()
+                    .expect("each entry needs a 'model' string")
+            })
             .collect();
         assert!(
             ids.contains(&default),
@@ -154,10 +162,14 @@ mod tests {
     #[test]
     fn baked_in_model_ids_are_unique() {
         let parsed: Value = serde_json::from_str(DEFAULT_MODELS_JSON).unwrap();
-        let models = parsed["models"].as_array().expect("'models' must be an array");
+        let models = parsed["models"]
+            .as_array()
+            .expect("'models' must be an array");
         let mut ids: Vec<String> = Vec::new();
         for entry in models {
-            let id = entry["model"].as_str().expect("each entry needs a 'model' string");
+            let id = entry["model"]
+                .as_str()
+                .expect("each entry needs a 'model' string");
             assert!(
                 !ids.iter().any(|x| x == id),
                 "duplicate model id '{id}' in default_models.json",
@@ -166,7 +178,11 @@ mod tests {
         }
         // Sanity: the shipped JSON has 6 models — guard against accidental
         // collapse of the catalogue.
-        assert!(ids.len() >= 3, "expected at least 3 default models, got {}", ids.len());
+        assert!(
+            ids.len() >= 3,
+            "expected at least 3 default models, got {}",
+            ids.len()
+        );
     }
 
     #[test]
@@ -175,7 +191,9 @@ mod tests {
         // to pick the request shape). A missing field would silently fall
         // through to a wrong code path.
         let parsed: Value = serde_json::from_str(DEFAULT_MODELS_JSON).unwrap();
-        let models = parsed["models"].as_array().expect("'models' must be an array");
+        let models = parsed["models"]
+            .as_array()
+            .expect("'models' must be an array");
         for entry in models {
             let id = entry["model"].as_str().unwrap_or("<missing>");
             assert!(
@@ -183,7 +201,10 @@ mod tests {
                 "model '{id}' is missing 'api_backend'",
             );
             assert!(
-                entry.get("supported_in_api").and_then(Value::as_bool).is_some(),
+                entry
+                    .get("supported_in_api")
+                    .and_then(Value::as_bool)
+                    .is_some(),
                 "model '{id}' is missing 'supported_in_api' (must be true/false)",
             );
         }

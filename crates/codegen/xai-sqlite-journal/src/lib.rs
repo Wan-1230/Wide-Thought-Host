@@ -808,7 +808,10 @@ mod tests {
         // ASCII baseline: case-folded, no transformation.
         assert_eq!(sanitize_hostname("myhost"), Some("myhost".to_string()));
         assert_eq!(sanitize_hostname("MYHOST"), Some("myhost".to_string()));
-        assert_eq!(sanitize_hostname("My-PC-001"), Some("my-pc-001".to_string()));
+        assert_eq!(
+            sanitize_hostname("My-PC-001"),
+            Some("my-pc-001".to_string())
+        );
 
         // Non-ASCII letters are preserved (the bug being fixed).
         assert_eq!(sanitize_hostname("昊"), Some("昊".to_string()));

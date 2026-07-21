@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use crate::ipc::session::SessionInfo;
 
@@ -19,6 +19,8 @@ pub struct TerminalHandle {
     pub id: String,
     pub pid: u32,
     pub writer: Option<Box<dyn std::io::Write + Send>>,
+    pub master: Box<dyn portable_pty::MasterPty + Send>,
+    pub killer: Box<dyn portable_pty::ChildKiller + Send + Sync>,
 }
 
 /// Active agent sessions keyed by session ID.
@@ -44,6 +46,10 @@ pub struct AppState {
     pub sessions: Arc<Mutex<Vec<SessionInfo>>>,
     /// Path to sessions.json — set during app setup via `set_sessions_path`.
     pub sessions_path: Arc<Mutex<PathBuf>>,
+    pub settings: Arc<RwLock<crate::settings::DesktopSettings>>,
+    pub settings_path: Arc<RwLock<PathBuf>>,
+    pub workspace_root: Arc<RwLock<PathBuf>>,
+    pub github_auth: Arc<Mutex<Option<crate::auth::PendingDeviceFlow>>>,
 }
 
 impl Default for AppState {
@@ -53,6 +59,12 @@ impl Default for AppState {
             agents: Default::default(),
             sessions: Default::default(),
             sessions_path: Arc::new(Mutex::new(PathBuf::new())),
+            settings: Arc::new(RwLock::new(crate::settings::DesktopSettings::default())),
+            settings_path: Arc::new(RwLock::new(PathBuf::new())),
+            workspace_root: Arc::new(RwLock::new(
+                dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")),
+            )),
+            github_auth: Default::default(),
         }
     }
 }

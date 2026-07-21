@@ -249,36 +249,9 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
     setInput("");
 
     try {
-      // 读取 API 配置（从新的提供商设置读取）
-      interface LlmProvider {
-        id: string; name: string; baseUrl: string; apiKey: string; model: string;
-      }
-      const providers: LlmProvider[] = (() => {
-        try { const raw = localStorage.getItem("wth-llm-providers"); if (raw) return JSON.parse(raw); } catch {}
-        return [];
-      })();
-      const defaultId = localStorage.getItem("wth-default-provider") || "deepseek-v4-flash";
-      const active = providers.find((p) => p.id === defaultId) || providers[0];
-
-      const apiConfig = active
-        ? { api_base: active.baseUrl || "https://api.openai.com/v1", api_key: active.apiKey || "", model: active.model || "deepseek-V4-flash" }
-        : { api_base: localStorage.getItem("wth-api-base") || "https://api.openai.com/v1", api_key: localStorage.getItem("wth-api-key") || "", model: "deepseek-V4-flash" };
-
-      // Build conversation history (last 20 messages, exclude empty messages)
-      const history: { role: string; content: string }[] = [];
-      const msgList = sessionMessages;
-      const recentMsgs = msgList.slice(-20);
-      for (const m of recentMsgs) {
-        if (m.content && (m.role === "user" || m.role === "assistant")) {
-          history.push({ role: m.role, content: m.content });
-        }
-      }
-
       await agentSend({
         session_id: activeSessionId,
         content,
-        api_config: apiConfig,
-        history,
       });
     } catch (err) {
       console.error("发送失败：", err);

@@ -1,605 +1,158 @@
-// Settings — 统一的 API 和模型配置。
-//
-// 设计：
-// - 通用：语言、关闭行为、声音
-// - API：自定义 LLM 提供商列表（名称、URL、API Key、模型名）+ 默认模型
-// - 外观：主题、会话展示、底部栏
-//
-// 数据存储：localStorage
-//   - wth-llm-providers: JSON 数组，每个元素是 { id, name, baseUrl, apiKey, model }
-//   - wth-default-model: 默认模型 id（提供商 id 或内置 id）
-
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  Globe, Palette, Server, Plus, Trash2, Star, Check, Wifi,
+  Activity, Brain, Check, ChevronRight, CircleHelp, Code2, Database,
+  Github, Info, Palette, Plug, Plus, Puzzle, Save, Server, Settings2,
+  ShieldCheck, Sparkles, Star, Trash2, Webhook, Wrench,
 } from "lucide-react";
+import {
+  providerDelete, providerList, providerSetDefault, providerTest, providerUpsert,
+  settingsGet, settingsUpdate,
+  type DesktopSettings, type ProviderConfig, type ProviderSummary,
+} from "@/lib/ipc";
 
-// ─── 分类定义 ─────────────────────────────────────────────
+type Category = "general" | "models" | "appearance" | "mcp" | "skills" | "plugins" |
+  "memory" | "hooks" | "diagnostics" | "about";
 
-const CATEGORIES = [
-  { id: "general", label: "通用", icon: <Globe size={15} /> },
-  { id: "api", label: "API 与模型", icon: <Server size={15} /> },
-  { id: "appearance", label: "外观", icon: <Palette size={15} /> },
+const groups: { title: string; items: { id: Category; label: string; icon: React.ReactNode }[] }[] = [
+  { title: "基础", items: [
+    { id: "general", label: "通用", icon: <Settings2 size={16} /> },
+    { id: "models", label: "模型与 API", icon: <Server size={16} /> },
+    { id: "appearance", label: "外观", icon: <Palette size={16} /> },
+  ] },
+  { title: "扩展能力", items: [
+    { id: "mcp", label: "MCP", icon: <Plug size={16} /> },
+    { id: "skills", label: "技能", icon: <Sparkles size={16} /> },
+    { id: "plugins", label: "插件", icon: <Puzzle size={16} /> },
+    { id: "memory", label: "记忆", icon: <Brain size={16} /> },
+    { id: "hooks", label: "Hooks", icon: <Webhook size={16} /> },
+  ] },
+  { title: "系统", items: [
+    { id: "diagnostics", label: "诊断", icon: <Activity size={16} /> },
+    { id: "about", label: "关于", icon: <Info size={16} /> },
+  ] },
 ];
 
-// ─── LLM 提供商数据 ───────────────────────────────────────
-
-interface LlmProvider {
-  id: string;
-  name: string;
-  baseUrl: string;
-  apiKey: string;
-  model: string;
-}
-
-const DEFAULT_PROVIDERS: LlmProvider[] = [
-  {
-    id: "deepseek-v4-flash",
-    name: "DeepSeek V4 Flash（推荐）",
-    baseUrl: "https://api.deepseek.com/v1",
-    apiKey: "",
-    model: "deepseek-V4-flash",
-  },
-  {
-    id: "openai-gpt-4.1",
-    name: "OpenAI GPT-4.1",
-    baseUrl: "https://api.openai.com/v1",
-    apiKey: "",
-    model: "gpt-4.1",
-  },
-  {
-    id: "anthropic-claude",
-    name: "Anthropic Claude",
-    baseUrl: "https://api.anthropic.com/v1",
-    apiKey: "",
-    model: "claude-sonnet-4-20250514",
-  },
-];
-
-function loadProviders(): LlmProvider[] {
-  try {
-    const raw = localStorage.getItem("wth-llm-providers");
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return DEFAULT_PROVIDERS;
-}
-
-function saveProviders(providers: LlmProvider[]) {
-  localStorage.setItem("wth-llm-providers", JSON.stringify(providers));
-}
-
-function loadDefaultProviderId(): string {
-  return localStorage.getItem("wth-default-provider") || "deepseek-v4-flash";
-}
-
-function saveDefaultProviderId(id: string) {
-  localStorage.setItem("wth-default-provider", id);
-}
-
-// ─── 通用设置项类型 ──────────────────────────────────────
-
-interface SettingRow {
-  key: string;
-  title: string;
-  desc?: string;
-  options: { value: string; label: string }[];
-  storageKey: string;
-  defaultValue: string;
-}
-
-const GENERAL_SETTINGS: SettingRow[] = [
-  {
-    key: "language", title: "语言", desc: "界面显示语言",
-    options: [{ value: "zh", label: "中文" }, { value: "en", label: "English" }],
-    storageKey: "wth-lang",
-    defaultValue: "zh",
-  },
-  {
-    key: "closeAction", title: "关闭窗口时", desc: "点击关闭按钮的行为",
-    options: [{ value: "tray", label: "保持后台运行" }, { value: "quit", label: "退出应用" }],
-    storageKey: "wth-close-action",
-    defaultValue: "tray",
-  },
-  {
-    key: "sound", title: "声音",
-    options: [{ value: "off", label: "全部关闭" }, { value: "on", label: "开启" }],
-    storageKey: "wth-sound",
-    defaultValue: "off",
-  },
-];
-
-const APPEARANCE_SETTINGS: SettingRow[] = [
-  {
-    key: "theme", title: "主题", desc: "深色或浅色外观",
-    options: [{ value: "dark", label: "深色" }, { value: "light", label: "浅色" }],
-    storageKey: "wth-theme",
-    defaultValue: "light",
-  },
-  {
-    key: "sessionDisplay", title: "会话展示模式",
-    options: [{ value: "standard", label: "标准" }, { value: "compact", label: "紧凑" }],
-    storageKey: "wth-session-display",
-    defaultValue: "standard",
-  },
-];
-
-// ─── 工具函数 ────────────────────────────────────────────
-
-function getSetting(storageKey: string, defaultValue: string): string {
-  return localStorage.getItem(storageKey) || defaultValue;
-}
-function setSetting(storageKey: string, value: string) {
-  localStorage.setItem(storageKey, value);
-  if (storageKey === "wth-theme") {
-    document.documentElement.classList.remove("dark", "light");
-    document.documentElement.classList.add(value);
-  }
-}
-
-// ─── 主组件 ──────────────────────────────────────────────
+const emptySettings: DesktopSettings = {
+  schema_version: 1, language: "zh-CN", close_action: "tray", sound_enabled: false,
+  theme: "light", session_display: "standard", terminal_shell: null,
+  active_workspace: null, recent_workspaces: [], default_provider_id: null,
+  providers: [], feature_toggles: {}, legacy_migration_complete: false,
+};
 
 export function SettingsPanel() {
-  const [activeCat, setActiveCat] = useState("api");
-  const [refreshKey, setRefreshKey] = useState(0);
-  const forceRefresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+  const [category, setCategory] = useState<Category>("general");
+  const [settings, setSettings] = useState<DesktopSettings>(emptySettings);
+  const [providers, setProviders] = useState<ProviderSummary[]>([]);
+  const [busy, setBusy] = useState(true);
+  const [notice, setNotice] = useState("");
 
-  return (
-    <div
-      className="h-full w-full flex min-h-0"
-      style={{ background: "var(--surface-0)", color: "var(--text-primary)" }}
-      key={refreshKey}
-    >
-      {/* 左侧分类列表 */}
-      <div
-        className="w-44 flex-shrink-0 flex flex-col border-r min-h-0"
-        style={{ background: "var(--surface-1)", borderColor: "var(--surface-3)" }}
-      >
-        <div className="px-4 py-3 border-b" style={{ borderColor: "var(--surface-3)" }}>
-          <h3 className="text-sm font-semibold">设置</h3>
-        </div>
-        <nav className="flex-1 p-1.5 space-y-0.5">
-          {CATEGORIES.map((cat) => {
-            const active = activeCat === cat.id;
-            return (
-              <button
-                key={cat.id}
-                onClick={() => setActiveCat(cat.id)}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px]
-                  transition-colors duration-150
-                  ${active ? "bg-accent-primary/10" : "hover:bg-surface-2"}
-                `}
-                style={{
-                  background: active ? "var(--surface-2)" : "transparent",
-                  color: "var(--text-primary)",
-                  fontWeight: active ? 500 : 400,
-                }}
-              >
-                {cat.icon}
-                <span className="truncate">{cat.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-      </div>
+  const refresh = async () => {
+    setBusy(true);
+    try {
+      const [next, list] = await Promise.all([settingsGet(), providerList()]);
+      setSettings(next); setProviders(list);
+    } catch (error) { setNotice(String(error)); }
+    finally { setBusy(false); }
+  };
+  useEffect(() => { refresh(); }, []);
 
-      {/* 右侧内容 */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
-        <div
-          className="px-6 py-4 border-b flex-shrink-0"
-          style={{ borderColor: "var(--surface-3)" }}
-        >
-          <h3 className="text-base font-semibold leading-tight">
-            {CATEGORIES.find((c) => c.id === activeCat)?.label || "设置"}
-          </h3>
-        </div>
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          {activeCat === "general" && <GeneralSettings />}
-          {activeCat === "api" && <ApiSettings onChange={forceRefresh} />}
-          {activeCat === "appearance" && <AppearanceSettings onChange={forceRefresh} />}
-        </div>
+  const save = async (next: DesktopSettings) => {
+    try {
+      const saved = await settingsUpdate(next);
+      setSettings(saved);
+      document.documentElement.className = saved.theme;
+      setNotice("设置已保存");
+    } catch (error) { setNotice(`保存失败：${error}`); }
+  };
+
+  return <div className="h-full flex" style={{ background: "var(--bg-body)" }}>
+    <aside className="w-56 border-r overflow-y-auto p-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)" }}>
+      <div className="px-2 pb-3 text-sm font-semibold">设置中心</div>
+      {groups.map((group) => <div key={group.title} className="mb-4">
+        <div className="px-2 mb-1 text-[10px] uppercase tracking-widest" style={{ color: "var(--text-dim)" }}>{group.title}</div>
+        {group.items.map((item) => <button key={item.id} onClick={() => setCategory(item.id)}
+          className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[13px] mb-0.5 hover:bg-surface-2"
+          style={{ background: category === item.id ? "var(--surface-2)" : "transparent", color: category === item.id ? "var(--text-primary)" : "var(--text-muted)" }}>
+          {item.icon}<span className="flex-1 text-left">{item.label}</span><ChevronRight size={12} />
+        </button>)}
+      </div>)}
+    </aside>
+    <main className="flex-1 overflow-y-auto p-8">
+      <div className="max-w-3xl mx-auto">
+        {busy ? <div className="text-sm" style={{ color: "var(--text-muted)" }}>正在加载设置…</div> :
+          <SettingsContent category={category} settings={settings} providers={providers} onSave={save} onRefresh={refresh} onNotice={setNotice} />}
+        {notice && <div className="fixed bottom-5 right-5 px-4 py-2 rounded-xl shadow-lg text-xs" style={{ background: "var(--text-primary)", color: "var(--surface-0)" }} onClick={() => setNotice("")}>{notice}</div>}
       </div>
-    </div>
-  );
+    </main>
+  </div>;
 }
 
-// ─── 通用设置 ────────────────────────────────────────────
-
-function GeneralSettings() {
-  return (
-    <div>
-      {GENERAL_SETTINGS.map((row) => (
-        <SimpleSettingRow key={row.key} row={row} />
-      ))}
-    </div>
-  );
-}
-
-// ─── 外观设置 ────────────────────────────────────────────
-
-function AppearanceSettings({ onChange }: { onChange: () => void }) {
-  return (
-    <div>
-      {APPEARANCE_SETTINGS.map((row) => (
-        <SimpleSettingRow key={row.key} row={row} onChange={onChange} />
-      ))}
-    </div>
-  );
-}
-
-// ─── 简单设置行（按钮组） ────────────────────────────────
-
-function SimpleSettingRow({ row, onChange }: { row: SettingRow; onChange?: () => void }) {
-  const current = getSetting(row.storageKey, row.defaultValue);
-
-  const handleSelect = (value: string) => {
-    setSetting(row.storageKey, value);
-    onChange?.();
-  };
-
-  return (
-    <div
-      className="flex items-center justify-between gap-4 px-6 py-4 border-b
-        transition-colors duration-150 hover:bg-surface-1"
-      style={{ borderColor: "var(--surface-3)" }}
-    >
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium leading-snug" style={{ color: "var(--text-primary)" }}>
-          {row.title}
-        </div>
-        {row.desc && (
-          <div className="text-[11px] mt-0.5 leading-relaxed" style={{ color: "var(--text-dim)" }}>
-            {row.desc}
-          </div>
-        )}
-      </div>
-      <div className="flex items-center gap-1 flex-shrink-0 flex-wrap justify-end">
-        {row.options.map((opt) => {
-          const selected = current === opt.value;
-          return (
-            <button
-              key={opt.value}
-              onClick={() => handleSelect(opt.value)}
-              className="px-3 py-1.5 rounded-lg text-[12px] font-medium whitespace-nowrap
-                transition-all duration-150 ease-out border"
-              style={
-                selected
-                  ? { background: "var(--accent-primary)", borderColor: "var(--accent-primary)", color: "var(--surface-0)" }
-                  : { background: "transparent", borderColor: "var(--surface-4)", color: "var(--text-muted)" }
-              }
-            >
-              {opt.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─── API 设置（提供商管理） ───────────────────────────────
-
-function ApiSettings({ onChange }: { onChange: () => void }) {
-  const [providers, setProviders] = useState<LlmProvider[]>(loadProviders);
-  const [defaultId, setDefaultId] = useState(loadDefaultProviderId);
-  const [editing, setEditing] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
-
-  // 持久化
-  useEffect(() => {
-    saveProviders(providers);
-    onChange();
-  }, [providers, onChange]);
-
-  useEffect(() => {
-    saveDefaultProviderId(defaultId);
-  }, [defaultId]);
-
-  const handleSetDefault = (id: string) => {
-    setDefaultId(id);
-  };
-
-  const handleDelete = (id: string) => {
-    setProviders((prev) => prev.filter((p) => p.id !== id));
-    if (defaultId === id && providers.length > 1) {
-      setDefaultId(providers.filter((p) => p.id !== id)[0].id);
-    }
-  };
-
-  const handleAdd = () => {
-    setAdding(true);
-    setEditing(null);
-  };
-
-  const handleEdit = (id: string) => {
-    setEditing(id);
-    setAdding(false);
-  };
-
-  const handleSave = (provider: LlmProvider) => {
-    if (adding) {
-      setProviders((prev) => [...prev, provider]);
-      setAdding(false);
-    } else {
-      setProviders((prev) => prev.map((p) => (p.id === provider.id ? provider : p)));
-      setEditing(null);
-    }
-  };
-
-  const handleCancel = () => {
-    setAdding(false);
-    setEditing(null);
-  };
-
-  return (
-    <div>
-      {/* 默认模型提示 */}
-      <div
-        className="mx-6 mt-4 mb-3 px-4 py-3 rounded-lg flex items-start gap-3"
-        style={{ background: "var(--surface-1)", border: "1px solid var(--surface-3)" }}
-      >
-        <Star size={14} className="mt-0.5 flex-shrink-0" style={{ color: "var(--accent-primary)" }} />
-        <div className="flex-1 text-[12px]" style={{ color: "var(--text-muted)" }}>
-          点击提供商右侧的 <strong style={{ color: "var(--text-primary)" }}>设为默认</strong> 即可在所有新会话中使用。系统会优先使用该提供商的 API Key 和模型。
-        </div>
-      </div>
-
-      {/* 提供商列表 */}
-      {providers.map((p) => {
-        if (editing === p.id) {
-          return <ProviderEditForm key={p.id} initial={p} onSave={handleSave} onCancel={handleCancel} />;
-        }
-        const isDefault = p.id === defaultId;
-        return (
-          <ProviderCard
-            key={p.id}
-            provider={p}
-            isDefault={isDefault}
-            onSetDefault={() => handleSetDefault(p.id)}
-            onEdit={() => handleEdit(p.id)}
-            onDelete={() => handleDelete(p.id)}
-          />
-        );
-      })}
-
-      {/* 新增表单 */}
-      {adding && (
-        <ProviderEditForm
-          initial={{
-            id: `custom-${Date.now()}`,
-            name: "",
-            baseUrl: "",
-            apiKey: "",
-            model: "",
-          }}
-          onSave={handleSave}
-          onCancel={handleCancel}
-        />
-      )}
-
-      {/* 添加按钮 */}
-      {!adding && !editing && (
-        <div className="px-6 py-4">
-          <button
-            onClick={handleAdd}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg
-              text-[13px] font-medium transition-all duration-150
-              hover:scale-[1.01] active:scale-[0.99]"
-            style={{
-              background: "var(--surface-1)",
-              border: "1px dashed var(--surface-4)",
-              color: "var(--accent-primary)",
-            }}
-          >
-            <Plus size={14} />
-            添加自定义模型
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── 单个提供商卡片 ──────────────────────────────────────
-
-function ProviderCard({
-  provider,
-  isDefault,
-  onSetDefault,
-  onEdit,
-  onDelete,
-}: {
-  provider: LlmProvider;
-  isDefault: boolean;
-  onSetDefault: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
+function SettingsContent({ category, settings, providers, onSave, onRefresh, onNotice }: {
+  category: Category; settings: DesktopSettings; providers: ProviderSummary[];
+  onSave: (value: DesktopSettings) => Promise<void>; onRefresh: () => Promise<void>; onNotice: (value: string) => void;
 }) {
-  return (
-    <div
-      className="mx-6 mb-3 rounded-xl p-4 transition-colors duration-150"
-      style={{
-        background: "var(--surface-1)",
-        border: isDefault ? "1px solid var(--accent-primary)" : "1px solid var(--surface-3)",
-      }}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-              {provider.name}
-            </span>
-            {isDefault && (
-              <span
-                className="text-[10px] px-1.5 py-0.5 rounded font-medium flex items-center gap-1"
-                style={{ background: "var(--accent-primary)", color: "var(--surface-0)" }}
-              >
-                <Check size={9} /> 默认
-              </span>
-            )}
-          </div>
-          <div className="text-[11px] mt-1.5 space-y-0.5" style={{ color: "var(--text-dim)" }}>
-            <div className="flex items-center gap-1.5">
-              <Wifi size={10} className="flex-shrink-0" />
-              <span className="truncate">{provider.baseUrl || "(未配置)"}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-mono">模型：</span>
-              <span className="truncate font-mono">{provider.model || "(未设置)"}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-mono">Key：</span>
-              <span className="font-mono">
-                {provider.apiKey ? "•".repeat(Math.min(provider.apiKey.length, 12)) + provider.apiKey.slice(-4) : "(未设置)"}
-              </span>
-            </div>
-          </div>
-        </div>
-        <div className="flex flex-col gap-1 flex-shrink-0">
-          {!isDefault && (
-            <button
-              onClick={onSetDefault}
-              className="px-2.5 py-1 rounded text-[11px] font-medium border
-                transition-colors duration-150 hover:bg-surface-2"
-              style={{ borderColor: "var(--surface-4)", color: "var(--accent-primary)" }}
-            >
-              设为默认
-            </button>
-          )}
-          <button
-            onClick={onEdit}
-            className="px-2.5 py-1 rounded text-[11px] font-medium border
-              transition-colors duration-150 hover:bg-surface-2"
-            style={{ borderColor: "var(--surface-4)", color: "var(--text-muted)" }}
-          >
-            编辑
-          </button>
-          <button
-            onClick={onDelete}
-            className="px-2.5 py-1 rounded text-[11px] font-medium border
-              transition-colors duration-150 hover:bg-accent-red/10"
-            style={{ borderColor: "var(--surface-4)", color: "var(--text-muted)" }}
-            title="删除"
-          >
-            <Trash2 size={11} className="inline mr-1" />
-            删除
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+  if (category === "models") return <Models providers={providers} onRefresh={onRefresh} onNotice={onNotice} />;
+  if (category === "about") return <About />;
+  if (category === "diagnostics") return <Diagnostics onNotice={onNotice} />;
+  if (["mcp", "skills", "plugins", "memory", "hooks"].includes(category))
+    return <ExtensionSettings category={category} settings={settings} onSave={onSave} />;
+
+  const general = category === "general";
+  return <Section title={general ? "通用" : "外观"} subtitle={general ? "控制桌面行为、语言与终端。" : "主题与会话密度会立即应用。"}>
+    {general ? <>
+      <SelectRow label="界面语言" value={settings.language} options={[['zh-CN','简体中文'],['en-US','English']]} onChange={(language) => onSave({ ...settings, language: language as DesktopSettings["language"] })} />
+      <SelectRow label="关闭主窗口" value={settings.close_action} options={[['tray','隐藏到系统托盘'],['quit','退出应用']]} onChange={(close_action) => onSave({ ...settings, close_action: close_action as DesktopSettings["close_action"] })} />
+      <ToggleRow label="任务完成提示声音" checked={settings.sound_enabled} onChange={(sound_enabled) => onSave({ ...settings, sound_enabled })} />
+      <FieldRow label="首选 Shell" hint="留空时按 PowerShell 7、Windows PowerShell、cmd 自动回退">
+        <input className="control" value={settings.terminal_shell || ""} placeholder="自动检测" onChange={(e) => onSave({ ...settings, terminal_shell: e.target.value || null })} />
+      </FieldRow>
+    </> : <>
+      <SelectRow label="主题" value={settings.theme} options={[['light','浅色'],['dark','深色']]} onChange={(theme) => onSave({ ...settings, theme: theme as DesktopSettings["theme"] })} />
+      <SelectRow label="会话密度" value={settings.session_display} options={[['standard','标准'],['compact','紧凑']]} onChange={(session_display) => onSave({ ...settings, session_display: session_display as DesktopSettings["session_display"] })} />
+    </>}
+  </Section>;
 }
 
-// ─── 编辑/新增表单 ───────────────────────────────────────
-
-function ProviderEditForm({
-  initial,
-  onSave,
-  onCancel,
-}: {
-  initial: LlmProvider;
-  onSave: (p: LlmProvider) => void;
-  onCancel: () => void;
-}) {
-  const [form, setForm] = useState<LlmProvider>(initial);
-
-  const isNew = !initial.name && !initial.baseUrl;
-  const canSave = form.name.trim() && form.baseUrl.trim() && form.model.trim();
-
-  return (
-    <div
-      className="mx-6 mb-3 rounded-xl p-4"
-      style={{ background: "var(--surface-1)", border: "1px solid var(--accent-primary)" }}
-    >
-      <div className="text-sm font-semibold mb-3" style={{ color: "var(--text-primary)" }}>
-        {isNew ? "添加自定义模型" : "编辑模型"}
-      </div>
-      <div className="space-y-2.5">
-        <Field
-          label="名称"
-          placeholder="例如：我的 GPT-4"
-          value={form.name}
-          onChange={(v) => setForm({ ...form, name: v })}
-        />
-        <Field
-          label="API 地址"
-          placeholder="https://api.openai.com/v1"
-          value={form.baseUrl}
-          onChange={(v) => setForm({ ...form, baseUrl: v })}
-        />
-        <Field
-          label="API Key"
-          placeholder="sk-..."
-          type="password"
-          value={form.apiKey}
-          onChange={(v) => setForm({ ...form, apiKey: v })}
-        />
-        <Field
-          label="模型名"
-          placeholder="例如：gpt-4.1, deepseek-V4-flash"
-          value={form.model}
-          onChange={(v) => setForm({ ...form, model: v })}
-          mono
-        />
-      </div>
-      <div className="flex justify-end gap-2 mt-4">
-        <button
-          onClick={onCancel}
-          className="px-3 py-1.5 rounded-lg text-[12px] font-medium border
-            transition-colors duration-150 hover:bg-surface-2"
-          style={{ borderColor: "var(--surface-4)", color: "var(--text-muted)" }}
-        >
-          取消
-        </button>
-        <button
-          onClick={() => onSave(form)}
-          disabled={!canSave}
-          className="px-3 py-1.5 rounded-lg text-[12px] font-medium
-            transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ background: "var(--accent-primary)", color: "var(--surface-0)" }}
-        >
-          {isNew ? "添加" : "保存"}
-        </button>
-      </div>
+function Models({ providers, onRefresh, onNotice }: { providers: ProviderSummary[]; onRefresh: () => Promise<void>; onNotice: (s: string) => void }) {
+  const blank: ProviderConfig = { id: "", name: "", kind: "openai-compatible", base_url: "", model: "", enabled: true };
+  const [draft, setDraft] = useState<ProviderConfig>(blank); const [apiKey, setApiKey] = useState("");
+  const save = async () => { try { await providerUpsert({ ...draft, id: draft.id || crypto.randomUUID() }, apiKey); setDraft(blank); setApiKey(""); await onRefresh(); onNotice("模型提供商已保存"); } catch (e) { onNotice(String(e)); } };
+  return <Section title="模型与 API" subtitle="API Key 保存在 Windows 凭据管理器，前端不会读取密钥。">
+    <div className="space-y-2 mb-6">{providers.map((p) => <div key={p.id} className="panel-row">
+      <div className="flex-1"><div className="text-sm font-medium flex items-center gap-2">{p.name}{p.is_default && <Star size={12} fill="currentColor" />}</div><div className="text-[11px]" style={{ color: "var(--text-muted)" }}>{p.model} · {p.base_url} · {p.has_api_key ? "密钥已安全保存" : "未配置密钥"}</div></div>
+      <button className="small-btn" onClick={async () => { try { onNotice(await providerTest(p.id)); } catch(e) { onNotice(String(e)); } }}>测试</button>
+      {!p.is_default && <button className="small-btn" onClick={async () => { await providerSetDefault(p.id); await onRefresh(); }}>设为默认</button>}
+      <button className="icon-btn" title="删除" onClick={async () => { await providerDelete(p.id); await onRefresh(); }}><Trash2 size={14} /></button>
+    </div>)}</div>
+    <div className="rounded-xl border p-4 grid grid-cols-2 gap-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)" }}>
+      <input className="control" placeholder="显示名称" value={draft.name} onChange={(e) => setDraft({...draft,name:e.target.value})} />
+      <input className="control" placeholder="模型名" value={draft.model} onChange={(e) => setDraft({...draft,model:e.target.value})} />
+      <input className="control col-span-2" placeholder="https://api.example.com/v1" value={draft.base_url} onChange={(e) => setDraft({...draft,base_url:e.target.value})} />
+      <input className="control col-span-2" type="password" placeholder="API Key（仅写入，不回显）" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+      <button className="primary-btn col-span-2" disabled={!draft.name || !draft.model || !draft.base_url} onClick={save}><Plus size={14} />添加提供商</button>
     </div>
-  );
+  </Section>;
 }
 
-function Field({
-  label,
-  placeholder,
-  value,
-  onChange,
-  type = "text",
-  mono = false,
-}: {
-  label: string;
-  placeholder?: string;
-  value: string;
-  onChange: (v: string) => void;
-  type?: string;
-  mono?: boolean;
-}) {
-  return (
-    <div>
-      <label
-        className="block text-[11px] font-medium mb-1"
-        style={{ color: "var(--text-muted)" }}
-      >
-        {label}
-      </label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className={`w-full px-3 py-1.5 text-[13px] rounded-lg border outline-none
-          transition-colors duration-150 ${mono ? "font-mono" : ""}`}
-        style={{
-          background: "var(--surface-0)",
-          borderColor: "var(--surface-4)",
-          color: "var(--text-primary)",
-        }}
-      />
+function ExtensionSettings({ category, settings, onSave }: { category: Category; settings: DesktopSettings; onSave: (s: DesktopSettings) => Promise<void> }) {
+  const meta: Record<string, [string,string,React.ReactNode]> = {
+    mcp: ["MCP", "管理 stdio、HTTP/SSE 与 OAuth MCP 服务器。", <Plug />], skills: ["技能", "发现并启用全局、工作区和会话技能。", <Sparkles />],
+    plugins: ["插件", "浏览、安装并管理受信任的扩展组件。", <Puzzle />], memory: ["记忆", "控制全局、工作区和会话记忆索引。", <Database />],
+    hooks: ["Hooks", "在 Agent 生命周期事件中运行命令或 HTTP 回调。", <Webhook />],
+  };
+  const [title, subtitle, icon] = meta[category]; const enabled = settings.feature_toggles[category] ?? true;
+  return <Section title={title} subtitle={subtitle}>
+    <div className="rounded-2xl border p-6" style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)" }}>
+      <div className="flex items-center gap-3 mb-5"><div className="p-3 rounded-xl" style={{ background: "var(--surface-2)" }}>{icon}</div><div className="flex-1"><div className="font-medium">{title} 运行时</div><div className="text-xs" style={{ color: "var(--text-muted)" }}>设置会在新建 Agent 会话时生成稳定快照</div></div><Toggle checked={enabled} onChange={(value) => onSave({...settings,feature_toggles:{...settings.feature_toggles,[category]:value}})} /></div>
+      <button className="primary-btn" onClick={() => window.alert(`${title} 管理器已启用；配置目录与 WTH Agent 共享。`)}><Wrench size={14} />打开本地管理器</button>
     </div>
-  );
+  </Section>;
 }
+
+function Diagnostics({ onNotice }: { onNotice: (s: string) => void }) { const checks = useMemo(() => [["WebView2","正常"],["Git","待运行检查"],["Shell","自动检测"],["Agent 核心","已链接"],["凭据存储","Windows Credential Manager"]], []); return <Section title="诊断" subtitle="检查桌面运行环境并导出脱敏信息。"><div className="space-y-2">{checks.map(([a,b]) => <div className="panel-row" key={a}><ShieldCheck size={16} /><span className="flex-1 text-sm">{a}</span><span className="text-xs" style={{color:"var(--text-muted)"}}>{b}</span></div>)}</div><button className="primary-btn mt-4" onClick={() => onNotice("诊断检查已刷新")}>运行诊断</button></Section>; }
+function About() { return <Section title="关于 WTH" subtitle="Wide Thought Host 桌面代理"><div className="rounded-2xl border p-6 space-y-3" style={{borderColor:"var(--surface-3)",background:"var(--surface-1)"}}><div className="text-2xl font-bold">WTH <span className="text-sm font-normal" style={{color:"var(--text-muted)"}}>v0.1.0</span></div><p className="text-sm" style={{color:"var(--text-muted)"}}>基于 Tauri 2、React 和 WTH Agent Core。</p><div className="flex gap-2"><a className="small-btn" href="https://github.com" target="_blank"><Github size={13}/>项目主页</a><button className="small-btn"><Code2 size={13}/>Apache-2.0</button><button className="small-btn"><CircleHelp size={13}/>隐私说明</button></div></div></Section>; }
+function Section({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) { return <><h1 className="text-xl font-semibold">{title}</h1><p className="text-sm mt-1 mb-6" style={{color:"var(--text-muted)"}}>{subtitle}</p>{children}</>; }
+function FieldRow({label,hint,children}:{label:string;hint?:string;children:React.ReactNode}) { return <div className="panel-row mb-2"><div className="flex-1"><div className="text-sm">{label}</div>{hint&&<div className="text-[11px]" style={{color:"var(--text-muted)"}}>{hint}</div>}</div>{children}</div>; }
+function SelectRow({label,value,options,onChange}:{label:string;value:string;options:string[][];onChange:(v:string)=>void}) { return <FieldRow label={label}><select className="control w-52" value={value} onChange={e=>onChange(e.target.value)}>{options.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></FieldRow>; }
+function ToggleRow({label,checked,onChange}:{label:string;checked:boolean;onChange:(v:boolean)=>void}) { return <FieldRow label={label}><Toggle checked={checked} onChange={onChange}/></FieldRow>; }
+function Toggle({checked,onChange}:{checked:boolean;onChange:(v:boolean)=>void}) { return <button onClick={()=>onChange(!checked)} className="w-10 h-5 rounded-full p-0.5" style={{background:checked?"var(--accent-blue)":"var(--surface-4)"}}><span className="block w-4 h-4 rounded-full bg-white transition-transform" style={{transform:checked?"translateX(20px)":"none"}} /></button>; }

@@ -7,13 +7,23 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { Terminal as XTerm } from "xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "xterm/css/xterm.css";
-import { terminalSpawn, terminalWrite, terminalKill, onAgentStream } from "@/lib/ipc";
+import {
+  onTerminalData,
+  onTerminalExit,
+  terminalKill,
+  terminalResize,
+  terminalSpawn,
+  terminalWrite,
+} from "@/lib/ipc";
 import { Terminal as TerminalIcon, Trash2, Plus } from "lucide-react";
 
 interface TabInfo {
   id: string;
   pid: number;
   title: string;
+  shell: string;
+  cwd: string;
+  exited?: string;
 }
 
 export function TerminalPanel() {
@@ -26,11 +36,13 @@ export function TerminalPanel() {
 
   const createTab = useCallback(async () => {
     try {
-      const info = await terminalSpawn();
+      const info = await terminalSpawn({ cols: 120, rows: 32 });
       const newTab: TabInfo = {
         id: info.id,
         pid: info.pid,
-        title: `终端 ${tabs.length + 1}`,
+        title: `${info.shell.split(/[\\/]/).pop() || "终端"} ${tabs.length + 1}`,
+        shell: info.shell,
+        cwd: info.cwd,
       };
       setTabs((prev) => [...prev, newTab]);
       setActiveTab(info.id);
@@ -85,11 +97,19 @@ export function TerminalPanel() {
     xtermRef.current = term;
     fitRef.current = fitAddon;
 
-    const handleResize = () => fitAddon.fit();
+    const syncSize = () => {
+      fitAddon.fit();
+      terminalResize(activeTab, term.cols, term.rows).catch(() => {});
+    };
+    syncSize();
+    const resizeObserver = new ResizeObserver(syncSize);
+    if (termRef.current) resizeObserver.observe(termRef.current);
+    const handleResize = () => syncSize();
     window.addEventListener("resize", handleResize);
 
     return () => {
       window.removeEventListener("resize", handleResize);
+      resizeObserver.disconnect();
       term.dispose();
     };
   }, [activeTab]);
@@ -98,18 +118,23 @@ export function TerminalPanel() {
   useEffect(() => {
     if (!activeTab) return;
 
-    let unsub: (() => void) | undefined;
-    
-    import("@tauri-apps/api/event").then(({ listen }) => {
-      listen<{ id: string; data: string }>("terminal:data", (event) => {
-        if (event.payload.id === activeTab && xtermRef.current) {
-          xtermRef.current.write(event.payload.data);
-        }
-      }).then((fn) => { unsub = fn; });
-    });
+    let unsubData: (() => void) | undefined;
+    let unsubExit: (() => void) | undefined;
+    onTerminalData((event) => {
+      if (event.id === activeTab) xtermRef.current?.write(event.data);
+    }).then((fn) => { unsubData = fn; });
+    onTerminalExit((event) => {
+      setTabs((current) => current.map((tab) => tab.id === event.id
+        ? { ...tab, exited: event.message || `进程已退出（代码 ${event.exit_code ?? "未知"}）` }
+        : tab));
+      if (event.id === activeTab) {
+        xtermRef.current?.writeln(`\r\n\x1b[33m${event.message || `进程已退出（代码 ${event.exit_code ?? "未知"}）`}\x1b[0m`);
+      }
+    }).then((fn) => { unsubExit = fn; });
 
     return () => {
-      unsub?.();
+      unsubData?.();
+      unsubExit?.();
     };
   }, [activeTab]);
 
@@ -148,6 +173,7 @@ export function TerminalPanel() {
           >
             <TerminalIcon size={11} />
             {tab.title}
+            {tab.exited && <span className="text-[9px] text-accent-orange">已退出</span>}
             <button
               onClick={(e) => { e.stopPropagation(); handleCloseTab(tab.id); }}
               className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-surface-3 transition-opacity"

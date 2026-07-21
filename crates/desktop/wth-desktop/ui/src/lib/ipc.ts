@@ -13,24 +13,10 @@ export interface Attachment {
   mime_type: string;
 }
 
-export interface ApiConfig {
-  api_base: string;
-  api_key: string;
-  model: string;
-}
-
-export interface ChatHistoryMessage {
-  role: string;
-  content: string;
-}
-
 export interface AgentMessage {
   session_id: string;
   content: string;
   attachments?: Attachment[];
-  model?: string;
-  api_config?: ApiConfig;
-  history?: ChatHistoryMessage[];
 }
 
 export interface StreamChunk {
@@ -71,6 +57,62 @@ export interface SessionInfo {
 export interface TerminalInfo {
   id: string;
   pid: number;
+  shell: string;
+  cwd: string;
+}
+
+export interface TerminalExit {
+  id: string;
+  exit_code?: number;
+  message?: string;
+}
+
+export interface DesktopSettings {
+  schema_version: number;
+  language: "zh-CN" | "en-US";
+  close_action: "tray" | "quit";
+  sound_enabled: boolean;
+  theme: "light" | "dark";
+  session_display: "standard" | "compact";
+  terminal_shell?: string | null;
+  active_workspace?: string | null;
+  recent_workspaces: string[];
+  default_provider_id?: string | null;
+  providers: ProviderConfig[];
+  feature_toggles: Record<string, boolean>;
+  legacy_migration_complete: boolean;
+  github_user?: GitHubProfile | null;
+}
+
+export interface GitHubProfile { login: string; name?: string | null; avatar_url?: string | null; }
+export interface GitHubAuthStatus {
+  state: "signed_in" | "signed_out" | "pending" | "denied" | "expired" | "error";
+  user?: GitHubProfile | null;
+  user_code?: string | null;
+  verification_uri?: string | null;
+  expires_in?: number | null;
+  message?: string | null;
+}
+
+export interface ProviderConfig {
+  id: string;
+  name: string;
+  kind: string;
+  base_url: string;
+  model: string;
+  enabled: boolean;
+}
+
+export interface ProviderSummary extends ProviderConfig {
+  has_api_key: boolean;
+  is_default: boolean;
+}
+
+export interface WorkspaceInfo {
+  path: string;
+  name: string;
+  exists: boolean;
+  active: boolean;
 }
 
 // ─── Agent ───────────────────────────────────────────
@@ -107,8 +149,8 @@ export async function fileList(path: string, recursive = false): Promise<FileEnt
 
 // ─── Terminal ────────────────────────────────────────
 
-export async function terminalSpawn(): Promise<TerminalInfo> {
-  return invoke("terminal_spawn");
+export async function terminalSpawn(args?: { shell?: string; cwd?: string; cols?: number; rows?: number }): Promise<TerminalInfo> {
+  return invoke("terminal_spawn", { args: args ?? null });
 }
 
 export async function terminalWrite(id: string, data: string): Promise<void> {
@@ -122,6 +164,34 @@ export async function terminalResize(id: string, cols: number, rows: number): Pr
 export async function terminalKill(id: string): Promise<void> {
   return invoke("terminal_kill", { id });
 }
+
+export function onTerminalData(cb: (event: { id: string; data: string }) => void): Promise<UnlistenFn> {
+  return listen("terminal:data", (event) => cb(event.payload as { id: string; data: string }));
+}
+
+export function onTerminalExit(cb: (event: TerminalExit) => void): Promise<UnlistenFn> {
+  return listen<TerminalExit>("terminal:exit", (event) => cb(event.payload));
+}
+
+// ─── 设置、模型与工作区 ─────────────────────────────
+
+export const settingsGet = () => invoke<DesktopSettings>("settings_get");
+export const settingsUpdate = (settings: DesktopSettings) =>
+  invoke<DesktopSettings>("settings_update", { settings });
+export const providerList = () => invoke<ProviderSummary[]>("provider_list");
+export const providerUpsert = (config: ProviderConfig, apiKey?: string) =>
+  invoke<ProviderSummary>("provider_upsert", { input: { ...config, api_key: apiKey || null } });
+export const providerDelete = (id: string) => invoke<void>("provider_delete", { id });
+export const providerSetDefault = (id: string) => invoke<void>("provider_set_default", { id });
+export const providerTest = (id: string) => invoke<string>("provider_test", { id });
+export const workspaceGet = () => invoke<WorkspaceInfo>("workspace_get");
+export const workspaceRecent = () => invoke<WorkspaceInfo[]>("workspace_recent");
+export const workspaceSelect = (path: string) => invoke<WorkspaceInfo>("workspace_select", { path });
+export const githubAuthStatus = () => invoke<GitHubAuthStatus>("github_auth_status");
+export const githubAuthStart = () => invoke<GitHubAuthStatus>("github_auth_start");
+export const githubAuthPoll = () => invoke<GitHubAuthStatus>("github_auth_poll");
+export const githubAuthCancel = () => invoke<void>("github_auth_cancel");
+export const githubAuthLogout = () => invoke<void>("github_auth_logout");
 
 // ─── Sessions ────────────────────────────────────────
 

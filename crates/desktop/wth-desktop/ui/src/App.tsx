@@ -5,8 +5,11 @@ import { FileTree } from "./components/filetree/FileTree";
 import { SettingsPanel } from "./components/settings/Settings";
 import { TerminalPanel } from "./components/terminal/TerminalPanel";
 import { useChatStore } from "./stores/chat";
-import { sessionList, sessionCreate, onAgentStream } from "./lib/ipc";
-import type { StreamChunk } from "./lib/ipc";
+import { githubAuthCancel, githubAuthLogout, githubAuthPoll, githubAuthStart, githubAuthStatus, sessionList, sessionCreate, onAgentStream, settingsGet, workspaceGet, workspaceSelect } from "./lib/ipc";
+import type { GitHubAuthStatus, StreamChunk } from "./lib/ipc";
+import { open } from "@tauri-apps/plugin-dialog";
+import { open as openUrl } from "@tauri-apps/plugin-shell";
+import { listen } from "@tauri-apps/api/event";
 import {
   Search,
   MessageSquare,
@@ -16,8 +19,9 @@ import {
   Moon,
   Terminal,
   Sparkles,
-  Lock,
+  FolderOpen,
   Plus,
+  Github,
   X,
 } from "lucide-react";
 
@@ -39,20 +43,18 @@ export default function App() {
 
   const [navSection, setNavSection] = useState<NavSection>("sessions");
   const [rightPanel, setRightPanel] = useState<RightPanel>("chat");
-  const [theme, setTheme] = useState<"dark" | "light">(() => {
-    const saved = localStorage.getItem("wth-theme");
-    if (saved === "light" || saved === "dark") return saved;
-    return "light";
-  });
+  const [theme, setTheme] = useState<"dark" | "light">("light");
+  const [workspace, setWorkspace] = useState("选择工作区");
   const [searchQuery, setSearchQuery] = useState("");
   const [showPromo, setShowPromo] = useState(true);
+  const [github, setGithub] = useState<GitHubAuthStatus | null>(null);
+  const [showGithub, setShowGithub] = useState(false);
 
   // 同步主题到 <html> class
   useEffect(() => {
     const root = document.documentElement;
     root.classList.remove("dark", "light");
     root.classList.add(theme);
-    localStorage.setItem("wth-theme", theme);
   }, [theme]);
 
   const toggleTheme = useCallback(() => {
@@ -61,6 +63,9 @@ export default function App() {
 
   useEffect(() => {
     sessionList().then(setSessions).catch(console.error);
+    settingsGet().then((value) => setTheme(value.theme)).catch(console.error);
+    workspaceGet().then((value) => setWorkspace(value.name)).catch(console.error);
+    githubAuthStatus().then(setGithub).catch(console.error);
 
     const unlisten = onAgentStream((chunk: StreamChunk) => {
       const sid = chunk.session_id;
@@ -98,6 +103,36 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (github?.state !== "pending") return;
+    const timer = window.setInterval(() => {
+      githubAuthPoll().then(setGithub).catch((error) => setGithub({ state: "error", message: String(error) }));
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [github?.state]);
+
+  const beginGitHubLogin = async () => {
+    try { setGithub(await githubAuthStart()); setShowGithub(true); }
+    catch (error) { setGithub({ state: "error", message: String(error) }); setShowGithub(true); }
+  };
+
+  useEffect(() => {
+    const dispose = listen("menu:new-session", async () => {
+      const session = await sessionCreate("新会话", "gpt-4.1");
+      setSessions(await sessionList());
+      setActiveSession(session.id);
+    });
+    return () => { dispose.then((fn) => fn()); };
+  }, [setActiveSession, setSessions]);
+
+  const handleWorkspace = async () => {
+    const selected = await open({ directory: true, multiple: false, title: "选择 WTH 工作区" });
+    if (typeof selected === "string") {
+      const info = await workspaceSelect(selected);
+      setWorkspace(info.name);
+    }
+  };
+
   const handleNewSession = async () => {
     try {
       const session = await sessionCreate("新会话", "gpt-4.1");
@@ -112,7 +147,6 @@ export default function App() {
   const navItems: { id: NavSection; label: string; icon: React.ReactNode; indicator?: boolean }[] = [
     { id: "sessions", label: "会话", icon: <MessageSquare size={16} /> },
     { id: "files", label: "文件", icon: <Folder size={16} /> },
-    { id: "settings", label: "设置", icon: <SettingsIcon size={16} /> },
   ];
 
   return (
@@ -234,18 +268,28 @@ export default function App() {
           className="px-3 py-3 border-t flex items-center gap-2.5"
           style={{ borderColor: "var(--surface-3)" }}
         >
-          <div
+          <button
+            onClick={() => github?.state === "signed_in" ? setShowGithub(true) : beginGitHubLogin()}
             className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold"
+            title={github?.state === "signed_in" ? "GitHub 账户" : "使用 GitHub 登录"}
             style={{ background: "var(--surface-3)", color: "var(--text-primary)" }}
           >
-            W
-          </div>
+            {github?.user?.avatar_url ? <img className="w-full h-full object-cover" src={github.user.avatar_url} alt="GitHub 头像" /> : <Github size={14} />}
+          </button>
           <div className="flex-1 min-w-0">
-            <div className="text-[12px] font-medium truncate">用户</div>
+            <div className="text-[12px] font-medium truncate">{github?.user?.name || github?.user?.login || "使用 GitHub 登录"}</div>
             <div className="text-[10px] truncate" style={{ color: "var(--text-dim)" }}>
               Free 计划
             </div>
           </div>
+          <button
+            onClick={() => setNavSection(navSection === "settings" ? "sessions" : "settings")}
+            className="p-2 rounded-lg hover:bg-surface-2"
+            title="设置"
+            style={{ color: navSection === "settings" ? "var(--text-primary)" : "var(--text-muted)" }}
+          >
+            <SettingsIcon size={16} />
+          </button>
         </div>
       </div>
 
@@ -257,8 +301,8 @@ export default function App() {
             className="flex items-center justify-end gap-1 px-3 py-1.5 border-b flex-shrink-0"
             style={{ background: "var(--bg-body)", borderColor: "var(--surface-3)" }}
           >
-            <TopActionButton icon={<Sparkles size={15} />} label="Imagine" />
-            <TopActionButton icon={<Lock size={14} />} label="Private" />
+            <TopActionButton icon={<Plus size={15} />} label="新建会话" onClick={handleNewSession} />
+            <TopActionButton icon={<FolderOpen size={14} />} label={workspace} onClick={handleWorkspace} />
             <TopActionButton
               icon={<Terminal size={15} />}
               label={rightPanel === "chat" ? "终端" : "对话"}
@@ -291,7 +335,7 @@ export default function App() {
                 <div className="text-[12px] font-semibold leading-tight">WTH Pro</div>
                 <div className="text-[10px] opacity-70 leading-tight">解锁更长上下文与更多模型</div>
               </div>
-              <button
+              <button onClick={() => window.alert("WTH Pro 即将推出")}
                 className="text-[11px] font-semibold px-2.5 py-1 rounded-full transition-colors"
                 style={{ background: "var(--surface-0)", color: "var(--text-primary)" }}
               >
@@ -308,8 +352,20 @@ export default function App() {
           </div>
         )}
       </div>
+      {showGithub && <GitHubDialog status={github} onClose={() => setShowGithub(false)} onStart={beginGitHubLogin} onCancel={async () => { await githubAuthCancel(); setGithub(await githubAuthStatus()); }} onLogout={async () => { await githubAuthLogout(); setGithub(await githubAuthStatus()); setShowGithub(false); }} />}
     </div>
   );
+}
+
+function GitHubDialog({ status, onClose, onStart, onCancel, onLogout }: { status: GitHubAuthStatus | null; onClose: () => void; onStart: () => void; onCancel: () => Promise<void>; onLogout: () => Promise<void> }) {
+  const pending = status?.state === "pending";
+  return <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.45)" }}>
+    <div className="w-full max-w-sm rounded-2xl p-5 shadow-2xl" style={{ background: "var(--surface-1)", color: "var(--text-primary)" }}>
+      <div className="flex items-center gap-2 text-sm font-semibold"><Github size={17} />GitHub 登录</div>
+      {status?.state === "signed_in" ? <><p className="mt-3 text-sm">已登录为 @{status.user?.login}</p><button className="mt-4 text-xs px-3 py-2 rounded-lg" style={{background:"var(--surface-2)"}} onClick={onLogout}>退出登录</button></> : pending ? <><p className="mt-3 text-xs" style={{color:"var(--text-muted)"}}>在浏览器打开 GitHub，输入下方一次性验证码后授权。</p><div className="mt-4 rounded-xl px-4 py-3 text-center font-mono text-xl tracking-[.25em]" style={{background:"var(--surface-2)"}}>{status.user_code}</div><div className="mt-3 flex gap-2"><button className="text-xs px-3 py-2 rounded-lg" style={{background:"var(--text-primary)",color:"var(--surface-0)"}} onClick={() => status.verification_uri && openUrl(status.verification_uri)}>打开 GitHub</button><button className="text-xs px-3 py-2 rounded-lg" style={{background:"var(--surface-2)"}} onClick={() => navigator.clipboard.writeText(status.user_code || "")}>复制验证码</button><button className="text-xs px-3 py-2 rounded-lg" style={{background:"var(--surface-2)"}} onClick={onCancel}>取消</button></div></> : <><p className="mt-3 text-xs" style={{color:"var(--text-muted)"}}>{status?.message || "登录是可选功能，不影响本地使用。"}</p><button className="mt-4 text-xs px-3 py-2 rounded-lg" style={{background:"var(--text-primary)",color:"var(--surface-0)"}} onClick={onStart}>使用 GitHub 登录</button></>}
+      <button className="mt-4 block text-xs" style={{color:"var(--text-muted)"}} onClick={onClose}>关闭</button>
+    </div>
+  </div>;
 }
 
 // 顶部操作按钮（右上角）

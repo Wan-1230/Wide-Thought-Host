@@ -15,37 +15,6 @@ pub struct AgentMessage {
     pub content: String,
     #[serde(default)]
     pub attachments: Vec<Attachment>,
-    #[serde(default)]
-    pub model: Option<String>,
-    /// API configuration from frontend settings
-    #[serde(default)]
-    pub api_config: ApiConfig,
-    /// Conversation history (previous messages for multi-turn)
-    #[serde(default)]
-    pub history: Vec<ChatMessage>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ChatMessage {
-    pub role: String,
-    pub content: String,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
-pub struct ApiConfig {
-    #[serde(default = "default_api_base")]
-    pub api_base: String,
-    #[serde(default)]
-    pub api_key: String,
-    #[serde(default = "default_model")]
-    pub model: String,
-}
-
-fn default_api_base() -> String {
-    "https://api.openai.com/v1".into()
-}
-fn default_model() -> String {
-    "gpt-4.1".into()
 }
 
 #[derive(Debug, Deserialize)]
@@ -68,11 +37,24 @@ pub struct AgentStreamChunk {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum StreamPayload {
-    TextDelta { delta: String },
-    ToolCallStart { tool_id: String, tool_name: String, arguments: serde_json::Value },
-    ToolCallEnd { tool_id: String, result: serde_json::Value },
-    Done { usage: Option<UsageInfo> },
-    Error { message: String },
+    TextDelta {
+        delta: String,
+    },
+    ToolCallStart {
+        tool_id: String,
+        tool_name: String,
+        arguments: serde_json::Value,
+    },
+    ToolCallEnd {
+        tool_id: String,
+        result: serde_json::Value,
+    },
+    Done {
+        usage: Option<UsageInfo>,
+    },
+    Error {
+        message: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -91,17 +73,36 @@ pub async fn agent_send(
     message: AgentMessage,
 ) -> Result<(), String> {
     let session_id = message.session_id.clone();
+    let (provider, api_key) = {
+        let settings = state.settings.read().map_err(|e| e.to_string())?;
+        let provider_id = settings
+            .default_provider_id
+            .as_deref()
+            .ok_or_else(|| "请先在设置中配置默认模型".to_string())?;
+        let provider = settings
+            .providers
+            .iter()
+            .find(|item| item.id == provider_id && item.enabled)
+            .cloned()
+            .ok_or_else(|| "默认模型不存在或已停用".to_string())?;
+        let api_key = crate::credentials::read_secret("provider", provider_id)?
+            .ok_or_else(|| "请先在设置中配置 API Key".to_string())?;
+        (provider, api_key)
+    };
     let (abort_tx, abort_rx) = tokio::sync::oneshot::channel::<()>();
 
     {
         let mut agents = state.agents.lock().map_err(|e| e.to_string())?;
         agents.current = Some(session_id.clone());
-        agents.sessions.insert(session_id.clone(), AgentHandle {
-            id: session_id.clone(),
-            title: format!("Session {}", &session_id[..8.min(session_id.len())]),
-            running: true,
-            abort_tx: Some(abort_tx),
-        });
+        agents.sessions.insert(
+            session_id.clone(),
+            AgentHandle {
+                id: session_id.clone(),
+                title: format!("Session {}", &session_id[..8.min(session_id.len())]),
+                running: true,
+                abort_tx: Some(abort_tx),
+            },
+        );
     }
 
     let agent_state = state.inner().agents.clone();
@@ -109,17 +110,29 @@ pub async fn agent_send(
     let sid = session_id.clone();
 
     tokio::spawn(async move {
-        let result = run_agent(sid.clone(), message, window_clone, abort_rx).await;
+        let result = run_agent(
+            sid.clone(),
+            message,
+            provider.base_url,
+            api_key,
+            provider.model,
+            window_clone,
+            abort_rx,
+        )
+        .await;
         if let Ok(mut agents) = agent_state.lock() {
             if let Some(handle) = agents.sessions.get_mut(&sid) {
                 handle.running = false;
             }
         }
         if let Err(e) = result {
-            let _ = window.emit("agent:stream", AgentStreamChunk {
-                session_id: sid.clone(),
-                payload: StreamPayload::Error { message: e },
-            });
+            let _ = window.emit(
+                "agent:stream",
+                AgentStreamChunk {
+                    session_id: sid.clone(),
+                    payload: StreamPayload::Error { message: e },
+                },
+            );
         }
     });
 
@@ -127,10 +140,7 @@ pub async fn agent_send(
 }
 
 #[tauri::command]
-pub async fn agent_abort(
-    state: State<'_, AppState>,
-    session_id: String,
-) -> Result<(), String> {
+pub async fn agent_abort(state: State<'_, AppState>, session_id: String) -> Result<(), String> {
     let mut agents = state.agents.lock().map_err(|e| e.to_string())?;
     if let Some(handle) = agents.sessions.get_mut(&session_id) {
         if let Some(tx) = handle.abort_tx.take() {
@@ -146,35 +156,19 @@ pub async fn agent_abort(
 async fn run_agent(
     session_id: String,
     message: AgentMessage,
+    api_base: String,
+    api_key: String,
+    model: String,
     window: tauri::Window,
     abort_rx: tokio::sync::oneshot::Receiver<()>,
 ) -> Result<(), String> {
-    let api_base = message
-        .api_config
-        .api_base
-        .trim_end_matches('/')
-        .to_string();
-    let api_key = message.api_config.api_key.trim().to_string();
-    let model = message.api_config.model.clone();
+    let url = format!("{}/chat/completions", api_base.trim_end_matches('/'));
 
-    if api_key.is_empty() {
-        return Err("请先在设置中配置 API Key".into());
-    }
-
-    let url = format!("{}/chat/completions", api_base);
-
-    // Build messages array: system + history + current user message
+    // 配置与密钥只从 Rust 侧快照读取，前端永不传递敏感值。
     let mut messages: Vec<serde_json::Value> = vec![serde_json::json!({
         "role": "system",
         "content": "你是 Wide Thought Host，一个专业的 AI 编码助手。请用中文回答问题，代码注释尽量用中文。"
     })];
-
-    for h in &message.history {
-        messages.push(serde_json::json!({
-            "role": h.role,
-            "content": h.content
-        }));
-    }
 
     messages.push(serde_json::json!({
         "role": "user",
@@ -218,10 +212,15 @@ async fn run_agent(
             let chunk = match chunk_result {
                 Ok(c) => c,
                 Err(e) => {
-                    let _ = win.emit("agent:stream", AgentStreamChunk {
-                        session_id: sid.clone(),
-                        payload: StreamPayload::Error { message: format!("流读取错误: {}", e) },
-                    });
+                    let _ = win.emit(
+                        "agent:stream",
+                        AgentStreamChunk {
+                            session_id: sid.clone(),
+                            payload: StreamPayload::Error {
+                                message: format!("流读取错误: {}", e),
+                            },
+                        },
+                    );
                     return;
                 }
             };
@@ -234,12 +233,17 @@ async fn run_agent(
                 let line = buffer[..line_end].trim().to_string();
                 buffer = buffer[line_end + 1..].to_string();
 
-                if line.is_empty() { continue; }
+                if line.is_empty() {
+                    continue;
+                }
                 if line == "data: [DONE]" {
-                    let _ = win.emit("agent:stream", AgentStreamChunk {
-                        session_id: sid.clone(),
-                        payload: StreamPayload::Done { usage: None },
-                    });
+                    let _ = win.emit(
+                        "agent:stream",
+                        AgentStreamChunk {
+                            session_id: sid.clone(),
+                            payload: StreamPayload::Done { usage: None },
+                        },
+                    );
                     return;
                 }
                 if let Some(data) = line.strip_prefix("data: ") {
@@ -248,10 +252,15 @@ async fn run_agent(
                             for choice in choices {
                                 if let Some(delta) = choice["delta"]["content"].as_str() {
                                     if !delta.is_empty() {
-                                        let _ = win.emit("agent:stream", AgentStreamChunk {
-                                            session_id: sid.clone(),
-                                            payload: StreamPayload::TextDelta { delta: delta.to_string() },
-                                        });
+                                        let _ = win.emit(
+                                            "agent:stream",
+                                            AgentStreamChunk {
+                                                session_id: sid.clone(),
+                                                payload: StreamPayload::TextDelta {
+                                                    delta: delta.to_string(),
+                                                },
+                                            },
+                                        );
                                     }
                                 }
                             }
@@ -261,10 +270,13 @@ async fn run_agent(
             }
         }
 
-        let _ = win.emit("agent:stream", AgentStreamChunk {
-            session_id: sid.clone(),
-            payload: StreamPayload::Done { usage: None },
-        });
+        let _ = win.emit(
+            "agent:stream",
+            AgentStreamChunk {
+                session_id: sid.clone(),
+                payload: StreamPayload::Done { usage: None },
+            },
+        );
     });
 
     let abort_handle = handle.abort_handle();

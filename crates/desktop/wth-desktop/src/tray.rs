@@ -6,9 +6,9 @@
 //! - Quit
 
 use tauri::{
+    AppHandle, Emitter, Manager, Runtime,
     menu::{MenuBuilder, MenuItemBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, Runtime,
 };
 
 pub fn build_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
@@ -29,9 +29,16 @@ pub fn build_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         .item(&quit_item)
         .build()?;
 
-    let _tray = TrayIconBuilder::new()
+    let mut tray_builder = TrayIconBuilder::new()
         .menu(&menu)
-        .tooltip("Wide Thought Host")
+        .tooltip("Wide Thought Host");
+
+    // 使用与主窗口、安装包相同的品牌图标，避免 Windows 使用 Tauri 默认图标。
+    if let Some(icon) = app.default_window_icon() {
+        tray_builder = tray_builder.icon(icon.clone());
+    }
+
+    let _tray = tray_builder
         .on_menu_event(move |app, event| match event.id().as_ref() {
             "show" => {
                 if let Some(window) = app.get_webview_window("main") {

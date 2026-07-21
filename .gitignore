@@ -9,3 +9,9 @@ protoc-*.zip
 crates/codegen/xai-grok-tools-api/NUL
 crates/desktop/wth-desktop/gen/
 crates/desktop/wth-desktop/WebView2Loader.dll
+crates/desktop/wth-desktop/icons/icon-master.png
+crates/desktop/wth-desktop/icons/64x64.png
+crates/desktop/wth-desktop/icons/StoreLogo.png
+crates/desktop/wth-desktop/icons/Square*Logo.png
+crates/desktop/wth-desktop/icons/android/
+crates/desktop/wth-desktop/icons/ios/

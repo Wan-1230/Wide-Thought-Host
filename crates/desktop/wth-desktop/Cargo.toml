@@ -53,9 +53,18 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 dirs = { workspace = true }
 dunce = { workspace = true }
+portable-pty = { workspace = true }
+toml = { workspace = true }
+url = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+
+[dev-dependencies]
+tempfile = { workspace = true }
 
 [profile.release]
 panic = "abort"

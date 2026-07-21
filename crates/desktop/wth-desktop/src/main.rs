@@ -9,13 +9,16 @@
 
 #![windows_subsystem = "windows"]
 
+mod credentials;
+mod auth;
 mod ipc;
+mod settings;
 mod state;
 mod tray;
 
 use state::AppState;
 use tauri::Manager;
-use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -30,7 +33,7 @@ pub fn run() {
 
     let app_state = AppState::default();
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
@@ -62,20 +65,27 @@ pub fn run() {
                 *path_guard = sessions_path;
             }
 
-            // Initialize workspace root from WTH_HOME or home dir
-            let ws_root = std::env::var("WTH_HOME")
-                .ok()
-                .map(std::path::PathBuf::from)
-                .or_else(|| dirs::home_dir())
+            // 桌面偏好与 Agent 的 WTH_HOME 分离；工作区可在运行时切换。
+            let settings_path = app
+                .path()
+                .app_data_dir()
+                .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                .join("settings.json");
+            let desktop_settings = settings::load_settings(&settings_path);
+            let ws_root = desktop_settings
+                .active_workspace
+                .as_deref()
+                .and_then(|path| dunce::canonicalize(path).ok())
+                .filter(|path| path.is_dir())
+                .or_else(|| std::env::current_dir().ok())
+                .or_else(dirs::home_dir)
                 .unwrap_or_else(|| std::path::PathBuf::from("."));
-            if let Err(e) = std::fs::create_dir_all(&ws_root) {
-                tracing::warn!(
-                    "Failed to create workspace root {:?}: {}",
-                    ws_root,
-                    e
-                );
+            {
+                let state = app.state::<AppState>();
+                *state.settings.write().map_err(|e| e.to_string())? = desktop_settings;
+                *state.settings_path.write().map_err(|e| e.to_string())? = settings_path;
+                *state.workspace_root.write().map_err(|e| e.to_string())? = ws_root;
             }
-            ipc::filesystem::set_workspace_root(&ws_root);
 
             // Build system tray
             let _tray = tray::build_tray(app.handle())?;
@@ -109,9 +119,48 @@ pub fn run() {
             ipc::session::session_delete,
             ipc::session::session_export,
             ipc::session::session_get,
+            settings::settings_get,
+            settings::settings_update,
+            settings::provider_list,
+            settings::provider_upsert,
+            settings::provider_delete,
+            settings::provider_set_default,
+            settings::provider_test,
+            settings::workspace_get,
+            settings::workspace_recent,
+            settings::workspace_select,
+            auth::github_auth_status,
+            auth::github_auth_start,
+            auth::github_auth_poll,
+            auth::github_auth_cancel,
+            auth::github_auth_logout,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running WTH desktop");
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let state = window.state::<AppState>();
+                let close_to_tray = state
+                    .settings
+                    .read()
+                    .map(|settings| settings.close_action == "tray")
+                    .unwrap_or(false);
+                if close_to_tray {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
+        .build(tauri::generate_context!())
+        .expect("error while building WTH desktop");
+
+    app.run(|app_handle, event| {
+        if matches!(
+            event,
+            tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. }
+        ) {
+            let state = app_handle.state::<AppState>();
+            ipc::terminal::kill_all(&state);
+        }
+    });
 }
 
 fn main() {
