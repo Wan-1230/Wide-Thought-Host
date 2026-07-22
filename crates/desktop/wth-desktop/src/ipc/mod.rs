@@ -1,4 +1,5 @@
 pub mod agent;
+pub mod capabilities;
 pub mod filesystem;
 pub mod session;
 pub mod terminal;

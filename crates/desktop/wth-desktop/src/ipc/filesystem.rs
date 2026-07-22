@@ -84,6 +84,65 @@ pub async fn file_delete(
     std::fs::remove_file(&p).map_err(|_| format!("Failed to delete file"))
 }
 
+#[tauri::command]
+pub async fn open_in_explorer(
+    path: String,
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<(), String> {
+    let root = workspace_root(&state)?;
+    let p = sanitize_path(&path, &root)?;
+    #[cfg(windows)]
+    {
+        use std::process::Command;
+        let status = if p.is_dir() {
+            Command::new("explorer")
+                .arg(&p)
+                .status()
+        } else {
+            Command::new("explorer")
+                .arg(format!("/select,{}", p.display()))
+                .status()
+        };
+        match status {
+            Ok(status) if status.success() => Ok(()),
+            Ok(status) => Err(format!("打开资源管理器失败：退出码 {:?}", status.code())),
+            Err(error) => Err(format!("打开资源管理器失败：{error}")),
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = p;
+        Err("当前平台尚未实现资源管理器打开".into())
+    }
+}
+
+/// 在系统资源管理器中打开任意本地路径。
+#[tauri::command]
+pub async fn open_path_in_explorer(path: String) -> Result<(), String> {
+    let p = dunce::canonicalize(&path).map_err(|e| format!("打开路径失败：{e}"))?;
+    #[cfg(windows)]
+    {
+        use std::process::Command;
+        let status = if p.is_dir() {
+            Command::new("explorer").arg(&p).status()
+        } else {
+            Command::new("explorer")
+                .arg(format!("/select,{}", p.display()))
+                .status()
+        };
+        match status {
+            Ok(status) if status.success() => Ok(()),
+            Ok(status) => Err(format!("打开资源管理器失败：退出码 {:?}", status.code())),
+            Err(error) => Err(format!("打开资源管理器失败：{error}")),
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = p;
+        Err("当前平台尚未实现资源管理器打开".into())
+    }
+}
+
 /// List files in a directory.
 #[tauri::command]
 pub async fn file_list(

@@ -8,6 +8,7 @@
 // 配色沿用 Tailwind surface-N + accent-N 色板。
 
 import { useState, useRef, useEffect } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -21,7 +22,7 @@ import {
   ChevronDown,
   Brain,
 } from "lucide-react";
-import { useChatStore } from "@/stores/chat";
+import { THINKING_MESSAGE, useChatStore } from "@/stores/chat";
 import { agentSend, agentAbort } from "@/lib/ipc";
 import type { ChatMessage, ToolCall } from "@/stores/chat";
 import wthBanner from "@/assets/wth-banner.png";
@@ -112,6 +113,30 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
   }
 
   // assistant
+  if (msg.content === THINKING_MESSAGE) {
+    return (
+      <div className="flex items-start gap-3 mb-4 animate-fade-in">
+        <div
+          className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5"
+          style={{ background: "var(--surface-3)" }}
+        >
+          <Bot size={14} style={{ color: "var(--accent-purple)" }} />
+        </div>
+        <div
+          className="rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm flex items-center gap-2"
+          style={{
+            background: "var(--surface-1)",
+            border: "1px solid var(--surface-4)",
+            color: "var(--text-muted)",
+          }}
+        >
+          <span className="inline-flex h-2.5 w-2.5 rounded-full bg-[color:var(--accent-blue)] animate-pulse" />
+          <span>{THINKING_MESSAGE}</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-start gap-3 mb-4 animate-fade-in">
       <div
@@ -196,6 +221,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
     streaming,
     addMessage,
     appendToLastMessage,
+    finalizeAssistantMessage,
     setStreaming,
   } = useChatStore();
 
@@ -241,7 +267,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
     addMessage(activeSessionId, {
       id: crypto.randomUUID(),
       role: "assistant",
-      content: "",
+      content: THINKING_MESSAGE,
       timestamp: new Date().toISOString(),
     });
 
@@ -255,6 +281,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
       });
     } catch (err) {
       console.error("发送失败：", err);
+      finalizeAssistantMessage(activeSessionId, "（发送失败）");
       addMessage(activeSessionId, {
         id: crypto.randomUUID(),
         role: "system",
@@ -269,13 +296,14 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
     if (!activeSessionId) return;
     try {
       await agentAbort(activeSessionId);
+      finalizeAssistantMessage(activeSessionId, "（已中止）");
       setStreaming(activeSessionId, false);
     } catch (err) {
       console.error("中止失败：", err);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
     // Enter 发送 / Shift+Enter 换行
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -376,7 +404,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
       <div className="px-6 py-4" style={{ background: "var(--bg-body)" }}>
         <div className="max-w-2xl mx-auto">
           <div
-            className="flex items-end gap-1 rounded-3xl pl-4 pr-1.5 py-1.5
+            className="flex items-center gap-2 rounded-3xl pl-4 pr-2 py-2
               transition-shadow duration-150"
             style={{
               background: "var(--surface-1)",
@@ -400,7 +428,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
               <button
                 onClick={handleAbort}
                 title="中止"
-                className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center
+                className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center self-center
                   transition-all duration-150 hover:scale-105 active:scale-95"
                 style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}
               >
@@ -411,7 +439,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
                 onClick={handleSend}
                 disabled={!input.trim()}
                 title="发送"
-                className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center
+                className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center self-center
                   transition-all duration-150 hover:scale-105 active:scale-95
                   disabled:opacity-20 disabled:scale-100 disabled:cursor-not-allowed"
                 style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}

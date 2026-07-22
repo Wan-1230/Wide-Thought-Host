@@ -14815,6 +14815,7 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "uuid",
+ "walkdir",
  "windows 0.61.3",
  "xai-grok-agent",
  "xai-grok-config",

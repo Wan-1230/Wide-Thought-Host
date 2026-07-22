@@ -52,6 +52,7 @@ export interface SessionInfo {
   updated_at: string;
   message_count: number;
   model: string;
+  pinned?: boolean;
 }
 
 export interface TerminalInfo {
@@ -113,6 +114,43 @@ export interface WorkspaceInfo {
   name: string;
   exists: boolean;
   active: boolean;
+}
+
+export interface CapabilitySource {
+  label: string;
+  scope: string;
+  path: string;
+  exists: boolean;
+  item_count: number;
+}
+
+export interface CapabilityItem {
+  id: string;
+  toggle_key: string;
+  name: string;
+  description: string;
+  path: string;
+  scope: string;
+  kind: string;
+  enabled: boolean;
+  tags: string[];
+  status: string;
+}
+
+export interface CapabilityStats {
+  sources: number;
+  items: number;
+  enabled: number;
+}
+
+export interface CapabilityView {
+  kind: string;
+  title: string;
+  subtitle: string;
+  search_placeholder: string;
+  sources: CapabilitySource[];
+  items: CapabilityItem[];
+  stats: CapabilityStats;
 }
 
 // ─── Agent ───────────────────────────────────────────
@@ -187,11 +225,15 @@ export const providerTest = (id: string) => invoke<string>("provider_test", { id
 export const workspaceGet = () => invoke<WorkspaceInfo>("workspace_get");
 export const workspaceRecent = () => invoke<WorkspaceInfo[]>("workspace_recent");
 export const workspaceSelect = (path: string) => invoke<WorkspaceInfo>("workspace_select", { path });
+export const workspaceClear = () => invoke<WorkspaceInfo>("workspace_clear");
+export const workspaceGitBranch = () => invoke<string | null>("workspace_git_branch");
 export const githubAuthStatus = () => invoke<GitHubAuthStatus>("github_auth_status");
 export const githubAuthStart = () => invoke<GitHubAuthStatus>("github_auth_start");
 export const githubAuthPoll = () => invoke<GitHubAuthStatus>("github_auth_poll");
 export const githubAuthCancel = () => invoke<void>("github_auth_cancel");
 export const githubAuthLogout = () => invoke<void>("github_auth_logout");
+export const capabilityView = (kind: string) => invoke<CapabilityView>("capability_view", { kind });
+export const openPathInExplorer = (path: string) => invoke<void>("open_path_in_explorer", { path });
 
 // ─── Sessions ────────────────────────────────────────
 
@@ -207,6 +249,18 @@ export async function sessionDelete(id: string): Promise<void> {
   return invoke("session_delete", { id });
 }
 
+export async function sessionRename(id: string, title: string): Promise<SessionInfo> {
+  return invoke("session_rename", { id, title });
+}
+
+export async function sessionSetPinned(id: string, pinned: boolean): Promise<SessionInfo> {
+  return invoke("session_set_pinned", { id, pinned });
+}
+
 export async function sessionExport(id: string, format?: string): Promise<string> {
   return invoke("session_export", { id, format });
+}
+
+export async function openInExplorer(path: string): Promise<void> {
+  return invoke("open_in_explorer", { path });
 }

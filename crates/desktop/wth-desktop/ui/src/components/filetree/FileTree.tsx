@@ -11,7 +11,6 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Folder,
-  FolderOpen,
   FileText,
   FileCode,
   FileJson,
@@ -20,9 +19,14 @@ import {
   ChevronRight,
   ChevronDown,
   RefreshCw,
+  Copy,
+  Terminal,
+  FolderOpen as FolderOpenIcon,
+  ExternalLink,
 } from "lucide-react";
-import { fileList } from "@/lib/ipc";
+import { fileList, openInExplorer, terminalSpawn } from "@/lib/ipc";
 import type { FileEntry } from "@/lib/ipc";
+import { ContextMenu, contextMenuPointFromEvent, type ContextMenuPoint } from "@/components/common/ContextMenu";
 
 /// 按扩展名返回文件图标 + 颜色。
 function fileIcon(name: string) {
@@ -57,14 +61,21 @@ function TreeNode({
   entry,
   depth,
   onFileOpen,
+  onOpenExplorer,
+  onOpenTerminal,
+  onCopyPath,
 }: {
   entry: FileEntry;
   depth: number;
   onFileOpen: (path: string) => void;
+  onOpenExplorer: (path: string) => Promise<void>;
+  onOpenTerminal: (path: string) => Promise<void>;
+  onCopyPath: (path: string) => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [children, setChildren] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [menuPoint, setMenuPoint] = useState<ContextMenuPoint | null>(null);
 
   const handleToggle = useCallback(async () => {
     if (!entry.is_dir) {
@@ -89,6 +100,11 @@ function TreeNode({
     <div>
       <div
         onClick={handleToggle}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setMenuPoint(contextMenuPointFromEvent(e));
+        }}
         className="flex items-center gap-1 px-2 py-1 cursor-pointer
           hover:bg-surface-2 rounded transition-colors text-xs"
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
@@ -107,7 +123,7 @@ function TreeNode({
         {/* 图标 */}
         {entry.is_dir ? (
           expanded ? (
-            <FolderOpen size={13} className="text-accent-blue flex-shrink-0" />
+            <FolderOpenIcon size={13} className="text-accent-blue flex-shrink-0" />
           ) : (
             <Folder size={13} className="text-accent-blue flex-shrink-0" />
           )
@@ -129,6 +145,63 @@ function TreeNode({
         )}
       </div>
 
+      <ContextMenu
+        open={Boolean(menuPoint)}
+        point={menuPoint}
+        onClose={() => setMenuPoint(null)}
+        ariaLabel={entry.is_dir ? "目录菜单" : "文件菜单"}
+        items={entry.is_dir
+          ? [
+              {
+                key: "open-explorer",
+                icon: <FolderOpenIcon size={14} />,
+                label: "在资源管理器打开",
+                onSelect: async () => {
+                  await onOpenExplorer(entry.path);
+                  setMenuPoint(null);
+                },
+              },
+              {
+                key: "open-terminal",
+                icon: <Terminal size={14} />,
+                label: "在终端打开",
+                onSelect: async () => {
+                  await onOpenTerminal(entry.path);
+                  setMenuPoint(null);
+                },
+              },
+              {
+                key: "copy-path",
+                icon: <Copy size={14} />,
+                label: "复制路径",
+                onSelect: async () => {
+                  await onCopyPath(entry.path);
+                  setMenuPoint(null);
+                },
+              },
+            ]
+          : [
+              {
+                key: "open-explorer",
+                icon: <ExternalLink size={14} />,
+                label: "在资源管理器中定位",
+                onSelect: async () => {
+                  await onOpenExplorer(entry.path);
+                  setMenuPoint(null);
+                },
+              },
+              {
+                key: "copy-path",
+                icon: <Copy size={14} />,
+                label: "复制路径",
+                onSelect: async () => {
+                  await onCopyPath(entry.path);
+                  setMenuPoint(null);
+                },
+              },
+            ]}
+      />
+
       {/* 递归渲染子节点 */}
       {expanded && children.length > 0 && (
         <div>
@@ -138,6 +211,9 @@ function TreeNode({
               entry={child}
               depth={depth + 1}
               onFileOpen={onFileOpen}
+              onOpenExplorer={onOpenExplorer}
+              onOpenTerminal={onOpenTerminal}
+              onCopyPath={onCopyPath}
             />
           ))}
         </div>
@@ -154,7 +230,7 @@ function TreeNode({
   );
 }
 
-export function FileTree() {
+export function FileTree({ workspaceActive = true }: { workspaceActive?: boolean }) {
   const [rootEntries, setRootEntries] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -176,13 +252,37 @@ export function FileTree() {
   }, []);
 
   useEffect(() => {
-    loadRoot();
-  }, [loadRoot]);
+    if (workspaceActive) {
+      loadRoot();
+    }
+  }, [loadRoot, workspaceActive]);
 
   const handleFileOpen = useCallback((path: string) => {
     // 子项目 3 会实现文件预览；这里只记录到 console。
     console.log("[FileTree] 文件点击：", path);
   }, []);
+
+  const handleOpenExplorer = useCallback(async (path: string) => {
+    await openInExplorer(path);
+  }, []);
+
+  const handleOpenTerminal = useCallback(async (path: string) => {
+    await terminalSpawn({ cwd: path });
+  }, []);
+
+  const handleCopyPath = useCallback(async (path: string) => {
+    await navigator.clipboard.writeText(path);
+  }, []);
+
+  if (!workspaceActive) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center px-4 text-center" style={{ color: "var(--text-muted)" }}>
+        <Folder size={20} className="mb-2 opacity-40" />
+        <p className="text-xs">当前未在工作区中工作</p>
+        <p className="text-[10px] mt-1" style={{ color: "var(--text-dim)" }}>可以继续聊天或切换到一个工作区</p>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -242,6 +342,9 @@ export function FileTree() {
             entry={entry}
             depth={0}
             onFileOpen={handleFileOpen}
+            onOpenExplorer={handleOpenExplorer}
+            onOpenTerminal={handleOpenTerminal}
+            onCopyPath={handleCopyPath}
           />
         ))}
       </div>

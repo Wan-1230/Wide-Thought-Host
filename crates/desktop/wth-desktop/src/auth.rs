@@ -32,6 +32,8 @@ struct DeviceCodeResponse {
     user_code: String,
     verification_uri: String,
     expires_in: u64,
+    #[serde(default = "default_poll_interval")]
+    interval: u64,
 }
 
 #[derive(Deserialize)]
@@ -39,6 +41,10 @@ struct TokenResponse {
     access_token: Option<String>,
     error: Option<String>,
     error_description: Option<String>,
+}
+
+fn default_poll_interval() -> u64 {
+    5
 }
 
 #[derive(Deserialize)]
@@ -96,8 +102,12 @@ pub async fn github_auth_start(state: State<'_, AppState>) -> Result<GitHubAuthS
         expires_at,
     });
     Ok(GitHubAuthStatus {
-        state: "pending".into(), user: None, user_code: Some(device.user_code),
-        verification_uri: Some(device.verification_uri), expires_in: Some(device.expires_in), message: None,
+        state: "pending".into(),
+        user: None,
+        user_code: Some(device.user_code),
+        verification_uri: Some(device.verification_uri),
+        expires_in: Some(device.expires_in),
+        message: Some(format!("请在浏览器中完成授权，建议每 {} 秒刷新一次", device.interval)),
     })
 }
 
@@ -120,7 +130,11 @@ pub async fn github_auth_poll(state: State<'_, AppState>) -> Result<GitHubAuthSt
     }
     let response: TokenResponse = reqwest::Client::new().post("https://github.com/login/oauth/access_token")
         .header("Accept", "application/json").header("User-Agent", "WTH-Desktop")
-        .form(&[("client_id", client_id()?), ("device_code", pending.device_code)])
+        .form(&[
+            ("client_id", client_id()?),
+            ("device_code", pending.device_code),
+            ("grant_type", "urn:ietf:params:oauth:grant-type:device_code".into()),
+        ])
         .send().await.map_err(|e| format!("轮询 GitHub 授权失败：{e}"))?
         .json().await.map_err(|e| format!("解析 GitHub 授权结果失败：{e}"))?;
     if let Some(token) = response.access_token {

@@ -15,7 +15,8 @@ import {
   terminalSpawn,
   terminalWrite,
 } from "@/lib/ipc";
-import { Terminal as TerminalIcon, Trash2, Plus } from "lucide-react";
+import { Terminal as TerminalIcon, Trash2, Plus, Copy, X } from "lucide-react";
+import { ContextMenu, contextMenuPointFromEvent, type ContextMenuPoint } from "@/components/common/ContextMenu";
 
 interface TabInfo {
   id: string;
@@ -33,6 +34,8 @@ export function TerminalPanel() {
   const [tabs, setTabs] = useState<TabInfo[]>([]);
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const spawnRequested = useRef(false);
+  const [menuPoint, setMenuPoint] = useState<ContextMenuPoint | null>(null);
+  const [menuTab, setMenuTab] = useState<TabInfo | null>(null);
 
   const createTab = useCallback(async () => {
     try {
@@ -151,6 +154,11 @@ export function TerminalPanel() {
     });
   }, [activeTab]);
 
+  const closeMenu = useCallback(() => {
+    setMenuPoint(null);
+    setMenuTab(null);
+  }, []);
+
   return (
     <div className="h-full flex flex-col bg-surface-0">
       {/* 标签栏 */}
@@ -162,6 +170,12 @@ export function TerminalPanel() {
           <div
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              setMenuTab(tab);
+              setMenuPoint(contextMenuPointFromEvent(event));
+            }}
             className={`group flex items-center gap-1.5 px-3 py-1.5 rounded-t-md text-xs cursor-pointer border-b-2 transition-colors ${
               activeTab === tab.id
                 ? "border-accent-primary bg-surface-0"
@@ -192,6 +206,51 @@ export function TerminalPanel() {
           <Plus size={13} />
         </button>
       </div>
+
+      <ContextMenu
+        open={Boolean(menuPoint && menuTab)}
+        point={menuPoint}
+        onClose={closeMenu}
+        ariaLabel="终端菜单"
+        items={
+          menuTab
+            ? [
+                {
+                  key: "new",
+                  icon: <Plus size={14} />,
+                  label: "新建终端",
+                  onSelect: async () => {
+                    closeMenu();
+                    await createTab();
+                  },
+                },
+                {
+                  key: "copy",
+                  icon: <Copy size={14} />,
+                  label: "复制工作目录",
+                  onSelect: async () => {
+                    await navigator.clipboard.writeText(menuTab.cwd);
+                    closeMenu();
+                  },
+                },
+                {
+                  type: "separator",
+                  key: "sep",
+                },
+                {
+                  key: "close",
+                  icon: <X size={14} />,
+                  label: "关闭标签",
+                  danger: true,
+                  onSelect: async () => {
+                    await handleCloseTab(menuTab.id);
+                    closeMenu();
+                  },
+                },
+              ]
+            : []
+        }
+      />
 
       {/* 终端容器 */}
       <div className="flex-1 overflow-hidden p-1">

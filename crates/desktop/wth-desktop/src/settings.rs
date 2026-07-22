@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
+    process::Command,
 };
 use tauri::State;
 
@@ -312,11 +313,14 @@ pub async fn provider_test(id: String, state: State<'_, AppState>) -> Result<Str
 fn workspace_info(path: &Path, active: bool) -> WorkspaceInfo {
     WorkspaceInfo {
         path: path.to_string_lossy().to_string(),
-        name: path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("工作区")
-            .to_string(),
+        name: if active {
+            path.file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("工作区")
+                .to_string()
+        } else {
+            "不在工作区中工作".to_string()
+        },
         exists: path.is_dir(),
         active,
     }
@@ -329,7 +333,13 @@ pub async fn workspace_get(state: State<'_, AppState>) -> Result<WorkspaceInfo, 
         .read()
         .map_err(|e| e.to_string())?
         .clone();
-    Ok(workspace_info(&root, true))
+    let active = state
+        .settings
+        .read()
+        .map_err(|e| e.to_string())?
+        .active_workspace
+        .is_some();
+    Ok(workspace_info(&root, active))
 }
 
 #[tauri::command]
@@ -367,6 +377,58 @@ pub async fn workspace_select(
     }
     persist_state_settings(&state)?;
     Ok(workspace_info(&canonical, true))
+}
+
+#[tauri::command]
+pub async fn workspace_clear(state: State<'_, AppState>) -> Result<WorkspaceInfo, String> {
+    let fallback = dirs::home_dir()
+        .or_else(|| std::env::current_dir().ok())
+        .unwrap_or_else(|| PathBuf::from("."));
+    {
+        *state.workspace_root.write().map_err(|e| e.to_string())? = fallback.clone();
+        let mut settings = state.settings.write().map_err(|e| e.to_string())?;
+        settings.active_workspace = None;
+    }
+    persist_state_settings(&state)?;
+    Ok(workspace_info(&fallback, false))
+}
+
+#[tauri::command]
+pub async fn workspace_git_branch(state: State<'_, AppState>) -> Result<Option<String>, String> {
+    let workspace = state
+        .workspace_root
+        .read()
+        .map_err(|e| e.to_string())?
+        .clone();
+    let mut current = workspace.as_path();
+    let repo_root = loop {
+        if current.join(".git").exists() {
+            break Some(current.to_path_buf());
+        }
+        match current.parent() {
+            Some(parent) => current = parent,
+            None => break None,
+        }
+    };
+    let Some(repo_root) = repo_root else {
+        return Ok(None);
+    };
+
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(&repo_root)
+        .arg("rev-parse")
+        .arg("--abbrev-ref")
+        .arg("HEAD")
+        .output();
+    match output {
+        Ok(result) if result.status.success() => {
+            let branch = String::from_utf8_lossy(&result.stdout).trim().to_string();
+            Ok((!branch.is_empty()).then_some(branch))
+        }
+        Ok(_) => Ok(None),
+        Err(_) => Ok(None),
+    }
 }
 
 #[cfg(test)]

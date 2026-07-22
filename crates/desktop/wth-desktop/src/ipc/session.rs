@@ -7,6 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct SessionInfo {
     pub id: String,
     pub title: String,
@@ -14,6 +15,21 @@ pub struct SessionInfo {
     pub updated_at: String,
     pub message_count: u64,
     pub model: String,
+    pub pinned: bool,
+}
+
+impl Default for SessionInfo {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            title: String::new(),
+            created_at: String::new(),
+            updated_at: String::new(),
+            message_count: 0,
+            model: String::new(),
+            pinned: false,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -50,13 +66,24 @@ fn save_sessions(path: &std::path::Path, sessions: &[SessionInfo]) {
     }
 }
 
+fn sort_sessions(sessions: &mut [SessionInfo]) {
+    sessions.sort_by(|a, b| {
+        b.pinned
+            .cmp(&a.pinned)
+            .then_with(|| b.updated_at.cmp(&a.updated_at))
+            .then_with(|| b.created_at.cmp(&a.created_at))
+    });
+}
+
 /// List all sessions from in-memory state.
 #[tauri::command]
 pub async fn session_list(
     state: tauri::State<'_, crate::state::AppState>,
 ) -> Result<Vec<SessionInfo>, String> {
     let sessions = state.sessions.lock().map_err(|e| e.to_string())?;
-    Ok(sessions.clone())
+    let mut sessions = sessions.clone();
+    sort_sessions(&mut sessions);
+    Ok(sessions)
 }
 
 /// Create a new session and persist it.
@@ -75,11 +102,13 @@ pub async fn session_create(
         updated_at: now,
         message_count: 0,
         model: args.model,
+        pinned: false,
     };
 
     {
         let mut sessions = state.sessions.lock().map_err(|e| e.to_string())?;
         sessions.insert(0, info.clone());
+        sort_sessions(&mut sessions);
         let path = state.sessions_path.lock().map_err(|e| e.to_string())?;
         save_sessions(&path, &sessions);
     }
@@ -95,10 +124,51 @@ pub async fn session_delete(
 ) -> Result<(), String> {
     let mut sessions = state.sessions.lock().map_err(|e| e.to_string())?;
     sessions.retain(|s| s.id != id);
+    sort_sessions(&mut sessions);
     let path = state.sessions_path.lock().map_err(|e| e.to_string())?;
     save_sessions(&path, &sessions);
     tracing::info!("Session {} deleted", id);
     Ok(())
+}
+
+#[tauri::command]
+pub async fn session_rename(
+    id: String,
+    title: String,
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<SessionInfo, String> {
+    let mut sessions = state.sessions.lock().map_err(|e| e.to_string())?;
+    let session = sessions
+        .iter_mut()
+        .find(|s| s.id == id)
+        .ok_or_else(|| format!("Session {} not found", id))?;
+    session.title = title.trim().to_string();
+    session.updated_at = chrono::Utc::now().to_rfc3339();
+    let updated = session.clone();
+    sort_sessions(&mut sessions);
+    let path = state.sessions_path.lock().map_err(|e| e.to_string())?;
+    save_sessions(&path, &sessions);
+    Ok(updated)
+}
+
+#[tauri::command]
+pub async fn session_set_pinned(
+    id: String,
+    pinned: bool,
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<SessionInfo, String> {
+    let mut sessions = state.sessions.lock().map_err(|e| e.to_string())?;
+    let session = sessions
+        .iter_mut()
+        .find(|s| s.id == id)
+        .ok_or_else(|| format!("Session {} not found", id))?;
+    session.pinned = pinned;
+    session.updated_at = chrono::Utc::now().to_rfc3339();
+    let updated = session.clone();
+    sort_sessions(&mut sessions);
+    let path = state.sessions_path.lock().map_err(|e| e.to_string())?;
+    save_sessions(&path, &sessions);
+    Ok(updated)
 }
 
 /// Export a session as Markdown.

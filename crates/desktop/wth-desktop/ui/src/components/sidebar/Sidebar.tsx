@@ -4,14 +4,17 @@
 // 新建按钮由父组件在标题区提供。
 
 import { useState, useMemo } from "react";
-import { Trash2, MessageSquare, Clock } from "lucide-react";
+import { Pin, PinOff, Pencil, Trash2, MessageSquare, Clock, FolderOpen } from "lucide-react";
 import type { SessionInfo } from "@/lib/ipc";
-import { sessionDelete } from "@/lib/ipc";
+import { ContextMenu, contextMenuPointFromEvent, type ContextMenuPoint } from "@/components/common/ContextMenu";
 
 interface SidebarProps {
   sessions: SessionInfo[];
   activeId: string | null;
   onSelect: (id: string) => void;
+  onDeleteSession: (id: string) => Promise<void>;
+  onRenameSession: (id: string, title: string) => Promise<void>;
+  onTogglePinSession: (id: string, pinned: boolean) => Promise<void>;
   searchQuery?: string;
 }
 
@@ -30,8 +33,10 @@ function relativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
-export function Sidebar({ sessions, activeId, onSelect, searchQuery = "" }: SidebarProps) {
+export function Sidebar({ sessions, activeId, onSelect, onDeleteSession, onRenameSession, onTogglePinSession, searchQuery = "" }: SidebarProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [menuPoint, setMenuPoint] = useState<ContextMenuPoint | null>(null);
+  const [menuSession, setMenuSession] = useState<SessionInfo | null>(null);
 
   // 搜索过滤
   const filteredSessions = useMemo(() => {
@@ -42,19 +47,20 @@ export function Sidebar({ sessions, activeId, onSelect, searchQuery = "" }: Side
     );
   }, [sessions, searchQuery]);
 
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
+  const closeMenu = () => {
+    setMenuPoint(null);
+    setMenuSession(null);
+  };
+
+  const handleDelete = async (id: string) => {
     setDeletingId(id);
     try {
-      await sessionDelete(id);
-      if (activeId === id) {
-        const remaining = filteredSessions.filter((s) => s.id !== id);
-        if (remaining.length > 0) onSelect(remaining[0].id);
-      }
+      await onDeleteSession(id);
     } catch (err) {
       console.error("删除会话失败：", err);
     } finally {
       setDeletingId(null);
+      closeMenu();
     }
   };
 
@@ -117,6 +123,12 @@ export function Sidebar({ sessions, activeId, onSelect, searchQuery = "" }: Side
                   <div
                     key={session.id}
                     onClick={() => onSelect(session.id)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setMenuSession(session);
+                      setMenuPoint(contextMenuPointFromEvent(e));
+                    }}
                     className="group relative px-2.5 py-1.5 rounded-md cursor-pointer
                       transition-colors duration-150"
                     style={{
@@ -146,7 +158,7 @@ export function Sidebar({ sessions, activeId, onSelect, searchQuery = "" }: Side
                     )}
 
                     <button
-                      onClick={(e) => handleDelete(e, session.id)}
+                      onClick={(e) => { e.stopPropagation(); handleDelete(session.id); }}
                       disabled={isDeleting}
                       title="删除"
                       className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded
@@ -156,6 +168,11 @@ export function Sidebar({ sessions, activeId, onSelect, searchQuery = "" }: Side
                     >
                       <Trash2 size={11} />
                     </button>
+                    {session.pinned && (
+                      <span className="absolute right-6 top-1/2 -translate-y-1/2 text-[10px]" style={{ color: "var(--accent-orange)" }}>
+                        <Pin size={10} />
+                      </span>
+                    )}
                   </div>
                 );
               })}
@@ -163,6 +180,60 @@ export function Sidebar({ sessions, activeId, onSelect, searchQuery = "" }: Side
           </div>
         ))
       )}
+      <ContextMenu
+        open={Boolean(menuPoint && menuSession)}
+        point={menuPoint}
+        onClose={closeMenu}
+        ariaLabel="会话菜单"
+        items={
+          menuSession
+            ? [
+                {
+                  key: "open",
+                  icon: <MessageSquare size={14} />,
+                  label: "打开会话",
+                  onSelect: () => {
+                    onSelect(menuSession.id);
+                    closeMenu();
+                  },
+                },
+                {
+                  key: "rename",
+                  icon: <Pencil size={14} />,
+                  label: "重命名",
+                  onSelect: async () => {
+                    const next = window.prompt("输入新的会话名称", menuSession.title || "未命名会话");
+                    if (!next || !next.trim()) return;
+                    await onRenameSession(menuSession.id, next.trim());
+                    closeMenu();
+                  },
+                },
+                {
+                  key: "pin",
+                  icon: menuSession.pinned ? <PinOff size={14} /> : <Pin size={14} />,
+                  label: menuSession.pinned ? "取消置顶" : "置顶",
+                  onSelect: async () => {
+                    await onTogglePinSession(menuSession.id, !menuSession.pinned);
+                    closeMenu();
+                  },
+                },
+                {
+                  type: "separator",
+                  key: "sep",
+                },
+                {
+                  key: "delete",
+                  icon: <Trash2 size={14} />,
+                  label: "删除",
+                  danger: true,
+                  onSelect: async () => {
+                    await handleDelete(menuSession.id);
+                  },
+                },
+              ]
+            : []
+        }
+      />
     </div>
   );
 }
