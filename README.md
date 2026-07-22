@@ -1,42 +1,35 @@
 <div align="center">
 
-<h1>
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/wth-symbol-white.png">
-    <source media="(prefers-color-scheme: light)" srcset="docs/assets/wth-symbol-black.png">
-    <img alt="Wide Thought Host logo" src="docs/assets/wth-symbol-black.png" width="96">
-  </picture>
-  <br>
-  Wide Thought Host — <code>wth</code>
-</h1>
+<img alt="Wide Thought Host" src="docs/assets/wth-banner.png" width="480">
 
-**An optimized, community-driven coding agent harness. Multi-backend, extensible, privacy-first.**
+**Open-source AI coding agent — CLI + Desktop. Multi-model, extensible, privacy-first.**
 
 A from-source customization of the [Grok Build](https://github.com/xai-org/grok-build) /
 [gork-build](https://github.com/thedavidweng/gork-build) agent runtime, re-engineered
-for multi-model support, enhanced TUI experience, and deep extensibility.
+for multi-model support, a polished desktop GUI, and deep extensibility.
 
-[Building from source](#build-from-source) ·
 [Features](#features) ·
+[Quick start](#quick-start) ·
+[Desktop app](#desktop-app) ·
 [Configuration](#configuration) ·
-[Contributing](#contributing) ·
-[License](#license)
+[Contributing](#contributing)
 
 ![WTH TUI](docs/assets/gork-build-tui-screenshot.jpg)
 
-**Wide Thought Host (WTH) is a coding agent harness** — a fullscreen TUI for
-interacting with LLMs to write, refactor, and understand code, plus a headless
-agent runtime for automation. It supports multiple LLM backends, a rich plugin
-ecosystem, and deep shell/tool integration.
+---
+
+**Wide Thought Host (WTH)** is a coding agent harness — a fullscreen TUI + desktop GUI for
+interacting with LLMs to write, refactor, and understand code. Supports multiple LLM backends,
+a rich plugin ecosystem, and deep shell/tool integration.
 
 </div>
-
----
 
 ## Features
 
 - **Multi-backend LLM support:** OpenAI-compatible APIs, Anthropic Claude,
-  local models (Ollama / vLLM), and Grok — pluggable and auto-detected.
+  DeepSeek, local models (Ollama / vLLM) — pluggable and customizable.
+- **Desktop GUI:** Tauri v2 desktop app with multi-session chat, file tree,
+  embedded terminal, and system tray. Windows installer with Chinese localization.
 - **Fullscreen TUI:** ratatui-based terminal interface with mouse support,
   syntax-highlighted diffs, multi-panel layout, and customizable themes.
 - **Rich tool ecosystem:** bash/shell, file operations, LSP integration, git,
@@ -48,30 +41,32 @@ ecosystem, and deep shell/tool integration.
 - **Privacy-first:** no vendor telemetry, no research uploads, no auto-update
   channels — you control every byte that leaves your machine.
 
-## Build from source
-
-Requirements: Rust (see `rust-toolchain.toml`), `protoc` (see `bin/protoc`).
-
-```sh
-cargo run -p wth-pager-bin              # build + launch TUI (binary: wth)
-cargo build -p wth-pager-bin --release  # target/release/wth
-cargo check -p wth-pager-bin
-```
-
-Install the release binary somewhere on your `PATH` as `wth`.
-
 ## Quick start
 
-```sh
-# Launch the TUI
-wth
+### CLI (TUI)
 
-# Headless mode — run a one-shot prompt
+```sh
+# Requirements: Rust (see rust-toolchain.toml), protoc
+cargo run -p wth-pager-bin              # build + launch TUI (binary: wth)
+cargo build -p wth-pager-bin --release  # target/release/wth
+
+# Headless mode
 wth --headless --prompt "Explain the architecture of this project"
 
 # Use a specific backend
 wth --backend anthropic --model claude-sonnet-4-20250514
 ```
+
+### Desktop app
+
+```sh
+cd crates/desktop/wth-desktop
+npm install
+npm run tauri dev     # development
+npm run tauri build   # production build → target/release/bundle/
+```
+
+The desktop app starts with **Alt+W** (toggle window visibility) and lives in the system tray.
 
 ## Configuration
 
@@ -103,13 +98,10 @@ crates/
 ├── codegen/          # Core agent & TUI crates (wth-agent, wth-pager, wth-tools, ...)
 ├── common/           # Shared libraries (tool protocol, runtime, tracing, ...)
 ├── build/            # Build support (proto generation)
+├── desktop/          # Tauri desktop app (wth-desktop)
 third_party/          # Vendored dependencies
-docs/                 # User & developer documentation
+docs/                 # Documentation & specs
 ```
-
-## Documentation
-
-User guide: [`crates/codegen/wth-pager/docs/user-guide/`](crates/codegen/wth-pager/docs/user-guide/)
 
 ## Contributing
 
@@ -126,7 +118,7 @@ This project is a customized distribution derived from:
   community fork with vendor telemetry removed
 
 Wide Thought Host (WTH) extends this foundation with multi-backend support,
-enhanced agent reasoning, and an improved TUI experience.
+enhanced agent reasoning, an improved TUI experience, and a full desktop GUI.
 
 **Credit:** original Grok Build is developed and published by SpaceXAI under
 Apache-2.0. Gork Build is a community distribution. WTH is an independent
