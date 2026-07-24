@@ -68,12 +68,22 @@ export interface TerminalExit {
   message?: string;
 }
 
+export type ThemeStyle = "default" | "ocean" | "forest" | "sunset";
+export type FontScale = "small" | "medium" | "large";
+export type FontFamily = "sans" | "system" | "serif" | "custom";
+export type ReasoningEffort = "low" | "medium" | "high" | "max";
+export type EditMode = "plan" | "review" | "auto" | "yolo";
+
 export interface DesktopSettings {
   schema_version: number;
   language: "zh-CN" | "en-US";
   close_action: "tray" | "quit";
   sound_enabled: boolean;
   theme: "light" | "dark";
+  theme_style: ThemeStyle;
+  font_scale: FontScale;
+  font_family: FontFamily;
+  custom_font_family?: string | null;
   session_display: "standard" | "compact";
   terminal_shell?: string | null;
   active_workspace?: string | null;
@@ -83,6 +93,11 @@ export interface DesktopSettings {
   feature_toggles: Record<string, boolean>;
   legacy_migration_complete: boolean;
   github_user?: GitHubProfile | null;
+  reasoning_effort: ReasoningEffort;
+  edit_mode: EditMode;
+  budget_usd?: number | null;
+  show_system_events: boolean;
+  web_search_engine: string;
 }
 
 export interface GitHubProfile { login: string; name?: string | null; avatar_url?: string | null; }

@@ -31,10 +31,13 @@ import {
 import { Sidebar } from "./components/sidebar/Sidebar";
 import { ChatView } from "./components/chat/ChatView";
 import { FileTree } from "./components/filetree/FileTree";
-import { SettingsPanel } from "./components/settings/Settings";
+import { SettingsModal } from "./components/settings/Settings";
 import { TerminalPanel } from "./components/terminal/TerminalPanel";
+import { CommandPalette } from "./components/common/CommandPalette";
+import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { ContextMenu, contextMenuPointFromEvent, type ContextMenuItem, type ContextMenuPoint } from "./components/common/ContextMenu";
 import { useChatStore } from "./stores/chat";
+import { useResizable } from "./hooks/useResizable";
 import {
   githubAuthCancel,
   githubAuthLogout,
@@ -59,7 +62,7 @@ import {
 } from "./lib/ipc";
 import wthIcon from "@/assets/wth-icon.png";
 
-type NavSection = "sessions" | "files" | "settings";
+type NavSection = "sessions" | "files";
 
 export default function App() {
   const {
@@ -83,6 +86,9 @@ export default function App() {
 
   const [navSection, setNavSection] = useState<NavSection>("sessions");
   const [showTerminalPanel, setShowTerminalPanel] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const terminalResize = useResizable({ initialWidth: 420, minWidth: 300, maxWidth: 800, direction: "left" });
   const [theme, setTheme] = useState<"dark" | "light">("light");
   const [workspace, setWorkspace] = useState<WorkspaceInfo | null>(null);
   const [workspaceBranch, setWorkspaceBranch] = useState<string | null>(null);
@@ -191,6 +197,22 @@ export default function App() {
     }, 5000);
     return () => window.clearInterval(timer);
   }, [github?.state]);
+
+  // Ctrl+K command palette & Ctrl+, settings
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setShowCommandPalette((v) => !v);
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === ",") {
+        e.preventDefault();
+        setShowSettings(true);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   useEffect(() => {
     const dispose = listen("menu:new-session", async () => {
@@ -406,10 +428,10 @@ export default function App() {
 
           <div className="px-3 py-3 border-t flex items-center gap-2.5" style={{ borderColor: "var(--surface-3)" }}>
             <button
-              onClick={() => setNavSection((current) => (current === "settings" ? "sessions" : "settings"))}
+              onClick={() => setShowSettings(true)}
               className="p-2 rounded-lg hover:bg-surface-2"
               title="设置"
-              style={{ color: navSection === "settings" ? "var(--text-primary)" : "var(--text-muted)" }}
+              style={{ color: "var(--text-muted)" }}
             >
               <SettingsIcon size={16} />
             </button>
@@ -437,11 +459,10 @@ export default function App() {
         </aside>
 
         <main className="flex-1 flex flex-col min-w-0 min-h-0">
-          {navSection !== "settings" && (
-            <div
-              className="flex items-center justify-between gap-2 px-3 py-2 border-b flex-shrink-0"
-              style={{ background: "var(--bg-body)", borderColor: "var(--surface-3)" }}
-            >
+          <div
+            className="flex items-center justify-between gap-2 px-3 py-2 border-b flex-shrink-0"
+            style={{ background: "var(--bg-body)", borderColor: "var(--surface-3)" }}
+          >
               <div className="flex items-center gap-2 min-w-0">
                 <ToolbarButton icon={<Plus size={15} />} label="新建会话" onClick={handleNewSession} />
                 <ToolbarButton
@@ -458,17 +479,11 @@ export default function App() {
                 active={showTerminalPanel}
               />
             </div>
-          )}
 
           <div className="flex-1 min-h-0 flex overflow-hidden">
-            {navSection === "settings" ? (
-              <div className="flex-1 min-w-0 min-h-0">
-                <SettingsPanel />
-              </div>
-            ) : (
-              <>
-                <div className="flex-1 min-w-0 min-h-0 relative">
-                  <ChatView onNewSession={handleNewSession} />
+            <>
+              <div className="flex-1 min-w-0 min-h-0 relative">
+                <ChatView onNewSession={handleNewSession} />
                   {navSection === "sessions" && !activeSessionId && showPromo && (
                     <div className="absolute bottom-4 right-4 z-10">
                       <div
@@ -499,15 +514,21 @@ export default function App() {
                   )}
                 </div>
                 {showTerminalPanel && (
-                  <div
-                    className="w-[420px] min-w-[360px] max-w-[52vw] shrink-0 border-l overflow-hidden"
-                    style={{ background: "var(--surface-0)", borderColor: "var(--surface-3)" }}
-                  >
-                    <TerminalPanel />
-                  </div>
+                  <>
+                    <div
+                      className="w-1 shrink-0 cursor-col-resize transition-colors"
+                      style={{ background: terminalResize.isDragging ? "var(--accent-blue)" : "var(--surface-3)" }}
+                      onMouseDown={terminalResize.handleMouseDown}
+                    />
+                    <div
+                      className="shrink-0 overflow-hidden"
+                      style={{ width: terminalResize.width, background: "var(--surface-0)" }}
+                    >
+                      <TerminalPanel />
+                    </div>
+                  </>
                 )}
-              </>
-            )}
+            </>
           </div>
         </main>
       </div>
@@ -522,7 +543,7 @@ export default function App() {
         streaming={isStreaming}
         github={github}
         onWorkspaceClick={openWorkspaceMenu}
-        onSettingsClick={() => setNavSection((current) => (current === "settings" ? "sessions" : "settings"))}
+        onSettingsClick={() => setShowSettings(true)}
       />
 
       <ContextMenu
@@ -549,6 +570,18 @@ export default function App() {
           }}
         />
       )}
+
+      <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} />
+
+      <CommandPalette
+        open={showCommandPalette}
+        onClose={() => setShowCommandPalette(false)}
+        sessions={sessions}
+        onSelectSession={(id) => { setActiveSession(id); setNavSection("sessions"); }}
+        onNewSession={handleNewSession}
+        onOpenSettings={() => setShowSettings(true)}
+        onToggleTheme={() => setTheme((c) => (c === "dark" ? "light" : "dark"))}
+      />
     </div>
   );
 }
@@ -578,53 +611,77 @@ function StatusBar({
 }) {
   return (
     <div
-      className="flex items-center gap-2 px-3 py-1.5 border-t overflow-x-auto text-[11px]"
+      className="flex items-center justify-between px-3 py-1.5 border-t text-[11px]"
       style={{ background: "var(--surface-1)", borderColor: "var(--surface-3)" }}
     >
-      <StatusPill icon={<Brain size={11} />} label={modelLabel || "默认模型未设置"} />
-      <button
-        type="button"
-        onClick={onWorkspaceClick}
-        className="flex items-center gap-1.5 rounded-full px-2.5 py-1 border transition-colors hover:bg-[color:var(--surface-2)]"
-        style={{ borderColor: "var(--surface-3)", color: workspaceActive ? "var(--text-primary)" : "var(--text-muted)" }}
-        title="工作区"
-      >
-        <FolderOpen size={11} />
-        <span>{workspaceLabel}</span>
-      </button>
-      <StatusPill icon={<GitBranch size={11} />} label={workspaceBranch || "Git 分支：—"} />
-      <StatusPill icon={<Database size={11} />} label={`会话 ${sessionCount} · 消息 ${messageCount}`} />
-      <StatusPill icon={<Activity size={11} />} label={streaming ? "模型思考中" : "空闲"} />
-      <StatusPill
-        icon={github?.state === "signed_in" ? <Github size={11} /> : <UserCircle2 size={11} />}
-        label={
-          github?.state === "signed_in"
-            ? github.user?.name || github.user?.login || "GitHub 已登录"
-            : "GitHub 未登录"
-        }
-      />
-      <button
-        type="button"
-        onClick={onSettingsClick}
-        className="ml-auto flex items-center gap-1.5 rounded-full px-2.5 py-1 border transition-colors hover:bg-[color:var(--surface-2)]"
-        style={{ borderColor: "var(--surface-3)", color: "var(--text-primary)" }}
-      >
-        <SettingsIcon size={11} />
-        <span>设置</span>
-      </button>
-    </div>
-  );
-}
+      {/* 左侧：模型 / 工作区 / 分支 */}
+      <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+        <button
+          type="button"
+          className="flex items-center gap-1.5 rounded-full px-2.5 py-1 border transition-colors hover:bg-[color:var(--surface-2)] shrink-0"
+          style={{ borderColor: "var(--surface-3)", color: "var(--accent-purple)" }}
+          title="当前模型"
+          onClick={onSettingsClick}
+        >
+          <Brain size={11} />
+          <span className="max-w-[120px] truncate">{modelLabel || "默认模型"}</span>
+        </button>
+        <button
+          type="button"
+          onClick={onWorkspaceClick}
+          className="flex items-center gap-1.5 rounded-full px-2.5 py-1 border transition-colors hover:bg-[color:var(--surface-2)] shrink-0"
+          style={{ borderColor: "var(--surface-3)", color: workspaceActive ? "var(--text-primary)" : "var(--text-muted)" }}
+          title="工作区"
+        >
+          <FolderOpen size={11} />
+          <span className="max-w-[140px] truncate">{workspaceLabel}</span>
+        </button>
+        {workspaceBranch && (
+          <span
+            className="flex items-center gap-1.5 rounded-full px-2.5 py-1 border shrink-0"
+            style={{ borderColor: "var(--surface-3)", color: "var(--text-muted)" }}
+          >
+            <GitBranch size={11} />
+            <span className="max-w-[100px] truncate">{workspaceBranch}</span>
+          </span>
+        )}
+      </div>
 
-function StatusPill({ icon, label }: { icon: ReactNode; label: string }) {
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 border whitespace-nowrap"
-      style={{ borderColor: "var(--surface-3)", color: "var(--text-muted)" }}
-    >
-      {icon}
-      <span>{label}</span>
-    </span>
+      {/* 右侧：统计 / 状态 / GitHub / 设置 */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        <span
+          className="hidden sm:flex items-center gap-1.5 rounded-full px-2.5 py-1 border"
+          style={{ borderColor: "var(--surface-3)", color: "var(--text-muted)" }}
+        >
+          <Database size={11} />
+          <span>{sessionCount} 会话 · {messageCount} 消息</span>
+        </span>
+        <span
+          className="flex items-center gap-1.5 rounded-full px-2.5 py-1 border"
+          style={{ borderColor: "var(--surface-3)", color: streaming ? "var(--accent-green)" : "var(--text-dim)" }}
+        >
+          <Activity size={11} />
+          <span>{streaming ? "思考中" : "就绪"}</span>
+        </span>
+        <span
+          className="hidden md:flex items-center gap-1.5 rounded-full px-2.5 py-1 border"
+          style={{ borderColor: "var(--surface-3)", color: github?.state === "signed_in" ? "var(--text-primary)" : "var(--text-dim)" }}
+        >
+          {github?.state === "signed_in" ? <Github size={11} /> : <UserCircle2 size={11} />}
+          <span className="max-w-[80px] truncate">
+            {github?.state === "signed_in" ? (github.user?.login || "已登录") : "未登录"}
+          </span>
+        </span>
+        <button
+          type="button"
+          onClick={onSettingsClick}
+          className="flex items-center gap-1.5 rounded-full px-2.5 py-1 border transition-colors hover:bg-[color:var(--surface-2)]"
+          style={{ borderColor: "var(--surface-3)", color: "var(--text-primary)" }}
+        >
+          <SettingsIcon size={11} />
+        </button>
+      </div>
+    </div>
   );
 }
 

@@ -21,10 +21,17 @@ import {
   ChevronRight,
   ChevronDown,
   Brain,
+  Copy,
+  Check,
+  RotateCcw,
+  FileText,
+  Slash,
+  AtSign,
 } from "lucide-react";
 import { THINKING_MESSAGE, useChatStore } from "@/stores/chat";
-import { agentSend, agentAbort } from "@/lib/ipc";
+import { agentSend, agentAbort, fileList } from "@/lib/ipc";
 import type { ChatMessage, ToolCall } from "@/stores/chat";
+import type { FileEntry } from "@/lib/ipc";
 import wthBanner from "@/assets/wth-banner.png";
 
 /// 渲染单条 tool call 卡片（折叠式）。
@@ -33,6 +40,12 @@ function ToolCallCard({ call }: { call: ToolCall }) {
   const argStr = JSON.stringify(call.arguments, null, 2);
   const resultStr =
     call.result !== undefined ? JSON.stringify(call.result, null, 2) : null;
+
+  const statusColor = resultStr === null
+    ? "var(--accent-orange)"
+    : String(call.result).includes("error") || String(call.result).includes("Error")
+      ? "var(--accent-red)"
+      : "var(--accent-green)";
 
   return (
     <div className="my-2 border rounded-lg overflow-hidden text-xs" style={{ borderColor: "var(--surface-4)", background: "var(--surface-1)" }}>
@@ -47,11 +60,12 @@ function ToolCallCard({ call }: { call: ToolCall }) {
         )}
         <Wrench size={12} className="text-accent-orange" />
         <span className="font-mono" style={{ color: "var(--text-primary)" }}>{call.name}</span>
-        {resultStr === null && (
-          <span className="ml-auto text-[10px] text-accent-orange animate-pulse">
-            运行中…
-          </span>
-        )}
+        <span className="ml-auto flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full" style={{ background: statusColor }} />
+          {resultStr === null && (
+            <span className="text-[10px] text-accent-orange animate-pulse">运行中…</span>
+          )}
+        </span>
       </button>
       {expanded && (
         <div className="border-t px-3 py-2 space-y-2" style={{ borderColor: "var(--surface-4)" }}>
@@ -137,8 +151,10 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
     );
   }
 
+  const isLong = (msg.content || "").length > 800;
+
   return (
-    <div className="flex items-start gap-3 mb-4 animate-fade-in">
+    <div className="group flex items-start gap-3 mb-4 animate-fade-in">
       <div
         className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5"
         style={{ background: "var(--surface-3)" }}
@@ -154,7 +170,7 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
             color: "var(--text-primary)",
           }}
         >
-          <div className="prose prose-sm max-w-none break-words leading-relaxed"
+          <div className={`prose prose-sm max-w-none break-words leading-relaxed ${isLong ? "max-h-48 overflow-hidden" : ""}`}
             style={{ color: "var(--text-primary)" }}>
             <ReactMarkdown
               components={{
@@ -202,8 +218,31 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
             ))}
           </div>
         )}
+        {/* 悬浮操作按钮 */}
+        <div className="mt-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <MessageActionBtn
+            icon={<Copy size={11} />}
+            label="复制"
+            onClick={() => navigator.clipboard.writeText(msg.content || "")}
+          />
+        </div>
       </div>
     </div>
+  );
+}
+
+function MessageActionBtn({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[10px] transition-colors hover:bg-[color:var(--surface-2)]"
+      style={{ color: "var(--text-dim)" }}
+      title={label}
+      onClick={() => { onClick(); setDone(true); setTimeout(() => setDone(false), 1500); }}
+    >
+      {done ? <Check size={11} /> : icon}
+      {done ? "已复制" : label}
+    </button>
   );
 }
 
@@ -226,6 +265,9 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
   } = useChatStore();
 
   const [input, setInput] = useState("");
+  const [showPopup, setShowPopup] = useState<"none" | "file" | "command">("none");
+  const [popupItems, setPopupItems] = useState<{ label: string; value: string }[]>([]);
+  const [popupIndex, setPopupIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -249,6 +291,58 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
       el.style.height = Math.min(el.scrollHeight, 200) + "px";
     }
   }, [input]);
+
+  const SLASH_COMMANDS = [
+    { label: "/init — 初始化项目指令", value: "/init" },
+    { label: "/compact — 压缩上下文", value: "/compact" },
+    { label: "/clear — 清空会话", value: "/clear" },
+    { label: "/model — 切换模型", value: "/model" },
+    { label: "/help — 帮助信息", value: "/help" },
+  ];
+
+  const handleInputChange = async (value: string) => {
+    setInput(value);
+    // Detect @ or / at current cursor position
+    const lastChar = value.slice(-1);
+    if (lastChar === "@") {
+      setShowPopup("file");
+      setPopupIndex(0);
+      try {
+        const files = await fileList(".", false);
+        setPopupItems(files.slice(0, 10).map((f: FileEntry) => ({ label: f.name, value: f.name })));
+      } catch {
+        setPopupItems([]);
+      }
+    } else if (lastChar === "/" && value.trim() === "/") {
+      setShowPopup("command");
+      setPopupIndex(0);
+      setPopupItems(SLASH_COMMANDS);
+    } else if (showPopup !== "none") {
+      // Filter popup items
+      const trigger = showPopup === "file" ? "@" : "/";
+      const lastTriggerIdx = value.lastIndexOf(trigger);
+      if (lastTriggerIdx === -1) {
+        setShowPopup("none");
+      } else {
+        const query = value.slice(lastTriggerIdx + 1).toLowerCase();
+        if (showPopup === "command") {
+          setPopupItems(SLASH_COMMANDS.filter((c) => c.label.toLowerCase().includes(query)));
+        }
+        setPopupIndex(0);
+      }
+    }
+  };
+
+  const selectPopupItem = (item: { label: string; value: string }) => {
+    if (showPopup === "file") {
+      const lastAt = input.lastIndexOf("@");
+      setInput(input.slice(0, lastAt) + `@${item.value} `);
+    } else {
+      setInput(item.value + " ");
+    }
+    setShowPopup("none");
+    textareaRef.current?.focus();
+  };
 
   const handleSend = async () => {
     if (!activeSessionId) return;
@@ -304,6 +398,29 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
   };
 
   const handleKeyDown = (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    // Popup navigation
+    if (showPopup !== "none" && popupItems.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setPopupIndex((i) => Math.min(i + 1, popupItems.length - 1));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setPopupIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        selectPopupItem(popupItems[popupIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setShowPopup("none");
+        return;
+      }
+    }
     // Enter 发送 / Shift+Enter 换行
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -402,7 +519,33 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
 
       {/* 输入区 */}
       <div className="px-6 py-4" style={{ background: "var(--bg-body)" }}>
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-2xl mx-auto relative">
+          {/* @提及 / /指令 弹出层 */}
+          {showPopup !== "none" && popupItems.length > 0 && (
+            <div
+              className="absolute bottom-full left-0 right-0 mb-2 rounded-xl border shadow-xl overflow-hidden z-20"
+              style={{ background: "var(--surface-1)", borderColor: "var(--surface-3)" }}
+            >
+              <div className="px-3 py-1.5 text-[10px] font-medium" style={{ color: "var(--text-dim)" }}>
+                {showPopup === "file" ? "选择文件" : "快捷指令"}
+              </div>
+              <div className="max-h-40 overflow-y-auto pb-1">
+                {popupItems.map((item, idx) => (
+                  <button
+                    key={item.value}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs transition-colors"
+                    style={{ background: idx === popupIndex ? "var(--surface-2)" : "transparent", color: "var(--text-primary)" }}
+                    onClick={() => selectPopupItem(item)}
+                    onMouseEnter={() => setPopupIndex(idx)}
+                  >
+                    {showPopup === "file" ? <FileText size={12} style={{ color: "var(--text-muted)" }} /> : <Slash size={12} style={{ color: "var(--accent-blue)" }} />}
+                    <span className="truncate">{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div
             className="flex items-center gap-2 rounded-3xl pl-4 pr-2 py-2
               transition-shadow duration-150"
@@ -414,10 +557,10 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
             <textarea
               ref={textareaRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => handleInputChange(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={isStreaming}
-              placeholder={isStreaming ? "正在生成…" : "输入消息…"}
+              placeholder={isStreaming ? "正在生成…" : "输入消息… @ 提及文件 / 指令"}
               rows={1}
               className="flex-1 resize-none bg-transparent border-none px-0 py-2 text-sm leading-relaxed
                 placeholder:text-[13px] focus:outline-none
@@ -452,7 +595,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
             className="text-center text-[10px] mt-1.5"
             style={{ color: "var(--text-dim)" }}
           >
-            Enter 发送 · Shift+Enter 换行
+            Enter 发送 · Shift+Enter 换行 · @ 提及文件 · / 指令
           </div>
         </div>
       </div>

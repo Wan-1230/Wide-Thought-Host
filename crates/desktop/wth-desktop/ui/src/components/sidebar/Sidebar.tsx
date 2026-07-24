@@ -4,8 +4,9 @@
 // 新建按钮由父组件在标题区提供。
 
 import { useState, useMemo } from "react";
-import { Pin, PinOff, Pencil, Trash2, MessageSquare, Clock, FolderOpen } from "lucide-react";
+import { Pin, PinOff, Pencil, Trash2, MessageSquare, Clock, FolderOpen, Download } from "lucide-react";
 import type { SessionInfo } from "@/lib/ipc";
+import { sessionExport } from "@/lib/ipc";
 import { ContextMenu, contextMenuPointFromEvent, type ContextMenuPoint } from "@/components/common/ContextMenu";
 
 interface SidebarProps {
@@ -214,6 +215,26 @@ export function Sidebar({ sessions, activeId, onSelect, onDeleteSession, onRenam
                   label: menuSession.pinned ? "取消置顶" : "置顶",
                   onSelect: async () => {
                     await onTogglePinSession(menuSession.id, !menuSession.pinned);
+                    closeMenu();
+                  },
+                },
+                {
+                  key: "export",
+                  icon: <Download size={14} />,
+                  label: "导出会话",
+                  onSelect: async () => {
+                    try {
+                      const content = await sessionExport(menuSession.id, "markdown");
+                      const blob = new Blob([content], { type: "text/markdown" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `${menuSession.title || "会话"}.md`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    } catch (err) {
+                      console.error("导出失败：", err);
+                    }
                     closeMenu();
                   },
                 },
