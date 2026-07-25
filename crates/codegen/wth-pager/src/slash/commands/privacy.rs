@@ -7,8 +7,8 @@ use crate::slash::command::{CommandExecCtx, CommandResult, SlashCommand};
 ///
 /// Usage:
 /// - `/privacy`             show current status
-/// - `/privacy opt-out`     confirm opt-out (always the locked mode in Gork Build)
-/// - `/privacy opt-in`      rejected in Gork Build (opt-out is the only mode)
+/// - `/privacy opt-out`     confirm opt-out (always the locked mode in WTH Build)
+/// - `/privacy opt-in`      rejected in WTH Build (opt-out is the only mode)
 ///
 /// Case-insensitive. Only unambiguous aliases are accepted (e.g. `in`,
 /// `share`, `out`, `private`) — generic toggles like `on`/`off` are
@@ -40,13 +40,13 @@ impl SlashCommand for PrivacyCommand {
         match parse_privacy_arg(arg) {
             Some(true) if xai_grok_version::coding_data_retention_locked_opt_out() => {
                 CommandResult::Error(
-                    "Gork Build locks coding data retention to opt-out; `/privacy opt-in` is not available."
+                    "WTH Build locks coding data retention to opt-out; `/privacy opt-in` is not available."
                         .into(),
                 )
             }
             Some(opted_in) => CommandResult::Action(Action::SetCodingDataSharing { opted_in }),
             None => CommandResult::Error(format!(
-                "Unknown argument `{arg}`. In Gork Build, use `/privacy` to view status \
+                "Unknown argument `{arg}`. In WTH Build, use `/privacy` to view status \
                  (retention is locked to opt-out)."
             )),
         }

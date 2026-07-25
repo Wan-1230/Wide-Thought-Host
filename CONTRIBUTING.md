@@ -2,7 +2,7 @@
 
 Thanks for helping improve **Wide Thought Host (WTH)** — an optimized coding
 agent harness built on [Grok Build](https://github.com/xai-org/grok-build) /
-[gork-build](https://github.com/thedavidweng/gork-build).
+[wth-build](https://github.com/thedavidweng/wth-build).
 
 This project accepts external contributions. By submitting a pull request or
 other contribution, you agree that your work is licensed under the same terms
@@ -11,7 +11,7 @@ and [`NOTICE`](NOTICE)).
 
 ## Before you start
 
-1. Read [`PRIVACY.md`](PRIVACY.md). WTH follows the gork-build privacy-first
+1. Read [`PRIVACY.md`](PRIVACY.md). WTH follows the wth-build privacy-first
    stance; changes that re-enable vendor telemetry without explicit opt-in
    will be rejected.
 2. Search [existing issues](https://github.com/Wan-1230/Wide-Thought-Host/issues)
@@ -103,7 +103,7 @@ close or lock discussions that derail the project.
 WTH is derived from:
 
 - [`xai-org/grok-build`](https://github.com/xai-org/grok-build) (Apache-2.0)
-- [`thedavidweng/gork-build`](https://github.com/thedavidweng/gork-build) (Apache-2.0)
+- [`thedavidweng/wth-build`](https://github.com/thedavidweng/wth-build) (Apache-2.0)
 
 When porting an upstream fix:
 

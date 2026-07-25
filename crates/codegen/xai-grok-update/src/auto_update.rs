@@ -25,8 +25,8 @@ pub enum UpdateRunMode {
 
 const PROMPT_UPDATE_NOW: &str = "Update now? [Y/n/d]";
 const MSG_AUTO_UPDATE_BACKGROUND: &str = "Auto-update running in background.";
-const MSG_RUN_UPDATE_MANUAL: &str = "Run `gork update` to get the latest version.";
-/// Manual reinstall hint for Gork Build (never points at x.ai installers —
+const MSG_RUN_UPDATE_MANUAL: &str = "Run `wth update` to get the latest version.";
+/// Manual reinstall hint for WTH Build (never points at x.ai installers —
 /// those would replace this fork with official Grok Build).
 fn manual_install_cmd() -> &'static str {
     "git pull && cargo build -p wth-pager-bin --release  # binary: target/release/wth"
@@ -35,10 +35,10 @@ fn manual_install_cmd() -> &'static str {
 /// Build a reinstall hint for a known installer type.
 fn reinstall_hint(installer: &str) -> String {
     match installer {
-        "npm" => "Please reinstall via npm:\n  npm i -g @gork-build/gork".to_string(),
-        "gh-release" => "Please reinstall from this fork's GitHub Releases:\n  https://github.com/thedavidweng/gork-build/releases".to_string(),
+        "npm" => "Please reinstall via npm:\n  npm i -g @wth-build/wth".to_string(),
+        "gh-release" => "Please reinstall from this fork's GitHub Releases:\n  https://github.com/thedavidweng/wth-build/releases".to_string(),
         _ => format!(
-            "Please reinstall Gork Build from source (do not use x.ai/cli installers):\n  {}",
+            "Please reinstall WTH Build from source (do not use x.ai/cli installers):\n  {}",
             manual_install_cmd()
         ),
     }
@@ -50,7 +50,7 @@ fn reinstall_hint(installer: &str) -> String {
 #[cfg(feature = "updater-integration-tests")]
 const TEST_ALLOW_UPDATE_ENV: &str = "GORK_TEST_ALLOW_UPDATE";
 
-/// Gork Build never auto-updates from vendor (x.ai) channels. Enabling that
+/// WTH Build never auto-updates from vendor (x.ai) channels. Enabling that
 /// path would download official Grok Build and overwrite the community binary.
 ///
 /// This is the single policy flag for every install/update entry point.
@@ -76,10 +76,10 @@ pub fn vendor_auto_update_forbidden() -> bool {
 /// User-facing explanation when an install/update path is blocked.
 pub fn vendor_update_blocked_message() -> String {
     format!(
-        "Gork Build never installs from vendor (x.ai) update channels — that would \
+        "WTH Build never installs from vendor (x.ai) update channels — that would \
          replace this privacy fork with official Grok Build.\n\n\
          Rebuild from source instead:\n  {}\n\n\
-         Community releases (when published): https://github.com/thedavidweng/gork-build/releases",
+         Community releases (when published): https://github.com/thedavidweng/wth-build/releases",
         manual_install_cmd()
     )
 }
@@ -112,7 +112,7 @@ pub fn print_update_status(status: &UpdateStatus, json: bool) -> anyhow::Result<
     // Probe / network failures only — not privacy policy hard-off.
     if let Some(error) = status.error.as_deref() {
         println!(
-            "Gork Build - v{} [{}]",
+            "WTH Build - v{} [{}]",
             status.current_version, status.channel
         );
         println!("Update check failed: {error}");
@@ -121,13 +121,13 @@ pub fn print_update_status(status: &UpdateStatus, json: bool) -> anyhow::Result<
 
     let channel_label = format!(" [{}]", status.channel);
 
-    // Expected policy state for Gork Build: no vendor update path, not a failure.
+    // Expected policy state for WTH Build: no vendor update path, not a failure.
     if vendor_auto_update_forbidden()
         && !status.update_available
         && status.latest_version.is_none()
         && status.auto_update == Some(false)
     {
-        println!("Gork Build - v{}{}", status.current_version, channel_label);
+        println!("WTH Build - v{}{}", status.current_version, channel_label);
         println!("Auto-update: disabled (privacy build never installs from vendor channels).");
         println!("{}", vendor_update_blocked_message());
         return Ok(());
@@ -136,24 +136,24 @@ pub fn print_update_status(status: &UpdateStatus, json: bool) -> anyhow::Result<
     if status.update_available {
         if let Some(latest_version) = status.latest_version.as_deref() {
             println!(
-                "A new version of Gork Build is available: {} -> {}{}",
+                "A new version of WTH Build is available: {} -> {}{}",
                 status.current_version, latest_version, channel_label
             );
         } else {
-            println!("A new version of Gork Build is available.");
+            println!("A new version of WTH Build is available.");
         }
         return Ok(());
     }
 
     if let Some(latest_version) = status.latest_version.as_deref() {
         println!(
-            "Gork Build - v{} (latest: {}){}",
+            "WTH Build - v{} (latest: {}){}",
             status.current_version, latest_version, channel_label
         );
         return Ok(());
     }
 
-    println!("Gork Build - v{}{}", status.current_version, channel_label);
+    println!("WTH Build - v{}{}", status.current_version, channel_label);
     Ok(())
 }
 
@@ -280,7 +280,7 @@ pub struct EnsureLatestOutcome {
 ///
 /// Unlike [`run_update`] this never uses the compiled-in version for the
 /// download decision — a binary already installed by another process (TUI
-/// background download, explicit `gork update`) is reused as-is. This both
+/// background download, explicit `wth update`) is reused as-is. This both
 /// removes the duplicate download in leader mode and stops the pre-fix
 /// hourly re-download while a busy leader keeps deferring its relaunch.
 ///
@@ -442,7 +442,7 @@ pub struct BackgroundUpdateCheck {
     /// `Some` when the *running* binary is older than the channel pointer —
     /// drives the in-TUI restart hint regardless of who downloads the binary.
     pub update: Option<UpdateAvailable>,
-    /// Handle to the background `gork update` child, `Some` only when a
+    /// Handle to the background `wth update` child, `Some` only when a
     /// download was actually started (the on-disk install was behind the
     /// pointer). The TUI parks this and `wait()`s on it at quit-for-update
     /// time instead of spawning a second downloader.
@@ -463,7 +463,7 @@ impl BackgroundUpdateCheck {
 /// Sets [`BackgroundUpdateCheck::update`] when the running binary is older
 /// than the channel pointer. If `auto_update` is enabled **and the on-disk
 /// install is also behind the pointer**, kicks off a non-blocking download
-/// (spawns `gork update` as a detached child process) so the new binary is
+/// (spawns `wth update` as a detached child process) so the new binary is
 /// ready when the user quits and relaunches. When another process (an earlier
 /// TUI, the leader's hourly checker) already put the target version on disk,
 /// no download is started — only the restart hint is surfaced.
@@ -476,7 +476,7 @@ pub async fn check_update_background(update_config: &UpdateConfig) -> Background
         return BackgroundUpdateCheck::none();
     }
 
-    // Community fork: never pull vendor auto-updates (would replace `gork`
+    // Community fork: never pull vendor auto-updates (would replace `wth`
     // with official `grok` from x.ai install channels).
     if vendor_auto_update_forbidden() {
         return BackgroundUpdateCheck::none();
@@ -509,7 +509,7 @@ pub async fn check_update_background(update_config: &UpdateConfig) -> Background
 
     // Only download when the on-disk install is behind the pointer; the
     // running process being stale (checked above) just means "show the
-    // restart hint". The quit-for-update path's `gork update` child resolves
+    // restart hint". The quit-for-update path's `wth update` child resolves
     // to "Already up to date" against the same disk state. Gated on the
     // installer maintaining the managed symlink — for npm a leftover symlink
     // would wrongly suppress the download (see `disk_version_for_installer`).
@@ -566,7 +566,7 @@ pub async fn run_update_if_available(
 
     let current_config = config::load_config().await;
 
-    // Gork Build: vendor auto-update is hard-disabled (not an opt-in).
+    // WTH Build: vendor auto-update is hard-disabled (not an opt-in).
     if vendor_auto_update_forbidden() {
         return Ok(false);
     }
@@ -602,7 +602,7 @@ pub async fn run_update_if_available(
     let channel_label = format!(" [{}]", update_config.channel);
     if auto_update {
         eprintln!(
-            "A new version of Gork Build is available: {} -> {}{}",
+            "A new version of WTH Build is available: {} -> {}{}",
             current_version, latest_version, channel_label
         );
         if interactive {
@@ -630,7 +630,7 @@ pub async fn run_update_if_available(
             return Ok(false);
         }
         eprintln!(
-            "A new version of Gork Build is available: {} -> {}{}",
+            "A new version of WTH Build is available: {} -> {}{}",
             current_version, latest_version, channel_label
         );
         if interactive {
@@ -768,7 +768,7 @@ pub async fn run_install_script(
     update_config: &UpdateConfig,
 ) -> Result<()> {
     // Last-line chokepoint: every install path (TUI, leader, minimum_version,
-    // `gork update`, npm / gh-release / internal) must pass here.
+    // `wth update`, npm / gh-release / internal) must pass here.
     if vendor_auto_update_forbidden() {
         return Err(vendor_update_blocked_err());
     }
@@ -1415,7 +1415,7 @@ fn relative_symlink_target(target: &std::path::Path, link: &std::path::Path) -> 
 ///
 /// `grok` and `agent` are first-class entry points that the bootstrap
 /// installers (`install.sh`, `install.ps1`, `install-enterprise.sh`)
-/// maintain in lockstep, and so must the updater — otherwise `gork update`
+/// maintain in lockstep, and so must the updater — otherwise `wth update`
 /// leaves `agent` pinned at the previous version.
 ///
 /// Unix: atomic symlink swap with relative target (survives Docker
@@ -2162,7 +2162,7 @@ fn install_npm(target: Option<&str>, channel: &str, npm_registry: Option<&str>) 
     warn_if_other_grok_processes_running();
 
     let version_arg = match target {
-        Some(ver) => format!("@gork-build/gork@{ver}"),
+        Some(ver) => format!("@wth-build/wth@{ver}"),
         None => {
             // All current callers resolve the version via get_latest_version
             // (which applies max(stable, alpha) for the alpha channel) before
@@ -2173,7 +2173,7 @@ fn install_npm(target: Option<&str>, channel: &str, npm_registry: Option<&str>) 
                 "install_npm called without a resolved version, falling back to dist-tag"
             );
             format!(
-                "@gork-build/gork@{}",
+                "@wth-build/wth@{}",
                 if channel == "alpha" {
                     "alpha"
                 } else {
@@ -2238,7 +2238,7 @@ pub async fn apply_channel_switch(channel_switch: Option<&str>, update_config: &
     }
 }
 
-/// Run the `gork update` command. Returns `Ok(Some(version))` when the target
+/// Run the `wth update` command. Returns `Ok(Some(version))` when the target
 /// version is present on disk afterwards — either installed by this call or
 /// found already installed (e.g. by a concurrent background download); returns
 /// `Ok(None)` when there is no installer or no applicable target. Callers use
@@ -2252,7 +2252,7 @@ pub async fn run_update(
     channel_switch: Option<&str>,
     update_config: &mut UpdateConfig,
 ) -> Result<Option<String>> {
-    // Manual `gork update` must not pull vendor binaries either.
+    // Manual `wth update` must not pull vendor binaries either.
     // Message is on the error only (avoid double-print via eprintln + Err).
     if vendor_auto_update_forbidden() {
         return Err(vendor_update_blocked_err());
@@ -2438,11 +2438,11 @@ async fn refresh_deployment_config() {
     match xai_grok_shell::managed_config::sync().await {
         Ok(true) => eprintln!("  Applied managed configuration."),
         Ok(false) => tracing::debug!("no managed configuration to apply"),
-        // Auth issues aren't actionable mid-update: quiet here, loud on `gork setup`.
+        // Auth issues aren't actionable mid-update: quiet here, loud on `wth setup`.
         Err(e) if e.is_auth_rejection() => tracing::debug!("managed config not applied: {e}"),
         Err(e) if e.is_retryable() => {
             tracing::debug!("managed config refresh failed: {e}");
-            eprintln!("  Couldn't apply managed configuration. Run `gork setup` to retry.");
+            eprintln!("  Couldn't apply managed configuration. Run `wth setup` to retry.");
         }
         Err(e) => eprintln!("  Couldn't apply managed configuration. {e}"),
     }
@@ -3309,7 +3309,7 @@ mod tests {
         let hint = reinstall_hint("npm");
         assert!(hint.contains("npm i -g"), "should suggest npm i -g: {hint}");
         assert!(
-            hint.contains("@gork-build/gork"),
+            hint.contains("@wth-build/wth"),
             "should name the package: {hint}"
         );
     }
@@ -3318,7 +3318,7 @@ mod tests {
     fn test_reinstall_hint_gh_release_mentions_gork_releases() {
         let hint = reinstall_hint("gh-release");
         assert!(
-            hint.contains("thedavidweng/gork-build"),
+            hint.contains("thedavidweng/wth-build"),
             "should point at this fork's releases: {hint}"
         );
         assert!(
@@ -3333,7 +3333,7 @@ mod tests {
         // Hint must point at a source rebuild (cargo build) targeting the
         // WTH binary — not the upstream x.ai installers. The substring
         // check uses `wth-pager-bin` (the real package name) rather than
-        // the historical `gork` name, which has been retired as part of
+        // the historical `wth` name, which has been retired as part of
         // the grok-build → wth rename. See `manual_install_cmd` for the
         // authoritative command string.
         assert!(
@@ -3361,7 +3361,7 @@ mod tests {
     }
 
     // ──────────────────────────────────────────────────────────────────────
-    // Privacy / vendor-update hard-off (Gork Build)
+    // Privacy / vendor-update hard-off (WTH Build)
     // Default product builds (no `updater-integration-tests` feature) never
     // honor GORK_TEST_ALLOW_UPDATE — even if the env var is present.
     // ──────────────────────────────────────────────────────────────────────
@@ -3558,7 +3558,7 @@ mod tests {
         let mut cfg = dummy_update_config();
         let err = run_update(false, None, None, &mut cfg)
             .await
-            .expect_err("manual gork update must refuse vendor install");
+            .expect_err("manual wth update must refuse vendor install");
         let s = format!("{err:#}");
         assert!(
             s.contains("never installs from vendor") || s.contains("x.ai"),
@@ -4298,7 +4298,7 @@ mod tests {
         );
         assert_eq!(
             MSG_RUN_UPDATE_MANUAL,
-            "Run `gork update` to get the latest version."
+            "Run `wth update` to get the latest version."
         );
     }
 

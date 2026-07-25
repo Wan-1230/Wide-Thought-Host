@@ -339,7 +339,7 @@ export default function App() {
         >
           <div className="px-3 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2 min-w-0">
-              <img src={wthIcon} alt="WTH" className="w-8 h-8 rounded-lg object-cover" />
+              <img src={wthIcon} alt="WTH" className="w-8 h-8 rounded-lg object-cover theme-logo" />
               <div className="min-w-0">
                 <div className="text-sm font-semibold truncate">Wide Thought Host</div>
                 <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>桌面代理</div>

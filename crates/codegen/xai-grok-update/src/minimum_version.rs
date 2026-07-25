@@ -2,7 +2,7 @@
 //!
 //! When `cli.minimum_version` is set in any config layer, Grok refuses to
 //! start below that floor. With auto-update on, we install
-//! `max(latest, minimum)`; otherwise the user is asked to run `gork update`.
+//! `max(latest, minimum)`; otherwise the user is asked to run `wth update`.
 //!
 //! Set `GROK_TEST_VERSION` to manually exercise either path without producing
 //! a real out-of-date build.
@@ -38,7 +38,7 @@ pub(crate) enum EnforcementOutcome {
 pub(crate) enum MinimumVersionError {
     /// `source` chains via `Error::source()`; omitted from `Display`.
     #[error(
-        "The minimum version \"{value}\" in your Gork Build configuration \
+        "The minimum version \"{value}\" in your WTH Build configuration \
          isn't a valid version number. Update `cli.minimum_version` and try again."
     )]
     InvalidMinimum {
@@ -47,14 +47,14 @@ pub(crate) enum MinimumVersionError {
         source: semver::Error,
     },
     #[error(
-        "This version of Gork Build ({current}) is no longer supported. \
+        "This version of WTH Build ({current}) is no longer supported. \
          Rebuild from source for version {minimum} or later \
          (vendor auto-update is disabled in this fork)."
     )]
     AutoUpdateDisabled { current: String, minimum: String },
     /// `npm` / `gh` / `internal` GCS — none detected.
     #[error(
-        "This version of Gork Build ({current}) is no longer supported. \
+        "This version of WTH Build ({current}) is no longer supported. \
          Rebuild from source for version {minimum} or later \
          (vendor auto-update is disabled in this fork)."
     )]
@@ -62,7 +62,7 @@ pub(crate) enum MinimumVersionError {
     /// `detail` is telemetry-only; omitted from `Display` to avoid stacking
     /// the installer's own action language.
     #[error(
-        "This version of Gork Build ({current}) is no longer supported, \
+        "This version of WTH Build ({current}) is no longer supported, \
          and an update to version {minimum} didn't complete.\n\n\
          Rebuild from source (vendor auto-update is disabled in this fork)."
     )]
@@ -74,7 +74,7 @@ pub(crate) enum MinimumVersionError {
     /// Latest release is known but still below the floor (vs `NoReleaseFound`,
     /// which couldn't probe at all).
     #[error(
-        "This version of Gork Build ({current}) is no longer supported. \
+        "This version of WTH Build ({current}) is no longer supported. \
          Version {minimum} or later is required, but the most recent release is {latest}. \
          Contact your administrator."
     )]
@@ -85,14 +85,14 @@ pub(crate) enum MinimumVersionError {
     },
     /// Couldn't probe the registry — likely transient.
     #[error(
-        "This version of Gork Build ({current}) is no longer supported. \
+        "This version of WTH Build ({current}) is no longer supported. \
          Version {minimum} or later is required, but no release was found. \
          Check your network connection, or contact your administrator."
     )]
     NoReleaseFound { current: String, minimum: String },
-    /// `gork update --version X` requested a version below the floor.
+    /// `wth update --version X` requested a version below the floor.
     #[error(
-        "Cannot install Gork Build {target}: the configured minimum is {minimum}. \
+        "Cannot install WTH Build {target}: the configured minimum is {minimum}. \
          Rebuild from source for the latest allowed version."
     )]
     TargetBelowFloor { target: String, minimum: String },
@@ -144,7 +144,7 @@ fn evaluate_minimum_version(
 }
 
 /// Refuse an explicit install target below the configured floor.
-/// Used by `gork update --version X`.
+/// Used by `wth update --version X`.
 pub(crate) fn check_install_target(target: &str) -> Result<(), MinimumVersionError> {
     let floor = resolve_floor_or_error()?;
     check_install_target_inner(target, floor.as_deref())
@@ -165,7 +165,7 @@ fn check_install_target_inner(
 }
 
 /// `max(target, configured_floor)`; passthrough when no floor is set.
-/// Used by `gork update` to keep the install target at or above the pin.
+/// Used by `wth update` to keep the install target at or above the pin.
 pub(crate) fn apply_floor(target: &str) -> Result<String, MinimumVersionError> {
     let floor = resolve_floor_or_error()?;
     apply_floor_inner(target, floor.as_deref())
@@ -215,13 +215,13 @@ pub(crate) async fn enforce_minimum_version(
 
     info!(%current, %minimum, "minimum_version: below floor; attempting auto-update");
 
-    // Privacy / Gork Build: never satisfy a remote or local floor by pulling
+    // Privacy / WTH Build: never satisfy a remote or local floor by pulling
     // vendor (x.ai) installers — that would replace this fork with official
     // Grok Build. Fail closed with rebuild guidance instead.
     if vendor_auto_update_forbidden() {
         warn!(%current, %minimum, "minimum_version: vendor auto-update forbidden (privacy build)");
         let message = format!(
-            "This version of Gork Build ({current}) is below the configured floor ({minimum}).\n\n{}",
+            "This version of WTH Build ({current}) is below the configured floor ({minimum}).\n\n{}",
             vendor_update_blocked_message()
         );
         return Err(MinimumVersionError::VendorUpdateForbidden {
@@ -248,7 +248,7 @@ pub(crate) async fn enforce_minimum_version(
 
     info!(%current, %target, installer, "minimum_version: installing upgrade");
     eprintln!(
-        "This version of Gork Build ({current}) is no longer supported. \
+        "This version of WTH Build ({current}) is no longer supported. \
          Updating to {target}…"
     );
 
@@ -310,7 +310,7 @@ pub async fn enforce_minimum_version_or_exit(update_config: &UpdateConfig) {
             // child process ever writes to a broken pipe. For now this
             // path is rare (only fires when the server pushes a minimum
             // version bump), so print a relaunch message instead.
-            eprintln!("Update installed. Run `gork` to start.");
+            eprintln!("Update installed. Run `wth` to start.");
             std::process::exit(0);
         }
         Err(e) => {

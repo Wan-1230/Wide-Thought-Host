@@ -601,3 +601,354 @@ fn text_preview(raw: &str, ext: Option<&str>) -> Option<String> {
     }
     None
 }
+
+// ─── MCP Server CRUD ─────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct McpServerConfigDto {
+    pub id: String,
+    pub name: String,
+    pub command: Option<String>,
+    pub args: Option<Vec<String>>,
+    pub env: Option<std::collections::HashMap<String, String>>,
+    pub url: Option<String>,
+    pub transport: Option<String>,
+    pub enabled: bool,
+    pub status: String,
+    pub tool_count: usize,
+}
+
+impl Default for McpServerConfigDto {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            name: String::new(),
+            command: None,
+            args: None,
+            env: None,
+            url: None,
+            transport: None,
+            enabled: true,
+            status: "unknown".into(),
+            tool_count: 0,
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn mcp_list_servers(state: State<'_, AppState>) -> Result<Vec<McpServerConfigDto>, String> {
+    let settings = state.settings.read().map_err(|e| e.to_string())?.clone();
+    let workspace_root = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    let user_home = xai_grok_config::wth_home();
+
+    let mut servers = Vec::new();
+    let config_paths = vec![
+        user_home.join("config.toml"),
+        workspace_root.join(".wth").join("config.toml"),
+    ];
+
+    for config_path in config_paths {
+        if !config_path.exists() {
+            continue;
+        }
+        let content = match fs::read_to_string(&config_path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let value: toml::Value = match toml::from_str(&content) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        let Some(mcp_servers) = value.get("mcp_servers").and_then(|v| v.as_table()) else {
+            continue;
+        };
+        for (name, entry) in mcp_servers {
+            let table = entry.as_table();
+            let command = table.and_then(|t| t.get("command")).and_then(|v| v.as_str()).map(String::from);
+            let args = table.and_then(|t| t.get("args")).and_then(|v| v.as_array()).map(|arr| {
+                arr.iter().filter_map(|v| v.as_str().map(String::from)).collect()
+            });
+            let url = table.and_then(|t| t.get("url")).and_then(|v| v.as_str()).map(String::from);
+            let transport = table.and_then(|t| t.get("transport")).and_then(|v| v.as_str()).map(String::from);
+            let id = format!("{}::{name}", config_path.to_string_lossy());
+            let toggle_key = format!("mcp::{}::{name}", config_path.to_string_lossy());
+            let enabled = settings.feature_toggles.get(&toggle_key).copied().unwrap_or(true);
+
+            servers.push(McpServerConfigDto {
+                id,
+                name: name.clone(),
+                command,
+                args,
+                env: None,
+                url,
+                transport,
+                enabled,
+                status: if enabled { "unknown".into() } else { "offline".into() },
+                tool_count: 0,
+            });
+        }
+    }
+    Ok(servers)
+}
+
+#[tauri::command]
+pub async fn mcp_add_server(
+    config: McpServerConfigDto,
+    state: State<'_, AppState>,
+) -> Result<McpServerConfigDto, String> {
+    if config.name.trim().is_empty() {
+        return Err("服务器名称不能为空".into());
+    }
+    let user_home = xai_grok_config::wth_home();
+    let config_path = user_home.join("config.toml");
+
+    let mut content = fs::read_to_string(&config_path).unwrap_or_default();
+    let mut value: toml::Value = toml::from_str(&content).unwrap_or(toml::Value::Table(Default::default()));
+
+    let table = value.as_table_mut().ok_or("配置文件格式无效")?;
+    let mcp = table.entry("mcp_servers").or_insert(toml::Value::Table(Default::default()));
+    let mcp_table = mcp.as_table_mut().ok_or("mcp_servers 格式无效")?;
+
+    let mut entry = toml::map::Map::new();
+    if let Some(cmd) = &config.command {
+        entry.insert("command".into(), toml::Value::String(cmd.clone()));
+    }
+    if let Some(args) = &config.args {
+        entry.insert("args".into(), toml::Value::Array(args.iter().map(|a| toml::Value::String(a.clone())).collect()));
+    }
+    if let Some(url) = &config.url {
+        entry.insert("url".into(), toml::Value::String(url.clone()));
+    }
+    mcp_table.insert(config.name.clone(), toml::Value::Table(entry));
+
+    content = toml::to_string_pretty(&value).map_err(|e| e.to_string())?;
+    if let Some(parent) = config_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(&config_path, content).map_err(|e| e.to_string())?;
+
+    let id = format!("{}::{}", config_path.to_string_lossy(), config.name);
+    Ok(McpServerConfigDto { id, status: "unknown".into(), tool_count: 0, ..config })
+}
+
+#[tauri::command]
+pub async fn mcp_remove_server(id: String, state: State<'_, AppState>) -> Result<(), String> {
+    let parts: Vec<&str> = id.splitn(2, "::").collect();
+    if parts.len() != 2 {
+        return Err("无效的服务器 ID".into());
+    }
+    let config_path = PathBuf::from(parts[0]);
+    let name = parts[1];
+
+    if !config_path.exists() {
+        return Ok(());
+    }
+    let content = fs::read_to_string(&config_path).map_err(|e| e.to_string())?;
+    let mut value: toml::Value = toml::from_str(&content).map_err(|e| e.to_string())?;
+
+    if let Some(mcp) = value.get_mut("mcp_servers").and_then(|v| v.as_table_mut()) {
+        mcp.remove(name);
+    }
+    let new_content = toml::to_string_pretty(&value).map_err(|e| e.to_string())?;
+    fs::write(&config_path, new_content).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn mcp_test_server(id: String, state: State<'_, AppState>) -> Result<String, String> {
+    Ok(format!("服务器 {id} 连接测试完成（模拟）"))
+}
+
+// ─── Hook CRUD ───────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct HookConfigDto {
+    pub id: String,
+    pub name: String,
+    pub trigger: String,
+    pub command: String,
+    pub enabled: bool,
+}
+
+impl Default for HookConfigDto {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            name: String::new(),
+            trigger: "tool_after".into(),
+            command: String::new(),
+            enabled: true,
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn hook_list(state: State<'_, AppState>) -> Result<Vec<HookConfigDto>, String> {
+    let settings = state.settings.read().map_err(|e| e.to_string())?.clone();
+    let user_home = xai_grok_config::wth_home();
+    let hooks_dir = user_home.join("hooks");
+    let mut hooks = Vec::new();
+
+    if hooks_dir.exists() {
+        for entry in WalkDir::new(&hooks_dir).min_depth(1).max_depth(2).into_iter().flatten() {
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            let path = entry.path().to_path_buf();
+            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+            if !matches!(ext, "json" | "toml") {
+                continue;
+            }
+            let content = match fs::read_to_string(&path) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+            let (name, trigger, command) = if ext == "json" {
+                let v: serde_json::Value = match serde_json::from_str(&content) {
+                    Ok(v) => v,
+                    Err(_) => continue,
+                };
+                (
+                    v.get("name").and_then(|n| n.as_str()).unwrap_or("hook").to_string(),
+                    v.get("trigger").and_then(|t| t.as_str()).unwrap_or("tool_after").to_string(),
+                    v.get("command").and_then(|c| c.as_str()).unwrap_or("").to_string(),
+                )
+            } else {
+                let v: toml::Value = match toml::from_str(&content) {
+                    Ok(v) => v,
+                    Err(_) => continue,
+                };
+                (
+                    v.get("name").and_then(|n| n.as_str()).unwrap_or("hook").to_string(),
+                    v.get("trigger").and_then(|t| t.as_str()).unwrap_or("tool_after").to_string(),
+                    v.get("command").and_then(|c| c.as_str()).unwrap_or("").to_string(),
+                )
+            };
+            let id = path.to_string_lossy().to_string();
+            let toggle_key = format!("hooks::{id}");
+            let enabled = settings.feature_toggles.get(&toggle_key).copied().unwrap_or(true);
+            hooks.push(HookConfigDto { id, name, trigger, command, enabled });
+        }
+    }
+    Ok(hooks)
+}
+
+#[tauri::command]
+pub async fn hook_add(config: HookConfigDto, state: State<'_, AppState>) -> Result<HookConfigDto, String> {
+    if config.name.trim().is_empty() || config.command.trim().is_empty() {
+        return Err("名称和命令不能为空".into());
+    }
+    let user_home = xai_grok_config::wth_home();
+    let hooks_dir = user_home.join("hooks");
+    fs::create_dir_all(&hooks_dir).map_err(|e| e.to_string())?;
+
+    let id = uuid::Uuid::new_v4().to_string();
+    let file_path = hooks_dir.join(format!("{id}.json"));
+    let json = serde_json::json!({
+        "name": config.name,
+        "trigger": config.trigger,
+        "command": config.command,
+    });
+    fs::write(&file_path, serde_json::to_string_pretty(&json).unwrap()).map_err(|e| e.to_string())?;
+
+    Ok(HookConfigDto { id: file_path.to_string_lossy().to_string(), enabled: true, ..config })
+}
+
+#[tauri::command]
+pub async fn hook_remove(id: String, _state: State<'_, AppState>) -> Result<(), String> {
+    let path = PathBuf::from(&id);
+    if path.exists() {
+        fs::remove_file(&path).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn hook_toggle(id: String, enabled: bool, state: State<'_, AppState>) -> Result<(), String> {
+    let toggle_key = format!("hooks::{id}");
+    {
+        let mut settings = state.settings.write().map_err(|e| e.to_string())?;
+        settings.feature_toggles.insert(toggle_key, enabled);
+    }
+    crate::settings::persist_state_settings(&state)
+}
+
+// ─── Memory CRUD ─────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MemoryEntryDto {
+    pub id: String,
+    pub title: String,
+    pub tags: Vec<String>,
+    pub created_at: String,
+    pub summary: String,
+    pub content: String,
+    pub scope: String,
+    pub path: String,
+}
+
+#[tauri::command]
+pub async fn memory_list(state: State<'_, AppState>) -> Result<Vec<MemoryEntryDto>, String> {
+    let workspace_root = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    let user_home = xai_grok_config::wth_home();
+    let mut entries = Vec::new();
+
+    let roots = vec![
+        (user_home.join("memory"), "用户"),
+        (workspace_root.join(".wth").join("memory"), "工作区"),
+    ];
+
+    for (root, scope) in roots {
+        if !root.exists() {
+            continue;
+        }
+        let Ok(rd) = fs::read_dir(&root) else { continue };
+        for entry in rd.flatten() {
+            let path = entry.path();
+            let meta = match entry.metadata() {
+                Ok(m) => m,
+                Err(_) => continue,
+            };
+            if !meta.is_file() {
+                continue;
+            }
+            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+            if !matches!(ext, "md" | "txt" | "json" | "toml") {
+                continue;
+            }
+            let content = match fs::read_to_string(&path) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+            let title = path.file_stem().and_then(|n| n.to_str()).unwrap_or("memory").to_string();
+            let summary: String = content.trim().lines().next().unwrap_or("").chars().take(100).collect();
+            let created_at = meta.modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| format!("{}", d.as_secs()))
+                .unwrap_or_default();
+            let id = path.to_string_lossy().to_string();
+            entries.push(MemoryEntryDto {
+                id: id.clone(),
+                title,
+                tags: vec![scope.to_string(), ext.to_string()],
+                created_at,
+                summary,
+                content,
+                scope: scope.to_string(),
+                path: id,
+            });
+        }
+    }
+    Ok(entries)
+}
+
+#[tauri::command]
+pub async fn memory_delete(id: String, _state: State<'_, AppState>) -> Result<(), String> {
+    let path = PathBuf::from(&id);
+    if path.exists() {
+        fs::remove_file(&path).map_err(|e| format!("删除失败：{e}"))?;
+    }
+    Ok(())
+}

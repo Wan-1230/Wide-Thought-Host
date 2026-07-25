@@ -11,6 +11,7 @@
 
 mod credentials;
 mod auth;
+mod headroom;
 mod ipc;
 mod settings;
 mod state;
@@ -90,6 +91,20 @@ pub fn run() {
             // Build system tray
             let _tray = tray::build_tray(app.handle())?;
 
+            // Auto-start headroom proxy if enabled in settings
+            let state = app.state::<AppState>();
+            let headroom = state.headroom.clone();
+            let settings = state.settings.read().map_err(|e| e.to_string())?.clone();
+            if settings.headroom_enabled {
+                let port = settings.headroom_port;
+                tauri::async_runtime::spawn(async move {
+                    match headroom.start(port).await {
+                        Ok(()) => tracing::info!("Headroom proxy started on port {port}"),
+                        Err(e) => tracing::warn!("Headroom auto-start failed: {e}"),
+                    }
+                });
+            }
+
             // Register global shortcut (Alt+W — toggle window visibility)
             // Note: Alt+Space conflicts with WorkBuddy and other desktop apps,
             // so we use Alt+W as a non-colliding alternative.
@@ -141,6 +156,30 @@ pub fn run() {
             auth::github_auth_poll,
             auth::github_auth_cancel,
             auth::github_auth_logout,
+            // MCP CRUD
+            ipc::capabilities::mcp_list_servers,
+            ipc::capabilities::mcp_add_server,
+            ipc::capabilities::mcp_remove_server,
+            ipc::capabilities::mcp_test_server,
+            // Hooks CRUD
+            ipc::capabilities::hook_list,
+            ipc::capabilities::hook_add,
+            ipc::capabilities::hook_remove,
+            ipc::capabilities::hook_toggle,
+            // Memory CRUD
+            ipc::capabilities::memory_list,
+            ipc::capabilities::memory_delete,
+            // Sub-agents CRUD
+            ipc::subagents::subagent_list,
+            ipc::subagents::subagent_add,
+            ipc::subagents::subagent_remove,
+            ipc::subagents::subagent_toggle,
+            // Headroom proxy
+            ipc::headroom::headroom_status,
+            ipc::headroom::headroom_is_installed,
+            ipc::headroom::headroom_start,
+            ipc::headroom::headroom_stop,
+            ipc::headroom::headroom_install,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

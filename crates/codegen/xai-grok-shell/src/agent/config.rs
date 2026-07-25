@@ -322,7 +322,7 @@ impl EndpointsConfig {
     pub fn resolve_trace_upload_url(&self) -> String {
         blank_as_unset(&self.trace_upload_url).unwrap_or_else(|| self.proxy_url())
     }
-    /// Managed deployment-config URL (`gork setup`): explicit `managed_config_url`,
+    /// Managed deployment-config URL (`wth setup`): explicit `managed_config_url`,
     /// else `proxy_url` + `/deployment/config`. Never `xai_api_base_url`, so the
     /// deployment key reaches the proxy, not the inference host.
     pub fn resolve_managed_config_url(&self) -> String {
@@ -1068,7 +1068,7 @@ pub struct RemoteConfig {
 /// `[hub]` section from config.toml.
 ///
 /// Optional default Computer Hub URL for **workspace provider** exposure
-/// (`gork workspace` / leader `with_default_hub_url`). Does **not** enable
+/// (`wth workspace` / leader `with_default_hub_url`). Does **not** enable
 /// agent-side harness/client connections or alter local session behavior.
 ///
 /// ```toml
@@ -1079,7 +1079,7 @@ pub struct RemoteConfig {
 #[serde(default)]
 pub struct HubConfig {
     /// Hub WebSocket URL (`ws://` or `wss://`) used as the leader default for
-    /// `gork workspace start` when the CLI does not pass `--hub-url`.
+    /// `wth workspace start` when the CLI does not pass `--hub-url`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
 }
@@ -1276,7 +1276,7 @@ pub struct Config {
     /// `[model.*]` overrides from config.toml. Resolve via `resolve_model_list()`.
     #[serde(skip)]
     pub config_models: IndexMap<String, ConfigModelOverride>,
-    /// Warnings from `[model.*]` parsing; surfaced by `gork inspect`.
+    /// Warnings from `[model.*]` parsing; surfaced by `wth inspect`.
     #[serde(skip)]
     pub model_override_warnings: Vec<super::config_model_override_parse::ModelOverrideWarning>,
     pub grok_com_config: GrokComConfig,
@@ -1667,7 +1667,7 @@ pub struct SessionConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct RepoChangesDedupConfig {
-    /// Gork Build ships with this off — whole-repo / change-archive research
+    /// WTH Build ships with this off — whole-repo / change-archive research
     /// packaging is not used.
     pub enabled: bool,
     /// Include inline content even when references exist.
@@ -2055,9 +2055,9 @@ impl Config {
     pub fn is_two_pass_compaction_enabled(&self) -> bool {
         self.resolve_two_pass_compaction().value
     }
-    /// Resolve effective product telemetry mode (Gork Build: always Disabled).
+    /// Resolve effective product telemetry mode (WTH Build: always Disabled).
     pub fn resolve_telemetry_mode(&self) -> Resolved<TelemetryMode> {
-        // Gork Build: product telemetry is permanently off (remote/env cannot
+        // WTH Build: product telemetry is permanently off (remote/env cannot
         // re-enable Mixpanel / events / research metrics).
         if xai_grok_version::research_data_collection_forbidden() {
             return Resolved::new(TelemetryMode::Disabled, ConfigSource::Default);
@@ -2083,9 +2083,9 @@ impl Config {
         }
         Resolved::new(TelemetryMode::Disabled, ConfigSource::Default)
     }
-    /// Resolve whether session/repo research trace upload is enabled (Gork Build: always false).
+    /// Resolve whether session/repo research trace upload is enabled (WTH Build: always false).
     pub fn resolve_trace_upload(&self) -> Resolved<bool> {
-        // Gork Build: never upload session/repo traces to GCS (or anywhere).
+        // WTH Build: never upload session/repo traces to GCS (or anywhere).
         if xai_grok_version::research_data_collection_forbidden() {
             return Resolved::new(false, ConfigSource::Default);
         }
@@ -3002,7 +3002,7 @@ pub(crate) fn external_otel_master_switch_from(
 /// Layering follows `resolve_telemetry_mode`: **requirement > env > config >
 /// remote > default**, where the `[telemetry]` `otel_*` keys from the
 /// effective config (which already includes managed-config layers distributed
-/// by `gork setup`) sit under the env vars, requirements pins are applied on
+/// by `wth setup`) sit under the env vars, requirements pins are applied on
 /// top, and the remote layer is restrictive-only + asynchronous
 /// ([`apply_external_otel_remote_policy`]).
 pub fn resolve_external_otel_config(
@@ -8109,7 +8109,7 @@ reasoning_effort = "low"
     #[test]
     #[serial]
     fn resolve_trace_upload_explicit_config_wins_over_telemetry_off() {
-        // Under Gork Build privacy, hard-off short-circuits before config/env.
+        // Under WTH Build privacy, hard-off short-circuits before config/env.
         if xai_grok_version::research_data_collection_forbidden() {
             unsafe { std::env::remove_var("GROK_TELEMETRY_ENABLED") };
             unsafe { std::env::remove_var("GROK_TELEMETRY_TRACE_UPLOAD") };
@@ -8175,7 +8175,7 @@ reasoning_effort = "low"
     #[test]
     #[serial]
     fn resolve_trace_upload_honors_config_when_telemetry_on() {
-        // Under Gork Build privacy, the hard-off short-circuit wins first.
+        // Under WTH Build privacy, the hard-off short-circuit wins first.
         // Non-privacy (upstream) semantics: explicit false config wins; when
         // telemetry is fully enabled and trace_upload is unset, default is on.
         if xai_grok_version::research_data_collection_forbidden() {

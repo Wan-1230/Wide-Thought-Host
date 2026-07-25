@@ -1,6 +1,6 @@
 # xai-grok-pager
 
-Terminal UI (TUI) for **Gork Build** (community distribution of Grok Build).
+Terminal UI (TUI) for **WTH Build** (community distribution of Grok Build).
 Provides the interactive full-screen interface including the scrollback view,
 prompt input, session management, and all modal dialogs.
 

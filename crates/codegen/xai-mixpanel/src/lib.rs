@@ -44,7 +44,7 @@ impl Mixpanel {
     /// token. Split out from [`Self::track`] so the scrub-then-inject
     /// ordering is testable.
     ///
-    /// Not called by [`Self::track`] in Gork Build (track is a hard no-op),
+    /// Not called by [`Self::track`] in WTH Build (track is a hard no-op),
     /// but kept + unit-tested so a future re-enable cannot drop scrub order.
     #[allow(dead_code)] // intentionally unused by privacy no-op track path
     fn prepare_properties(
@@ -61,7 +61,7 @@ impl Mixpanel {
     /// Track an event. Properties should include `distinct_id`. The
     /// project `token` is injected after scrubbing, so it isn't redacted.
     ///
-    /// **Gork Build:** always a no-op — product analytics never leave the host.
+    /// **WTH Build:** always a no-op — product analytics never leave the host.
     pub async fn track(
         &self,
         _event: &str,
@@ -77,7 +77,7 @@ impl Mixpanel {
     /// String values in `set` are scrubbed for secrets before sending.
     /// The project `token` is injected automatically.
     ///
-    /// **Gork Build:** always a no-op.
+    /// **WTH Build:** always a no-op.
     pub async fn engage(
         &self,
         _distinct_id: &str,

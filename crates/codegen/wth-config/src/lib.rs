@@ -50,7 +50,7 @@ pub use paths::{
     sessions_cwd_dir, system_config_dir, user_wth_home,
 };
 
-// Backward-compatibility aliases for Grok/Gork Build migration.
+// Backward-compatibility aliases for Grok/WTH Build migration.
 // New code should use the wth_* variants directly.
 #[deprecated(note = "use `default_wth_home` instead")]
 pub use paths::default_wth_home as default_grok_home;

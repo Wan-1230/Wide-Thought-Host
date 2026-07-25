@@ -30,7 +30,7 @@ export function SplashScreen({ onDone }: SplashScreenProps) {
       <img
         src={wthIcon}
         alt="WTH"
-        className="w-16 h-16 rounded-2xl object-cover animate-pulse"
+        className="w-16 h-16 rounded-2xl object-cover animate-pulse theme-logo"
       />
       <div className="text-center">
         <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>

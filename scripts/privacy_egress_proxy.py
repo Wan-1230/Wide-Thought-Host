@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Minimal HTTP CONNECT proxy that records destination hosts.
 
-Used by Gork Build privacy CI: run the release binary through this proxy and
+Used by WTH Build privacy CI: run the release binary through this proxy and
 assert no denylisted destinations appear. HTTPS traffic is not decrypted —
 only CONNECT hostnames are logged (sufficient for egress inventory checks).
 

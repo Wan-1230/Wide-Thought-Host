@@ -6,7 +6,7 @@
 
 ## 背景
 
-WTH 是从 `xai-org/grok-build` + `thedavidweng/gork-build` 衍生的 Rust 工作区（82 个 crate），主二进制 `wth-pager-bin`（产物名 `wth`）。要把 WTH 打包为 WorkBuddy 风格的 Windows 桌面应用，第一步必须让 `wth-pager-bin` 在 Windows 上能 `cargo build --release` 出来。
+WTH 是从 `xai-org/grok-build` + `thedavidweng/wth-build` 衍生的 Rust 工作区（82 个 crate），主二进制 `wth-pager-bin`（产物名 `wth`）。要把 WTH 打包为 WorkBuddy 风格的 Windows 桌面应用，第一步必须让 `wth-pager-bin` 在 Windows 上能 `cargo build --release` 出来。
 
 上一轮全面测试（见 `TEST_REPORT.md`）发现 3 个真实缺陷阻塞了 Windows 编译：
 
@@ -114,10 +114,10 @@ WTH 是从 `xai-org/grok-build` + `thedavidweng/gork-build` 衍生的 Rust 工�
 **`xai-grok-update` crate 的 reinstall hint 测试期望与代码不一致**
 
 - `manual_install_cmd()` 已经把命令改成 `cargo build -p wth-pager-bin --release  # binary: target/release/wth`（WTH 风格）
-- 但测试 `test_reinstall_hint_internal_points_at_gork_source_build` 仍期望 hint 里包含 "gork"
-- 修复：把测试期望从 "gork" 改成 "wth-pager-bin"，反映 WTH 项目身份
+- 但测试 `test_reinstall_hint_internal_points_at_gork_source_build` 仍期望 hint 里包含 "wth"
+- 修复：把测试期望从 "wth" 改成 "wth-pager-bin"，反映 WTH 项目身份
 
-**遗留（不在子项目 1 范围内）：** `xai-grok-update` crate 里还有大量 "gork" / "Gork Build" 文本未重命名为 "wth" / "Wide Thought Host"（line 28, 38, 39, 41, 79, 80, 82 等）。这些是历史遗留，不影响编译，但影响项目身份一致性。建议作为独立清理任务处理。
+**遗留（不在子项目 1 范围内）：** `xai-grok-update` crate 里还有大量 "wth" / "WTH Build" 文本未重命名为 "wth" / "Wide Thought Host"（line 28, 38, 39, 41, 79, 80, 82 等）。这些是历史遗留，不影响编译，但影响项目身份一致性。建议作为独立清理任务处理。
 
 ## 后续
 

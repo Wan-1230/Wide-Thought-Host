@@ -258,7 +258,7 @@ pub struct PagerLocalSnapshot {
     /// `[cli].show_tips` mirror. `None` = no TOML override → default `true`.
     pub show_tips: Option<bool>,
     /// `[cli].auto_update` mirror. `None` = no TOML override → default `false`
-    /// in Gork Build (no silent x.ai channel updates).
+    /// in WTH Build (no silent x.ai channel updates).
     pub auto_update: Option<bool>,
     /// Process-wide vim-mode scrollback flag. Mirrors
     /// `appearance::cache::load_vim_mode()` at snapshot time.
@@ -290,7 +290,7 @@ impl Default for PagerLocalSnapshot {
             auto_mode: false,
             current_model_name: None,
             available_models: Vec::new(),
-            // Gork Build: privacy by default.
+            // WTH Build: privacy by default.
             coding_data_sharing_opt_out: true,
             plan_mode_active: false,
             show_tips: None,
@@ -833,12 +833,12 @@ mod tests {
                         "max_thoughts_width default drifts from UiConfig::default()",
                     );
                 }
-                // coding_data_sharing: Gork Build privacy default is opt-out.
+                // coding_data_sharing: WTH Build privacy default is opt-out.
                 ("coding_data_sharing", SettingKind::Enum { default, .. }) => {
                     let expected = "opt-out";
                     assert_eq!(
                         *default, expected,
-                        "coding_data_sharing registry default must be 'opt-out' in Gork Build",
+                        "coding_data_sharing registry default must be 'opt-out' in WTH Build",
                     );
                 }
                 // CLI batch: fields live on CliConfig, not UiConfig.
@@ -849,7 +849,7 @@ mod tests {
                 ("auto_update", SettingKind::Bool { default }) => {
                     assert!(
                         !*default,
-                        "auto_update registry default must be false in Gork Build \
+                        "auto_update registry default must be false in WTH Build \
                          (no silent x.ai channel updates)"
                     );
                 }

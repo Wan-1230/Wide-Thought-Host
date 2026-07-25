@@ -26,12 +26,12 @@ async fn handle_set(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult {
 
     let params: Params = parse_params(args)?;
 
-    // Gork Build: coding-data retention is locked to opt-out.
+    // WTH Build: coding-data retention is locked to opt-out.
     if xai_grok_version::coding_data_retention_locked_opt_out()
         && !params.coding_data_retention_opt_out
     {
         return Err(acp::Error::invalid_params()
-            .data("Gork Build locks coding data retention to opt-out; opt-in is not available."));
+            .data("WTH Build locks coding data retention to opt-out; opt-in is not available."));
     }
     let opt_out = if xai_grok_version::coding_data_retention_locked_opt_out() {
         true
@@ -42,7 +42,7 @@ async fn handle_set(agent: &MvpAgent, args: &acp::ExtRequest) -> ExtResult {
     let auth = agent.auth_manager.auth().await.map_err(|e| {
         tracing::warn!(error = %e, "privacy: auth resolution failed");
         acp::Error::auth_required()
-            .data("Authentication required. Run `gork login` to re-authenticate.")
+            .data("Authentication required. Run `wth login` to re-authenticate.")
     })?;
 
     let proxy_url = agent.cfg.borrow().endpoints.proxy_url();

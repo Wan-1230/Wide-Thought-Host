@@ -5,7 +5,7 @@
 **Open-source AI coding agent — CLI + Desktop. Multi-model, extensible, privacy-first.**
 
 A from-source customization of the [Grok Build](https://github.com/xai-org/grok-build) /
-[gork-build](https://github.com/thedavidweng/gork-build) agent runtime, re-engineered
+[wth-build](https://github.com/thedavidweng/wth-build) agent runtime, re-engineered
 for multi-model support, a polished desktop GUI, and deep extensibility.
 
 [Features](#features) ·
@@ -14,7 +14,7 @@ for multi-model support, a polished desktop GUI, and deep extensibility.
 [Configuration](#configuration) ·
 [Contributing](#contributing)
 
-![WTH TUI](docs/assets/gork-build-tui-screenshot.jpg)
+![WTH TUI](docs/assets/wth-build-tui-screenshot.jpg)
 
 ---
 
@@ -114,16 +114,16 @@ This project is a customized distribution derived from:
 
 - [`xai-org/grok-build`](https://github.com/xai-org/grok-build) — the original
   SpaceXAI coding agent harness (Apache-2.0)
-- [`thedavidweng/gork-build`](https://github.com/thedavidweng/gork-build) — a
+- [`thedavidweng/wth-build`](https://github.com/thedavidweng/wth-build) — a
   community fork with vendor telemetry removed
 
 Wide Thought Host (WTH) extends this foundation with multi-backend support,
 enhanced agent reasoning, an improved TUI experience, and a full desktop GUI.
 
 **Credit:** original Grok Build is developed and published by SpaceXAI under
-Apache-2.0. Gork Build is a community distribution. WTH is an independent
+Apache-2.0. WTH Build is a community distribution. WTH is an independent
 project and is **not** affiliated with, endorsed by, or sponsored by SpaceXAI,
-xAI, or the Gork Build contributors. Grok, Grok Build, xAI, and SpaceXAI are
+xAI, or the WTH Build contributors. Grok, Grok Build, xAI, and SpaceXAI are
 trademarks of their respective owners.
 
 ## License

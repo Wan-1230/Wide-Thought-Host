@@ -1,7 +1,7 @@
 # Wide Thought Host (`@wth-build/wth`)
 
 Optimized coding agent harness — multi-backend LLM support, enhanced TUI, deep extensibility.
-Derived from [gork-build](https://github.com/thedavidweng/gork-build) /
+Derived from [wth-build](https://github.com/thedavidweng/wth-build) /
 [xai-org/grok-build](https://github.com/xai-org/grok-build) (Apache-2.0).
 
 **[Repository](https://github.com/Wan-1230/Wide-Thought-Host)**

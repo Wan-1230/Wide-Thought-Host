@@ -151,7 +151,7 @@ pub struct WrapArgs {
     )]
     pub command: Vec<String>,
 }
-/// Targets a running leader process by PID (used by `gork workspace`).
+/// Targets a running leader process by PID (used by `wth workspace`).
 #[derive(Debug, clap::Args, Clone, Default)]
 pub struct LeaderTargetArgs {
     /// Leader process ID.
@@ -620,7 +620,7 @@ pub struct PagerArgs {
     pub self_verify: bool,
     /// Exit as soon as the first agent turn ends, without waiting for pending
     /// background bash/monitor tasks or background subagents (headless only).
-    /// Default for all `gork -p` runs is to wait (up to `--background-wait-timeout`)
+    /// Default for all `wth -p` runs is to wait (up to `--background-wait-timeout`)
     /// so eval harnesses see full task completion. Use this for fast scripts that
     /// only need the first turn's text. Does not wait for server-side auto-wake
     /// output or persistent monitors (those hit the timeout).
@@ -712,7 +712,7 @@ pub struct PagerArgs {
     /// Run standalone even when leader mode is configured.
     #[arg(long, conflicts_with = "leader", hide = true)]
     pub no_leader: bool,
-    /// Initial prompt for the interactive session, e.g. `gork "fix the bug"` or `gork --worktree=feat "create this feature"`.
+    /// Initial prompt for the interactive session, e.g. `wth "fix the bug"` or `wth --worktree=feat "create this feature"`.
     #[arg(
         value_name = "PROMPT",
         conflicts_with_all = &["single",
@@ -748,7 +748,7 @@ pub enum ResumeTarget {
 impl PagerArgs {
     /// Parse CLI arguments and apply `--cwd` if provided.
     pub fn parse_and_apply_cwd() -> anyhow::Result<Self> {
-        // Accept community (`gork`) and upstream (`grok` / `agent`) argv0 names.
+        // Accept community (`wth`) and upstream (`grok` / `agent`) argv0 names.
         let bin_name = std::env::args()
             .next()
             .as_deref()
@@ -757,7 +757,7 @@ impl PagerArgs {
             .and_then(|n| n.to_str())
             .filter(|n| {
                 *n == xai_grok_version::PRODUCT_CLI
-                    || *n == "gork"
+                    || *n == "wth"
                     || *n == "grok"
                     || *n == "agent"
                     || *n == "xai-grok-pager"
@@ -875,7 +875,7 @@ impl PagerArgs {
     /// The initial interactive prompt from the positional argument, trimmed.
     ///
     /// Returns `None` when no positional prompt was given or it is only
-    /// whitespace. This is the `gork "<prompt>"` launch form; the headless
+    /// whitespace. This is the `wth "<prompt>"` launch form; the headless
     /// `-p`/`--single` path is handled separately.
     pub fn initial_prompt(&self) -> Option<&str> {
         self.prompt

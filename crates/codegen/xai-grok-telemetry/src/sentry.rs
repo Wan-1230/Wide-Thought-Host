@@ -32,7 +32,7 @@ static CONFIG: OnceLock<Config> = OnceLock::new();
 pub fn init(config: Config) -> ClientInitGuard {
     let config = CONFIG.get_or_init(|| config);
 
-    // Gork Build: Sentry is off unless the user explicitly sets SENTRY_DSN at
+    // WTH Build: Sentry is off unless the user explicitly sets SENTRY_DSN at
     // runtime *and* passes disabled=false. Built-in / compile-time DSNs are
     // ignored so xAI crash reporting cannot ship by default.
     if config.disabled {

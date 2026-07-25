@@ -1,4 +1,4 @@
-//! xai-grok-pager — Gork Build TUI.
+//! xai-grok-pager — WTH Build TUI.
 //!
 //! A clean-room implementation built on the v3 pager rendering engine.
 

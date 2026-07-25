@@ -10,7 +10,7 @@ const DEFAULT_EARLY_INVALIDATION_SECS: u64 = 300; // 5 minutes
 /// Legacy auth.json scope key. Fallback for old devbox auth files.
 pub(super) const LEGACY_SCOPE: &str = "https://accounts.x.ai/sign-in";
 
-/// auth.json scope key for plain API key auth (desktop login, `gork login --api-key`).
+/// auth.json scope key for plain API key auth (desktop login, `wth login --api-key`).
 pub const API_KEY_SCOPE: &str = "xai::api_key";
 
 const BLOCKED_REASON_NO_LOGS: &str = "BLOCKED_REASON_NO_LOGS";
@@ -28,7 +28,7 @@ pub enum AuthMode {
     Oidc,
     /// External auth provider binary
     External,
-    /// Plain API key (e.g. from grok-desktop login or `gork login --api-key`)
+    /// Plain API key (e.g. from grok-desktop login or `wth login --api-key`)
     ApiKey,
 }
 
@@ -163,7 +163,7 @@ impl GrokAuth {
     /// Product analytics (`telemetry_enabled`) and user-facing sync
     /// features should use `is_zdr_team()` directly.
     ///
-    /// Gork Build ([`xai_grok_version::PRIVACY_BUILD`]) always returns `true`:
+    /// WTH Build ([`xai_grok_version::PRIVACY_BUILD`]) always returns `true`:
     /// research data never leaves the machine regardless of account flags.
     pub fn is_data_collection_disabled(&self) -> bool {
         if xai_grok_version::research_data_collection_forbidden() {
@@ -211,7 +211,7 @@ impl Default for GrokAuth {
             organization_role: None,
             user_blocked_reason: None,
             team_blocked_reasons: vec![],
-            // Gork Build: privacy by default.
+            // WTH Build: privacy by default.
             coding_data_retention_opt_out: xai_grok_version::PRIVACY_BUILD,
             has_grok_code_access: None,
             refresh_token: None,
@@ -293,7 +293,7 @@ pub(crate) fn token_suffix(t: &str) -> &str {
 
 /// Look up auth from the store by scope key.
 ///
-/// Legacy `WebLogin` tokens (from the pre-OIDC `gork login --legacy`
+/// Legacy `WebLogin` tokens (from the pre-OIDC `wth login --legacy`
 /// flow) are skipped — they are validated via a per-request DB lookup
 /// server-side which fails at high volume.  Skipping them here forces
 /// affected users to re-authenticate via OIDC on next launch.

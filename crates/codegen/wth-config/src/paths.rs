@@ -12,7 +12,7 @@ const CLAUDE_MANAGED_SETTINGS_PATH: &str =
 const CLAUDE_MANAGED_SETTINGS_PATH: &str = "/etc/claude-code/managed-settings.json";
 
 /// The default user WTH directory (`~/.wth`, canonicalized) used when
-/// `WTH_HOME` is unset. Falls back to `~/.grok` (legacy Grok/Gork Build) for
+/// `WTH_HOME` is unset. Falls back to `~/.grok` (legacy Grok/WTH Build) for
 /// migration when `~/.wth` does not exist.
 /// whether [`wth_home()`] is the default without duplicating the computation.
 ///
@@ -46,7 +46,7 @@ pub fn wth_home() -> PathBuf {
             let wth_home = if let Ok(v) = std::env::var("WTH_HOME") {
                 PathBuf::from(v)
             } else if let Ok(v) = std::env::var("GROK_HOME") {
-                // Legacy Grok/Gork Build env var for migration
+                // Legacy Grok/WTH Build env var for migration
                 PathBuf::from(v)
             } else {
                 default_wth_home()

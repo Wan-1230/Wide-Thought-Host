@@ -68,7 +68,6 @@ export interface TerminalExit {
   message?: string;
 }
 
-export type ThemeStyle = "default" | "ocean" | "forest" | "sunset";
 export type FontScale = "small" | "medium" | "large";
 export type FontFamily = "sans" | "system" | "serif" | "custom";
 export type ReasoningEffort = "low" | "medium" | "high" | "max";
@@ -80,7 +79,6 @@ export interface DesktopSettings {
   close_action: "tray" | "quit";
   sound_enabled: boolean;
   theme: "light" | "dark";
-  theme_style: ThemeStyle;
   font_scale: FontScale;
   font_family: FontFamily;
   custom_font_family?: string | null;
@@ -98,6 +96,9 @@ export interface DesktopSettings {
   budget_usd?: number | null;
   show_system_events: boolean;
   web_search_engine: string;
+  headroom_enabled: boolean;
+  headroom_port: number;
+  subagents?: SubagentConfig[];
 }
 
 export interface GitHubProfile { login: string; name?: string | null; avatar_url?: string | null; }
@@ -279,3 +280,89 @@ export async function sessionExport(id: string, format?: string): Promise<string
 export async function openInExplorer(path: string): Promise<void> {
   return invoke("open_in_explorer", { path });
 }
+
+// ─── MCP Servers ─────────────────────────────────────
+
+export interface McpServerConfig {
+  id: string;
+  name: string;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  transport?: string;
+  enabled: boolean;
+  status: "online" | "offline" | "error" | "unknown";
+  tool_count: number;
+}
+
+export const mcpListServers = () => invoke<McpServerConfig[]>("mcp_list_servers");
+export const mcpAddServer = (config: Omit<McpServerConfig, "id" | "status" | "tool_count">) =>
+  invoke<McpServerConfig>("mcp_add_server", { config });
+export const mcpRemoveServer = (id: string) => invoke<void>("mcp_remove_server", { id });
+export const mcpTestServer = (id: string) => invoke<string>("mcp_test_server", { id });
+
+// ─── Hooks ───────────────────────────────────────────
+
+export interface HookConfig {
+  id: string;
+  name: string;
+  trigger: "session_start" | "tool_before" | "tool_after" | "message_before" | "message_after";
+  command: string;
+  enabled: boolean;
+}
+
+export const hookList = () => invoke<HookConfig[]>("hook_list");
+export const hookAdd = (config: Omit<HookConfig, "id">) => invoke<HookConfig>("hook_add", { config });
+export const hookRemove = (id: string) => invoke<void>("hook_remove", { id });
+export const hookToggle = (id: string, enabled: boolean) => invoke<void>("hook_toggle", { id, enabled });
+
+// ─── Sub-agents ──────────────────────────────────────
+
+export interface SubagentConfig {
+  id: string;
+  name: string;
+  description: string;
+  system_prompt: string;
+  model: string;
+  tools: string[];
+  enabled: boolean;
+}
+
+export const subagentList = () => invoke<SubagentConfig[]>("subagent_list");
+export const subagentAdd = (config: Omit<SubagentConfig, "id">) => invoke<SubagentConfig>("subagent_add", { config });
+export const subagentRemove = (id: string) => invoke<void>("subagent_remove", { id });
+export const subagentToggle = (id: string, enabled: boolean) => invoke<void>("subagent_toggle", { id, enabled });
+
+// ─── Memory ──────────────────────────────────────────
+
+export interface MemoryEntry {
+  id: string;
+  title: string;
+  tags: string[];
+  created_at: string;
+  summary: string;
+  content: string;
+  scope: string;
+  path: string;
+}
+
+export const memoryList = () => invoke<MemoryEntry[]>("memory_list");
+export const memoryDelete = (id: string) => invoke<void>("memory_delete", { id });
+
+// ─── Headroom ────────────────────────────────────────
+
+export interface HeadroomStatus {
+  enabled: boolean;
+  running: boolean;
+  port: number;
+  installed: boolean;
+  proxy_url: string | null;
+  error: string | null;
+}
+
+export const headroomStatus = () => invoke<HeadroomStatus>("headroom_status");
+export const headroomIsInstalled = () => invoke<boolean>("headroom_is_installed");
+export const headroomStart = (port: number) => invoke<HeadroomStatus>("headroom_start", { port });
+export const headroomStop = () => invoke<HeadroomStatus>("headroom_stop");
+export const headroomInstall = () => invoke<string>("headroom_install");

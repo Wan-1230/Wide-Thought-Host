@@ -1,7 +1,7 @@
 # Wide Thought Host (WTH) — 测试报告
 
 **生成时间：** 2026-07-19  
-**工作区：** `D:\gork\wth`  
+**工作区：** `D:\wth\wth`  
 **被测对象：** Wide Thought Host (wth) v0.1.0 — Rust 工作区，82 个 crate  
 **测试执行人：** WorkBuddy 自动化测试
 
@@ -46,7 +46,7 @@
 
 ## 3. 项目结构分析
 
-WTH 是从 [xai-org/grok-build](https://github.com/xai-org/grok-build) 和 [thedavidweng/gork-build](https://github.com/thedavidweng/gork-build) 衍生而来的 AI 编码代理框架（Rust 工作区）。
+WTH 是从 [xai-org/grok-build](https://github.com/xai-org/grok-build) 和 [thedavidweng/wth-build](https://github.com/thedavidweng/wth-build) 衍生而来的 AI 编码代理框架（Rust 工作区）。
 
 ```
 crates/
@@ -165,7 +165,7 @@ error[E0308]: mismatched types
 
 #### 6.1.2 根因分析
 
-项目把目录 `grok-build` → `gork-build` → `wth` 系列重命名时，`crates/codegen/wth-config/src/paths.rs` 里的函数 `user_grok_home` 改成了 `user_wth_home`：
+项目把目录 `grok-build` → `wth-build` → `wth` 系列重命名时，`crates/codegen/wth-config/src/paths.rs` 里的函数 `user_grok_home` 改成了 `user_wth_home`：
 
 ```rust
 // paths.rs:65
@@ -436,7 +436,7 @@ SqlInputError { error: Error { code: Unknown, extended_code: 1 },
 
 ```bash
 # 准备环境（一次性）
-export PROTOC="D:/gork/wth/.workbuddy/tmp/bin/protoc.exe"
+export PROTOC="D:/wth/wth/.workbuddy/tmp/bin/protoc.exe"
 MINGW_BIN="/c/Users/21085/AppData/Local/Microsoft/WinGet/Packages/BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe/mingw64/bin"
 export PATH="$MINGW_BIN:/c/Users/21085/.cargo/bin:$PATH"
 

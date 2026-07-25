@@ -8,7 +8,7 @@
 // 配色沿用 Tailwind surface-N + accent-N 色板。
 
 import { useState, useRef, useEffect } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -33,6 +33,7 @@ import { agentSend, agentAbort, fileList } from "@/lib/ipc";
 import type { ChatMessage, ToolCall } from "@/stores/chat";
 import type { FileEntry } from "@/lib/ipc";
 import wthBanner from "@/assets/wth-banner.png";
+import { ContextMenu, contextMenuPointFromEvent, type ContextMenuPoint } from "@/components/common/ContextMenu";
 
 /// 渲染单条 tool call 卡片（折叠式）。
 function ToolCallCard({ call }: { call: ToolCall }) {
@@ -90,10 +91,10 @@ function ToolCallCard({ call }: { call: ToolCall }) {
 }
 
 /// 渲染单条消息。
-function MessageBubble({ msg }: { msg: ChatMessage }) {
+function MessageBubble({ msg, onContextMenu }: { msg: ChatMessage; onContextMenu?: (e: ReactMouseEvent<HTMLElement>) => void }) {
   if (msg.role === "user") {
     return (
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-end mb-4" onContextMenu={onContextMenu}>
         <div className="max-w-[78%]">
           <div
             className="rounded-2xl rounded-tr-sm px-4 py-2.5 animate-fade-in"
@@ -154,7 +155,7 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
   const isLong = (msg.content || "").length > 800;
 
   return (
-    <div className="group flex items-start gap-3 mb-4 animate-fade-in">
+    <div className="group flex items-start gap-3 mb-4 animate-fade-in" onContextMenu={onContextMenu}>
       <div
         className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5"
         style={{ background: "var(--surface-3)" }}
@@ -268,6 +269,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
   const [showPopup, setShowPopup] = useState<"none" | "file" | "command">("none");
   const [popupItems, setPopupItems] = useState<{ label: string; value: string }[]>([]);
   const [popupIndex, setPopupIndex] = useState(0);
+  const [msgMenu, setMsgMenu] = useState<{ point: ContextMenuPoint; content: string } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -439,7 +441,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
         <img
           src={wthBanner}
           alt="Wide Thought Host"
-          className="max-w-xs w-2/3 h-auto object-contain mb-6"
+          className="max-w-xs w-2/3 h-auto object-contain mb-6 theme-logo"
         />
 
         {/* 副标题 */}
@@ -509,7 +511,13 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
               isLast && msg.role === "assistant" && isStreaming;
             return (
               <div key={msg.id}>
-                <MessageBubble msg={msg} />
+                <MessageBubble
+                  msg={msg}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setMsgMenu({ point: contextMenuPointFromEvent(e), content: msg.content || "" });
+                  }}
+                />
                 {showCursor && <StreamingCursor />}
               </div>
             );
@@ -599,6 +607,32 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
           </div>
         </div>
       </div>
+      <ContextMenu
+        open={Boolean(msgMenu)}
+        point={msgMenu?.point ?? null}
+        onClose={() => setMsgMenu(null)}
+        ariaLabel="消息菜单"
+        items={
+          msgMenu
+            ? [
+                {
+                  key: "copy",
+                  icon: <Copy size={14} />,
+                  label: "复制文本",
+                  shortcut: "Ctrl+C",
+                  onSelect: async () => {
+                    try {
+                      await navigator.clipboard.writeText(msgMenu.content);
+                    } catch {
+                      // fallback
+                    }
+                    setMsgMenu(null);
+                  },
+                },
+              ]
+            : []
+        }
+      />
     </div>
   );
 }

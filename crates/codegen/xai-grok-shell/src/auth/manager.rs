@@ -716,7 +716,7 @@ impl AuthManager {
     /// [`Self::current_or_expired`] because neither flag changes on token
     /// expiry and `current()` returns `None` during the refresh window.
     ///
-    /// Gork Build: always `true` (research uploads hard-off).
+    /// WTH Build: always `true` (research uploads hard-off).
     ///
     /// Fail-open only in non-privacy builds: no credential ⇒ `false` (not
     /// disabled). Collection paths that must not act on unknown privacy
@@ -736,7 +736,7 @@ impl AuthManager {
     /// disabled — nothing may leave the machine while the privacy state is
     /// unknown.
     ///
-    /// Gork Build: always `false`.
+    /// WTH Build: always `false`.
     pub(crate) fn allows_data_collection(&self) -> bool {
         if xai_grok_version::research_data_collection_forbidden() {
             return false;
@@ -1329,7 +1329,7 @@ impl AuthManager {
             }
             TokenType::LegacySession => {
                 // Deliberate side effect: re-read auth.json under the
-                // assumption that a sibling process (`gork login` from
+                // assumption that a sibling process (`wth login` from
                 // another shell, the desktop app, etc.) may have refreshed
                 // the on-disk credentials. `pick_up_sibling_token` only
                 // mutates inner when the disk holds a *different valid*

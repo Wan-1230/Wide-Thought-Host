@@ -1,0 +1,144 @@
+[    1304ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:21550
+[    3895ms] [ERROR] TypeError: Cannot read properties of undefined (reading 'invoke')
+    at invoke (http://localhost:5173/node_modules/.vite/deps/chunk-G7S6KQDI.js?v=4af32f1b:109:37)
+    at settingsGet (http://localhost:5173/src/lib/ipc.ts:42:34)
+    at http://localhost:5173/src/App.tsx:136:7
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:16915:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18156:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18129:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18119:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18109:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19490:11)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19447:22) @ :0
+[    3895ms] [ERROR] TypeError: Cannot read properties of undefined (reading 'invoke')
+    at invoke (http://localhost:5173/node_modules/.vite/deps/chunk-G7S6KQDI.js?v=4af32f1b:109:37)
+    at githubAuthStatus (http://localhost:5173/src/lib/ipc.ts:54:39)
+    at http://localhost:5173/src/App.tsx:131:21
+    at http://localhost:5173/src/App.tsx:138:7
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:16915:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18156:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18129:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18119:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18109:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19490:11) @ :0
+[    3895ms] [ERROR] TypeError: Cannot read properties of undefined (reading 'invoke')
+    at invoke (http://localhost:5173/node_modules/.vite/deps/chunk-G7S6KQDI.js?v=4af32f1b:109:37)
+    at settingsGet (http://localhost:5173/src/lib/ipc.ts:42:34)
+    at http://localhost:5173/src/App.tsx:136:7
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:16915:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18324:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19701:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19686:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19503:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19447:22)
+    at http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19328:17 @ :0
+[    3896ms] [ERROR] TypeError: Cannot read properties of undefined (reading 'invoke')
+    at invoke (http://localhost:5173/node_modules/.vite/deps/chunk-G7S6KQDI.js?v=4af32f1b:109:37)
+    at githubAuthStatus (http://localhost:5173/src/lib/ipc.ts:54:39)
+    at http://localhost:5173/src/App.tsx:131:21
+    at http://localhost:5173/src/App.tsx:138:7
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:16915:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18324:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19701:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19686:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19503:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19447:22) @ :0
+[    3896ms] [ERROR] 终端创建失败： TypeError: Cannot read properties of undefined (reading 'invoke')
+    at invoke (http://localhost:5173/node_modules/.vite/deps/chunk-G7S6KQDI.js?v=4af32f1b:109:37)
+    at terminalSpawn (http://localhost:5173/src/lib/ipc.ts:25:10)
+    at http://localhost:5173/src/components/terminal/TerminalPanel.tsx:44:26
+    at http://localhost:5173/src/components/terminal/TerminalPanel.tsx:63:7
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:16915:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18156:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18129:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18119:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18109:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19490:11) @ http://localhost:5173/src/components/terminal/TerminalPanel.tsx:55
+[    3896ms] [ERROR] TypeError: Cannot read properties of undefined (reading 'invoke')
+    at invoke (http://localhost:5173/node_modules/.vite/deps/chunk-G7S6KQDI.js?v=4af32f1b:109:37)
+    at workspaceGet (http://localhost:5173/src/lib/ipc.ts:49:35)
+    at http://localhost:5173/src/App.tsx:121:9
+    at http://localhost:5173/src/App.tsx:137:7
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:16915:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18156:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18129:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18119:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18109:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19490:11) @ :0
+[    3896ms] [ERROR] TypeError: Cannot read properties of undefined (reading 'invoke')
+    at invoke (http://localhost:5173/node_modules/.vite/deps/chunk-G7S6KQDI.js?v=4af32f1b:109:37)
+    at workspaceGet (http://localhost:5173/src/lib/ipc.ts:49:35)
+    at http://localhost:5173/src/App.tsx:121:9
+    at http://localhost:5173/src/App.tsx:137:7
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:16915:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18324:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19701:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19686:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19503:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19447:22) @ :0
+[    3897ms] [ERROR] TypeError: Cannot read properties of undefined (reading 'invoke')
+    at invoke (http://localhost:5173/node_modules/.vite/deps/chunk-G7S6KQDI.js?v=4af32f1b:109:37)
+    at sessionList (http://localhost:5173/src/lib/ipc.ts:62:10)
+    at http://localhost:5173/src/App.tsx:135:7
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:16915:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18156:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18129:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18119:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18109:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19490:11)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19447:22) @ :0
+[    3897ms] [ERROR] TypeError: Cannot read properties of undefined (reading 'invoke')
+    at invoke (http://localhost:5173/node_modules/.vite/deps/chunk-G7S6KQDI.js?v=4af32f1b:109:37)
+    at sessionList (http://localhost:5173/src/lib/ipc.ts:62:10)
+    at http://localhost:5173/src/App.tsx:135:7
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:16915:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18324:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19701:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19686:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19503:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19447:22)
+    at http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19328:17 @ :0
+[    3915ms] TypeError: Cannot read properties of undefined (reading 'transformCallback')
+    at transformCallback (http://localhost:5173/node_modules/.vite/deps/chunk-G7S6KQDI.js?v=4af32f1b:22:37)
+    at listen (http://localhost:5173/node_modules/.vite/deps/@tauri-apps_api_event.js?v=4af32f1b:38:14)
+    at onAgentStream (http://localhost:5173/src/lib/ipc.ts:10:10)
+    at http://localhost:5173/src/App.tsx:139:24
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:16915:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18324:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19701:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19686:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19503:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19447:22)
+[    3916ms] TypeError: Cannot read properties of undefined (reading 'transformCallback')
+    at transformCallback (http://localhost:5173/node_modules/.vite/deps/chunk-G7S6KQDI.js?v=4af32f1b:22:37)
+    at listen (http://localhost:5173/node_modules/.vite/deps/@tauri-apps_api_event.js?v=4af32f1b:38:14)
+    at http://localhost:5173/src/App.tsx:209:21
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:16915:34)
+    at invokePassiveEffectMountInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18324:19)
+    at invokeEffectsInDev (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19701:19)
+    at commitDoubleInvokeEffectsInDEV (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19686:15)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19503:13)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19447:22)
+    at http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19328:17
+[    3916ms] TypeError: Cannot read properties of undefined (reading 'transformCallback')
+    at transformCallback (http://localhost:5173/node_modules/.vite/deps/chunk-G7S6KQDI.js?v=4af32f1b:22:37)
+    at listen (http://localhost:5173/node_modules/.vite/deps/@tauri-apps_api_event.js?v=4af32f1b:38:14)
+    at onAgentStream (http://localhost:5173/src/lib/ipc.ts:10:10)
+    at http://localhost:5173/src/App.tsx:139:24
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:16915:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18156:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18129:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18119:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18109:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19490:11)
+[    3916ms] TypeError: Cannot read properties of undefined (reading 'transformCallback')
+    at transformCallback (http://localhost:5173/node_modules/.vite/deps/chunk-G7S6KQDI.js?v=4af32f1b:22:37)
+    at listen (http://localhost:5173/node_modules/.vite/deps/@tauri-apps_api_event.js?v=4af32f1b:38:14)
+    at http://localhost:5173/src/App.tsx:209:21
+    at commitHookEffectListMount (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:16915:34)
+    at commitPassiveMountOnFiber (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18156:19)
+    at commitPassiveMountEffects_complete (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18129:17)
+    at commitPassiveMountEffects_begin (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18119:15)
+    at commitPassiveMountEffects (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:18109:11)
+    at flushPassiveEffectsImpl (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19490:11)
+    at flushPassiveEffects (http://localhost:5173/node_modules/.vite/deps/chunk-NUMECXU6.js?v=4af32f1b:19447:22)

@@ -4452,7 +4452,7 @@ fn pr9_enter_on_coding_data_sharing_row_enters_picking_enum() {
             assert_eq!(
                 original_value,
                 &SettingValue::Enum("opt-out"),
-                "Gork Build default snapshot opt_out=true → original 'opt-out'"
+                "WTH Build default snapshot opt_out=true → original 'opt-out'"
             );
         }
         other => panic!("expected PickingEnum mode, got {other:?}"),
@@ -4595,7 +4595,7 @@ fn pr9_picker_seeds_choices_idx_from_pager_snapshot_opt_out_true() {
     }
 }
 
-/// Gork Build: only opt-out (locked).
+/// WTH Build: only opt-out (locked).
 #[test]
 fn pr9_coding_data_sharing_choices_use_canonical_strings() {
     let reg = SettingsRegistry::defaults();
@@ -4607,7 +4607,7 @@ fn pr9_coding_data_sharing_choices_use_canonical_strings() {
     assert_eq!(
         canonicals,
         vec!["opt-out"],
-        "Gork Build locks coding_data_sharing to a single opt-out choice",
+        "WTH Build locks coding_data_sharing to a single opt-out choice",
     );
 }
 
@@ -5989,7 +5989,7 @@ fn pr13_cli_batch_defaults_roundtrip_via_current_value_for() {
         assert_eq!(
             value,
             SettingValue::Bool(expected),
-            "PR 13: `{key}` defaults to {expected} (Gork Build: auto_update off)",
+            "PR 13: `{key}` defaults to {expected} (WTH Build: auto_update off)",
         );
     }
 }

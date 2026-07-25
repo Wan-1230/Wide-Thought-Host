@@ -143,7 +143,7 @@ const PERMISSION_MODE_CHOICES: &[EnumChoice] = &[
 const CODING_DATA_SHARING_CHOICES: &[EnumChoice] = &[EnumChoice {
     canonical: "opt-out",
     display: "Opt out (locked)",
-    description: "Gork Build locks coding data retention to opt-out. Opt-in is not available.",
+    description: "WTH Build locks coding data retention to opt-out. Opt-in is not available.",
 }];
 
 // ---------------------------------------------------------------------------
@@ -1058,13 +1058,13 @@ pub fn default_settings() -> Vec<SettingMeta> {
             restart_required: false,
             hidden_in_minimal: false,
         },
-        // SHELL-owned. Gork Build: locked to opt-out (single choice).
+        // SHELL-owned. WTH Build: locked to opt-out (single choice).
         SettingMeta {
             key: "coding_data_sharing",
             category: SettingCategory::Privacy,
             owner: SettingOwner::Shell,
             label: "Coding data retention",
-            description: "Locked to opt-out in Gork Build. Opt-in is not offered.",
+            description: "Locked to opt-out in WTH Build. Opt-in is not offered.",
             keywords: &[
                 "privacy",
                 "data",
@@ -1230,7 +1230,7 @@ pub fn default_settings() -> Vec<SettingMeta> {
             category: SettingCategory::Advanced,
             owner: SettingOwner::Shell,
             label: "Auto-update",
-            description: "Unused in Gork Build. Vendor (x.ai) auto-update is hard-disabled so \
+            description: "Unused in WTH Build. Vendor (x.ai) auto-update is hard-disabled so \
                           this fork is never overwritten by official Grok Build installers. \
                           Update by rebuilding from the Wide Thought Host repository.",
             keywords: &[

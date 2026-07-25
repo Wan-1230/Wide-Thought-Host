@@ -1,4 +1,4 @@
-# cargo-audit configuration for Gork Build.
+# cargo-audit configuration for WTH Build.
 #
 # CI treats audit as a **hard gate**: any vulnerability *not* listed here fails
 # the job. This is "block new unignored vulns", not "tree is clean".

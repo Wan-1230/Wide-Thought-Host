@@ -105,7 +105,7 @@
 
 **根因：** Tauri 在 Windows 平台构建时，build script 会生成一个 Windows 资源文件（.rc）嵌入到 exe 里，需要 .ico 图标。但项目里没有 `icons/` 目录。
 
-**解决：** 写了 `.workbuddy/tmp/gen_icons.py` 脚本，用 Python Pillow 库从 `docs/assets/gork-build-symbol-white.png`（1254x1254 RGBA）生成所有需要的图标：
+**解决：** 写了 `.workbuddy/tmp/gen_icons.py` 脚本，用 Python Pillow 库从 `docs/assets/wth-build-symbol-white.png`（1254x1254 RGBA）生成所有需要的图标：
 - `32x32.png` / `128x128.png` / `128x128@2x.png` (256) / `icon.png` (512)
 - `icon.ico` — Windows 多尺寸 ICO（16/32/48/64/128/256）
 - `icon.icns` — macOS ICNS（占位，本机不构建 macOS）

@@ -1,0 +1,167 @@
+- generic [ref=e9]:
+  - generic [ref=e10]:
+    - complementary [ref=e11]:
+      - generic [ref=e12]:
+        - generic [ref=e13]:
+          - img "WTH" [ref=e14]
+          - generic [ref=e15]:
+            - generic [ref=e16]: Wide Thought Host
+            - generic [ref=e17]: 桌面代理
+        - button "切换深色" [ref=e18] [cursor=pointer]
+      - textbox "搜索" [ref=e26]
+      - navigation [ref=e27]:
+        - button "会话" [ref=e28] [cursor=pointer]
+        - button "文件" [ref=e32] [cursor=pointer]
+      - generic [ref=e36]:
+        - generic [ref=e37]: 会话
+        - button "新建会话" [ref=e38] [cursor=pointer]
+      - generic [ref=e41]:
+        - paragraph [ref=e44]: 还没有会话
+        - paragraph [ref=e45]: 点击右上角 + 开始
+      - generic [ref=e46]:
+        - button "设置" [active] [ref=e47] [cursor=pointer]
+        - button "使用 GitHub 登录" [ref=e51] [cursor=pointer]
+        - generic [ref=e55]:
+          - generic [ref=e56]: 使用 GitHub 登录
+          - generic [ref=e57]: Free 计划
+    - main [ref=e58]:
+      - generic [ref=e59]:
+        - generic [ref=e60]:
+          - button "新建会话" [ref=e61] [cursor=pointer]
+          - button "正在加载工作区" [ref=e64] [cursor=pointer]
+        - button "终端面板" [ref=e70] [cursor=pointer]
+      - generic [ref=e75]:
+        - generic [ref=e76]:
+          - generic [ref=e77]:
+            - img "Wide Thought Host" [ref=e78]
+            - paragraph [ref=e79]: 你的 AI 编码代理
+            - button "你今天想做什么？ Enter" [ref=e81] [cursor=pointer]:
+              - generic [ref=e93]: 你今天想做什么？
+              - generic [ref=e94]: Enter
+            - generic [ref=e95]:
+              - generic [ref=e96]: 支持
+              - generic [ref=e97]: GPT-4.1
+              - generic [ref=e98]: Claude 4
+              - generic [ref=e99]: DeepSeek
+          - generic [ref=e101]:
+            - generic [ref=e104]:
+              - generic [ref=e105]: WTH Pro
+              - generic [ref=e106]: 解锁更长上下文与更多模型
+            - button "升级" [ref=e107] [cursor=pointer]
+            - button "关闭" [ref=e108] [cursor=pointer]
+        - generic [ref=e114]:
+          - button "新建终端" [ref=e116] [cursor=pointer]
+          - paragraph [ref=e120]: 点击 + 创建终端
+  - generic [ref=e121]:
+    - generic [ref=e122]:
+      - button "默认模型" [ref=e123] [cursor=pointer]
+      - button "正在加载工作区" [ref=e135] [cursor=pointer]
+    - generic [ref=e139]:
+      - generic [ref=e140]: 0 会话 · 0 消息
+      - generic [ref=e146]: 就绪
+      - generic [ref=e150]: 未登录
+      - button [ref=e156] [cursor=pointer]
+  - generic [ref=e160]:
+    - generic [ref=e161]:
+      - navigation [ref=e162]:
+        - generic [ref=e163]: 设置
+        - generic [ref=e164] [cursor=pointer]: 通用
+        - generic [ref=e170] [cursor=pointer]: 模型与 API
+        - generic [ref=e176] [cursor=pointer]: 外观
+        - generic [ref=e185] [cursor=pointer]: MCP 与工具
+        - generic [ref=e190] [cursor=pointer]: 技能
+        - generic [ref=e195] [cursor=pointer]: 插件
+        - generic [ref=e200] [cursor=pointer]: 记忆
+        - generic [ref=e213] [cursor=pointer]: Hooks
+        - generic [ref=e220] [cursor=pointer]: 子智能体
+        - generic [ref=e226] [cursor=pointer]: 快捷键
+        - generic [ref=e232] [cursor=pointer]: 用量
+        - generic [ref=e237] [cursor=pointer]: 诊断
+        - generic [ref=e242] [cursor=pointer]: 关于
+      - generic [ref=e247]:
+        - generic [ref=e248]:
+          - generic [ref=e249]:
+            - heading "通用" [level=2] [ref=e250]
+            - generic [ref=e251]: 控制桌面行为、语言与终端。
+          - button [ref=e252] [cursor=pointer]
+        - generic [ref=e256]:
+          - generic [ref=e257]:
+            - generic [ref=e258]: 行为
+            - generic [ref=e259]:
+              - generic [ref=e260]:
+                - generic [ref=e261]: 界面语言
+                - generic [ref=e262]: 切换界面显示语言
+              - radiogroup [ref=e263]:
+                - radio "中文" [checked] [ref=e264] [cursor=pointer]
+                - radio "English" [ref=e265] [cursor=pointer]
+            - generic [ref=e266]:
+              - generic [ref=e267]:
+                - generic [ref=e268]: 关闭主窗口
+                - generic [ref=e269]: 选择关闭按钮的行为
+              - radiogroup [ref=e270]:
+                - radio "隐藏到托盘" [checked] [ref=e271] [cursor=pointer]
+                - radio "退出应用" [ref=e272] [cursor=pointer]
+            - generic [ref=e273]:
+              - generic [ref=e274]:
+                - generic [ref=e275]: 任务完成提示音
+                - generic [ref=e276]: Agent 完成任务时播放声音
+              - button [ref=e277] [cursor=pointer]
+            - generic [ref=e279]:
+              - generic [ref=e280]:
+                - generic [ref=e281]: 显示系统事件
+                - generic [ref=e282]: 在聊天中显示系统级事件消息
+              - radiogroup [ref=e283]:
+                - radio "显示" [checked] [ref=e284] [cursor=pointer]
+                - radio "隐藏" [ref=e285] [cursor=pointer]
+          - generic [ref=e286]:
+            - generic [ref=e287]: Agent 行为
+            - generic [ref=e288]:
+              - generic [ref=e289]:
+                - generic [ref=e290]: 推理力度
+                - generic [ref=e291]: 控制模型思考深度，越高越精确但更慢
+              - slider "High" [ref=e292]:
+                - generic:
+                  - button "Low" [ref=e296] [cursor=pointer]
+                  - button "Med" [ref=e297] [cursor=pointer]
+                  - button "High" [ref=e298] [cursor=pointer]
+                  - button "Max" [ref=e299] [cursor=pointer]
+            - generic [ref=e300]:
+              - generic [ref=e301]:
+                - generic [ref=e302]: 编辑模式
+                - generic [ref=e303]: 控制代码修改的审批策略
+              - slider "Auto" [ref=e304]:
+                - generic:
+                  - button "Plan" [ref=e308] [cursor=pointer]
+                  - button "Review" [ref=e309] [cursor=pointer]
+                  - button "Auto" [ref=e310] [cursor=pointer]
+                  - button "YOLO" [ref=e311] [cursor=pointer]
+            - generic [ref=e312]:
+              - generic [ref=e313]:
+                - generic [ref=e314]: 预算上限 (USD)
+                - generic [ref=e315]: 单次会话最大花费，留空为不限制
+              - spinbutton "不限" [ref=e316]
+          - generic [ref=e317]:
+            - generic [ref=e318]: 搜索
+            - generic [ref=e319]:
+              - generic [ref=e320]:
+                - generic [ref=e321]: Web 搜索引擎
+                - generic [ref=e322]: Agent 联网搜索时使用的引擎
+              - combobox [ref=e323]:
+                - option "Bing" [selected]
+                - option "SearXNG"
+                - option "Tavily"
+                - option "Brave"
+                - option "Perplexity"
+          - generic [ref=e324]:
+            - generic [ref=e325]: 终端
+            - generic [ref=e326]:
+              - generic [ref=e327]:
+                - generic [ref=e328]: 首选 Shell
+                - generic [ref=e329]: 选择 Agent 执行命令时使用的终端 Shell
+              - combobox [ref=e330]:
+                - option "自动检测" [selected]
+                - option "PowerShell 7 (pwsh)"
+                - option "Windows PowerShell 5.1"
+                - option "CMD"
+                - option "WSL / Git Bash"
+    - generic [ref=e331] [cursor=pointer]: "TypeError: Cannot read properties of undefined (reading 'invoke')"

@@ -102,7 +102,7 @@ pub(super) fn set_coding_data_sharing_inner(app: &mut AppView, opted_in: bool) {
 /// Set coding-data-sharing preference. SHELL-owned, auth-metadata-backed
 /// (persists via ACP ext-request, NOT `~/.grok/config.toml`).
 pub(super) fn set_coding_data_sharing(app: &mut AppView, opted_in: bool) -> Vec<Effect> {
-    // ── Guard 0: Gork Build locks retention to opt-out ────────────────
+    // ── Guard 0: WTH Build locks retention to opt-out ────────────────
     if xai_grok_version::coding_data_retention_locked_opt_out() && opted_in {
         app.show_toast("\u{2717} WTH locks coding data retention to opt-out");
         // Keep local state on opt-out even if UI/server was stale.

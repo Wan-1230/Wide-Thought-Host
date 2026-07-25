@@ -19,17 +19,17 @@ scripting and CI/CD, or integrate it into editors via the Agent Client Protocol
 ### Build from source (recommended for Wide Thought Host (WTH))
 
 ```bash
-git clone https://github.com/thedavidweng/gork-build.git
-cd gork-build
+git clone https://github.com/thedavidweng/wth-build.git
+cd wth-build
 cargo build -p wth-pager-bin --release
 # binary: target/release/wth
-install -m 755 target/release/wth ~/.local/bin/gork   # or copy onto your PATH
+install -m 755 target/release/wth ~/.local/bin/wth   # or copy onto your PATH
 ```
 
 Verify:
 
 ```bash
-gork --version
+wth --version
 ```
 
 ### Upstream binary installer (optional)
@@ -50,7 +50,7 @@ irm https://x.ai/cli/install.ps1 | iex                 # Windows PowerShell
 Start Wide Thought Host (WTH) by running:
 
 ```bash
-gork
+wth
 ```
 
 On first launch, the TUI opens your browser to authenticate with x.ai (or your configured backend) (or
@@ -62,7 +62,7 @@ browser), set the `XAI_API_KEY` environment variable instead:
 
 ```bash
 export XAI_API_KEY="xai-..."
-gork
+wth
 ```
 
 See [Authentication](02-authentication.md) for the full set of auth options

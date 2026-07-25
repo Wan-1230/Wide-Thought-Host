@@ -223,7 +223,7 @@ pub trait SlashCommand: Send + Sync {
     }
 
     /// Whether this command functions in the scrollback-native **minimal**
-    /// mode (`gork --minimal`).
+    /// mode (`wth --minimal`).
     ///
     /// Minimal mode deletes the interactive fullscreen scrollback pane, the
     /// in-app mouse selection/copy path, and the agent dashboard, handing

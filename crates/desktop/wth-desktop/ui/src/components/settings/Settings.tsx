@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   Activity,
+  Bot,
   Brain,
   CircleHelp,
   Code2,
@@ -12,6 +13,7 @@ import {
   Github,
   Info,
   Palette,
+  Pencil,
   Plug,
   Plus,
   Puzzle,
@@ -40,17 +42,34 @@ import {
   providerUpsert,
   settingsGet,
   settingsUpdate,
+  mcpListServers,
+  mcpAddServer,
+  mcpRemoveServer,
+  mcpTestServer,
+  hookList,
+  hookAdd,
+  hookRemove,
+  hookToggle,
+  subagentList,
+  subagentAdd,
+  subagentRemove,
+  subagentToggle,
+  memoryList,
+  memoryDelete,
   type CapabilityItem,
   type CapabilitySource,
   type CapabilityView,
   type DesktopSettings,
   type ProviderConfig,
   type ProviderSummary,
-  type ThemeStyle,
   type FontScale,
   type FontFamily,
   type ReasoningEffort,
   type EditMode,
+  type McpServerConfig,
+  type HookConfig,
+  type SubagentConfig,
+  type MemoryEntry,
 } from "@/lib/ipc";
 import { SegmentedControl } from "@/components/common/SegmentedControl";
 
@@ -65,6 +84,7 @@ type PageId =
   | "plugins"
   | "memory"
   | "hooks"
+  | "subagents"
   | "shortcuts"
   | "usage"
   | "diagnostics"
@@ -79,17 +99,11 @@ const PAGE_META: { id: PageId; label: string; icon: ReactNode }[] = [
   { id: "plugins", label: "插件", icon: <Puzzle size={13} /> },
   { id: "memory", label: "记忆", icon: <Brain size={13} /> },
   { id: "hooks", label: "Hooks", icon: <Webhook size={13} /> },
+  { id: "subagents", label: "子智能体", icon: <Bot size={13} /> },
   { id: "shortcuts", label: "快捷键", icon: <Cpu size={13} /> },
   { id: "usage", label: "用量", icon: <DollarSign size={13} /> },
   { id: "diagnostics", label: "诊断", icon: <Activity size={13} /> },
   { id: "about", label: "关于", icon: <Info size={13} /> },
-];
-
-const THEME_STYLES: { id: ThemeStyle; name: string; mode: string; desc: string }[] = [
-  { id: "default", name: "默认", mode: "深色/浅色", desc: "极简中性色调" },
-  { id: "ocean", name: "海洋", mode: "深色/浅色", desc: "冷色蓝调" },
-  { id: "forest", name: "森林", mode: "深色/浅色", desc: "自然绿色" },
-  { id: "sunset", name: "日落", mode: "深色/浅色", desc: "暖色橙调" },
 ];
 
 const emptySettings: DesktopSettings = {
@@ -98,7 +112,6 @@ const emptySettings: DesktopSettings = {
   close_action: "tray",
   sound_enabled: false,
   theme: "dark",
-  theme_style: "default",
   font_scale: "medium",
   font_family: "sans",
   custom_font_family: null,
@@ -116,6 +129,8 @@ const emptySettings: DesktopSettings = {
   budget_usd: null,
   show_system_events: true,
   web_search_engine: "bing",
+  headroom_enabled: false,
+  headroom_port: 8787,
 };
 
 const blankProviderConfig: ProviderConfig = {
@@ -258,12 +273,13 @@ function getPageDesc(page: PageId): string {
   const map: Record<PageId, string> = {
     general: "控制桌面行为、语言与终端。",
     models: "管理模型提供商与 API 密钥。",
-    appearance: "主题风格、字体与显示密度。",
+    appearance: "主题、字体与显示密度。",
     mcp: "管理 MCP 服务器与外部工具。",
     skills: "浏览和启用本地技能。",
     plugins: "管理插件生态。",
     memory: "查看和管理 Agent 记忆。",
     hooks: "配置生命周期钩子。",
+    subagents: "管理子智能体配置与委派。",
     shortcuts: "查看和自定义快捷键。",
     usage: "Token 消耗与用量统计。",
     diagnostics: "检查运行环境并导出信息。",
@@ -276,23 +292,17 @@ function applyTheme(settings: DesktopSettings) {
   const root = document.documentElement;
   root.classList.remove("dark", "light");
   root.classList.add(settings.theme);
-  // theme style
-  root.classList.remove("theme-ocean", "theme-forest", "theme-sunset");
-  if (settings.theme_style && settings.theme_style !== "default") {
-    root.classList.add(`theme-${settings.theme_style}`);
-  }
-  // font scale
-  root.classList.remove("font-scale-small", "font-scale-medium", "font-scale-large");
-  root.classList.add(`font-scale-${settings.font_scale || "medium"}`);
-  // font family
-  root.classList.remove("font-sans", "font-system", "font-serif", "font-mono-global");
-  const ff = settings.font_family || "sans";
-  if (ff === "custom" && settings.custom_font_family) {
-    document.body.style.fontFamily = settings.custom_font_family;
-  } else {
-    document.body.style.fontFamily = "";
-    root.classList.add(`font-${ff}`);
-  }
+  // font scale via CSS variable
+  const scaleMap: Record<string, string> = { small: "0.875", medium: "1", large: "1.125" };
+  root.style.setProperty("--font-scale", scaleMap[settings.font_scale] || "1");
+  // font family via CSS variable
+  const ffMap: Record<string, string> = {
+    sans: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    system: 'system-ui, -apple-system, sans-serif',
+    serif: '"Georgia", "Noto Serif SC", serif',
+    custom: settings.custom_font_family || '"Inter", sans-serif',
+  };
+  root.style.setProperty("--ui-font-family", ffMap[settings.font_family] || ffMap.sans);
 }
 
 // ─── Settings Body Router ────────────────────────────
@@ -330,8 +340,23 @@ function SettingsBody({
   if (page === "usage") {
     return <PageUsage />;
   }
-  if (["mcp", "skills", "plugins", "memory", "hooks"].includes(page)) {
-    return <CapabilityManager category={page as CapabilityCategory} settings={settings} onSave={onSave} onNotice={onNotice} />;
+  if (page === "mcp") {
+    return <PageMcp onNotice={onNotice} />;
+  }
+  if (page === "skills") {
+    return <PageSkills settings={settings} onSave={onSave} onNotice={onNotice} />;
+  }
+  if (page === "plugins") {
+    return <PagePlugins settings={settings} onSave={onSave} onNotice={onNotice} />;
+  }
+  if (page === "memory") {
+    return <PageMemory onNotice={onNotice} />;
+  }
+  if (page === "hooks") {
+    return <PageHooks onNotice={onNotice} />;
+  }
+  if (page === "subagents") {
+    return <PageSubagents onNotice={onNotice} />;
   }
   return <PageGeneral settings={settings} onSave={onSave} />;
 }
@@ -441,15 +466,98 @@ function PageGeneral({ settings, onSave }: { settings: DesktopSettings; onSave: 
 
       <section className="section">
         <div className="stitle">终端</div>
-        <SettingRow label="首选 Shell" hint="留空时按 PowerShell 7 → Windows PowerShell → cmd 自动回退">
-          <input
+        <SettingRow label="首选 Shell" hint="选择 Agent 执行命令时使用的终端 Shell">
+          <select
             className="control w-52"
             value={settings.terminal_shell || ""}
-            placeholder="自动检测"
             onChange={(e) => onSave({ ...settings, terminal_shell: e.target.value || null })}
-          />
+          >
+            <option value="">自动检测</option>
+            <option value="pwsh">PowerShell 7 (pwsh)</option>
+            <option value="powershell">Windows PowerShell 5.1</option>
+            <option value="cmd">CMD</option>
+            <option value="bash">WSL / Git Bash</option>
+          </select>
         </SettingRow>
       </section>
+
+      <section className="section">
+        <div className="stitle">Token 优化</div>
+        <HeadroomSection settings={settings} onSave={onSave} />
+      </section>
+    </>
+  );
+}
+
+// ─── Headroom Section ────────────────────────────────
+
+function HeadroomSection({ settings, onSave }: { settings: DesktopSettings; onSave: (v: DesktopSettings) => Promise<void> }) {
+  const [status, setStatus] = useState<import("@/lib/ipc").HeadroomStatus | null>(null);
+  const [installing, setInstalling] = useState(false);
+
+  useEffect(() => {
+    import("@/lib/ipc").then(({ headroomStatus }) => {
+      headroomStatus().then(setStatus).catch(() => {});
+    });
+  }, []);
+
+  const refresh = async () => {
+    const { headroomStatus } = await import("@/lib/ipc");
+    try { setStatus(await headroomStatus()); } catch {}
+  };
+
+  const toggle = async (on: boolean) => {
+    const updated = { ...settings, headroom_enabled: on };
+    await onSave(updated);
+    if (on) {
+      const { headroomStart } = await import("@/lib/ipc");
+      try { setStatus(await headroomStart(settings.headroom_port || 8787)); } catch {}
+    } else {
+      const { headroomStop } = await import("@/lib/ipc");
+      try { setStatus(await headroomStop()); } catch {}
+    }
+  };
+
+  const doInstall = async () => {
+    setInstalling(true);
+    try {
+      const { headroomInstall } = await import("@/lib/ipc");
+      await headroomInstall();
+      await refresh();
+    } catch (e) {
+      console.error("安装 headroom 失败:", e);
+    } finally {
+      setInstalling(false);
+    }
+  };
+
+  return (
+    <>
+      <SettingRow label="Headroom 上下文压缩" hint="本地代理压缩上下文，节省 60-92% token。一键安装，无需手动操作">
+        <Toggle checked={settings.headroom_enabled} onChange={toggle} />
+      </SettingRow>
+      {status && (
+        <div className="text-[11px] ml-1 mt-1 space-y-1" style={{ color: "var(--text-muted)" }}>
+          {status.installed === false ? (
+            <div className="flex items-center gap-2">
+              <span style={{ color: "var(--accent-orange)" }}>Headroom 未安装</span>
+              <button
+                className="small-btn"
+                disabled={installing}
+                onClick={doInstall}
+              >
+                {installing ? "安装中…" : "一键安装"}
+              </button>
+            </div>
+          ) : status.running ? (
+            <span style={{ color: "var(--accent-green)" }}>运行中 — {status.proxy_url}</span>
+          ) : status.error ? (
+            <span style={{ color: "var(--accent-red)" }}>{status.error}</span>
+          ) : (
+            <span>已安装 · 未启动</span>
+          )}
+        </div>
+      )}
     </>
   );
 }
@@ -471,34 +579,6 @@ function PageAppearance({ settings, onSave }: { settings: DesktopSettings; onSav
             onChange={(theme) => onSave({ ...settings, theme: theme as DesktopSettings["theme"] })}
           />
         </SettingRow>
-
-        <div className="setting-row" style={{ flexDirection: "column", alignItems: "stretch" }}>
-          <div className="l">
-            <div className="n">主题风格</div>
-            <div className="h">选择配色方案预设</div>
-          </div>
-          <div className="style-grid mt-3">
-            {THEME_STYLES.map((style) => (
-              <button
-                key={style.id}
-                type="button"
-                className="style-card"
-                data-on={settings.theme_style === style.id}
-                data-style={style.id}
-                onClick={() => onSave({ ...settings, theme_style: style.id })}
-              >
-                <span className="style-card-head">
-                  <span className="style-name">{style.name}</span>
-                  <span className="style-mode">{style.mode}</span>
-                </span>
-                <span className="style-swatches" aria-hidden="true">
-                  <span /><span /><span />
-                </span>
-                <span className="style-desc">{style.desc}</span>
-              </button>
-            ))}
-          </div>
-        </div>
       </section>
 
       <section className="section">
@@ -694,61 +774,112 @@ function PageModels({
   );
 }
 
-// ─── Capability Manager ──────────────────────────────
+// ─── PageMcp ─────────────────────────────────────────
 
-type CapabilityCategory = "mcp" | "skills" | "plugins" | "memory" | "hooks";
-
-function CapabilityManager({
-  category,
-  settings,
-  onSave,
-  onNotice,
-}: {
-  category: CapabilityCategory;
-  settings: DesktopSettings;
-  onSave: (value: DesktopSettings) => Promise<void>;
-  onNotice: (value: string) => void;
-}) {
-  const [view, setView] = useState<CapabilityView | null>(null);
+function PageMcp({ onNotice }: { onNotice: (s: string) => void }) {
+  const [servers, setServers] = useState<McpServerConfig[]>([]);
   const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState("");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [showImport, setShowImport] = useState(false);
-  const [importJson, setImportJson] = useState("");
-  const [previewItem, setPreviewItem] = useState<CapabilityItem | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ name: "", command: "", args: "", url: "" });
 
   const load = async () => {
     setLoading(true);
+    try { setServers(await mcpListServers()); } catch (e) { onNotice(String(e)); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { void load(); }, []);
+
+  const addServer = async () => {
+    if (!form.name.trim()) { onNotice("名称不能为空"); return; }
     try {
-      setView(await capabilityView(category));
-    } catch (error) {
-      onNotice(String(error));
-      setView(null);
-    } finally {
-      setLoading(false);
-    }
+      await mcpAddServer({
+        name: form.name,
+        command: form.command || undefined,
+        args: form.args ? form.args.split(/\s+/) : undefined,
+        url: form.url || undefined,
+        enabled: true,
+      });
+      setShowAdd(false);
+      setForm({ name: "", command: "", args: "", url: "" });
+      await load();
+      onNotice("MCP 服务器已添加");
+    } catch (e) { onNotice(String(e)); }
   };
 
+  const statusColor = (s: string) => s === "online" ? "var(--accent-green)" : s === "error" ? "var(--accent-red)" : "var(--surface-4)";
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-4">
+        <div className="text-xs" style={{ color: "var(--text-muted)" }}>{servers.length} 个服务器</div>
+        <button className="primary-btn" onClick={() => setShowAdd(!showAdd)}><Plus size={13} /> 添加服务器</button>
+      </div>
+
+      {showAdd && (
+        <div className="mb-4 rounded-xl border p-4 space-y-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
+          <div className="text-xs font-medium">新增 MCP 服务器</div>
+          <input className="control w-full" placeholder="服务器名称" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <input className="control w-full" placeholder="命令（如 npx）" value={form.command} onChange={(e) => setForm({ ...form, command: e.target.value })} />
+          <input className="control w-full" placeholder="参数（空格分隔，如 -y @modelcontextprotocol/server-xxx）" value={form.args} onChange={(e) => setForm({ ...form, args: e.target.value })} />
+          <input className="control w-full" placeholder="URL（可选，HTTP 传输）" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} />
+          <div className="flex gap-2">
+            <button className="primary-btn" onClick={addServer}>确认添加</button>
+            <button className="small-btn" onClick={() => setShowAdd(false)}>取消</button>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {loading ? (
+          <div className="py-8 text-xs text-center" style={{ color: "var(--text-muted)" }}>加载中…</div>
+        ) : servers.length === 0 ? (
+          <div className="py-8 text-xs text-center" style={{ color: "var(--text-muted)" }}>未配置 MCP 服务器。点击“添加服务器”开始。</div>
+        ) : (
+          servers.map((s) => (
+            <div key={s.id} className="rounded-xl border p-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
+              <div className="flex items-center gap-3">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: statusColor(s.status) }} title={s.status} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-semibold truncate">{s.name}</div>
+                  <div className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>
+                    {s.command ? `stdio · ${s.command}` : s.url ? `HTTP · ${s.url}` : "未配置传输"}
+                    {s.tool_count > 0 && ` · ${s.tool_count} 工具`}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button className="small-btn" onClick={async () => { try { onNotice(await mcpTestServer(s.id)); } catch (e) { onNotice(String(e)); } }}>测试</button>
+                  <button className="icon-btn" title="删除" onClick={async () => { try { await mcpRemoveServer(s.id); await load(); } catch (e) { onNotice(String(e)); } }}><Trash2 size={13} /></button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </>
+  );
+}
+
+// ─── PageSkills ──────────────────────────────────────
+
+function PageSkills({ settings, onSave, onNotice }: { settings: DesktopSettings; onSave: (v: DesktopSettings) => Promise<void>; onNotice: (s: string) => void }) {
+  const [view, setView] = useState<CapabilityView | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
+
   useEffect(() => {
-    setQuery("");
-    setExpandedId(null);
-    void load();
-  }, [category]);
+    setLoading(true);
+    capabilityView("skills").then(setView).catch((e) => onNotice(String(e))).finally(() => setLoading(false));
+  }, []);
 
   const filtered = useMemo(() => {
     const items = view?.items ?? [];
     const q = query.trim().toLowerCase();
     if (!q) return items;
-    return items.filter((item) =>
-      [item.name, item.description, item.scope, item.kind, item.path, item.tags.join(" ")].join(" ").toLowerCase().includes(q),
-    );
+    return items.filter((i) => [i.name, i.description, i.path].join(" ").toLowerCase().includes(q));
   }, [query, view]);
 
-  const updateEnabled = async (item: CapabilityItem, nextEnabled: boolean) => {
-    await onSave({
-      ...settings,
-      feature_toggles: { ...settings.feature_toggles, [item.toggle_key]: nextEnabled },
-    });
+  const toggle = async (item: CapabilityItem, enabled: boolean) => {
+    await onSave({ ...settings, feature_toggles: { ...settings.feature_toggles, [item.toggle_key]: enabled } });
   };
 
   return (
@@ -756,121 +887,310 @@ function CapabilityManager({
       <div className="flex items-center gap-3 mb-4">
         <div className="flex-1 flex items-center gap-2 rounded-lg border px-3 py-2" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
           <Search size={13} style={{ color: "var(--text-muted)" }} />
-          <input
-            className="flex-1 bg-transparent border-none outline-none text-xs"
-            placeholder={view?.search_placeholder || "搜索…"}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+          <input className="flex-1 bg-transparent border-none outline-none text-xs" placeholder="搜索技能…" value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
-        <button className="small-btn" onClick={() => void load()}>
-          <RefreshCw size={12} /> 刷新
-        </button>
-        {category === "mcp" && (
-          <button className="small-btn" onClick={() => setShowImport(!showImport)}>
-            <ClipboardPaste size={12} /> 导入 JSON
-          </button>
+        <button className="small-btn" onClick={() => { setLoading(true); capabilityView("skills").then(setView).finally(() => setLoading(false)); }}><RefreshCw size={12} /> 重新扫描</button>
+      </div>
+      <div className="space-y-2">
+        {loading ? (
+          <div className="py-8 text-xs text-center" style={{ color: "var(--text-muted)" }}>正在扫描本机技能目录…</div>
+        ) : filtered.length === 0 ? (
+          <div className="py-8 text-xs text-center" style={{ color: "var(--text-muted)" }}>未发现技能。请确认 ~/.wth/skills 或工作区 .wth/skills 目录存在。</div>
+        ) : (
+          filtered.map((item) => (
+            <div key={item.id} className="rounded-xl border p-3 flex items-center gap-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold truncate">{item.name}</div>
+                <div className="text-[10px] mt-0.5 truncate" style={{ color: "var(--text-muted)" }}>{item.description}</div>
+                <div className="text-[9px] mt-0.5 truncate" style={{ color: "var(--text-dim)" }}>{item.path}</div>
+              </div>
+              <Toggle checked={settings.feature_toggles[item.toggle_key] ?? item.enabled} onChange={(v) => void toggle(item, v)} />
+            </div>
+          ))
         )}
-        <button
-          className="small-btn"
-          onClick={async () => {
-            const first = view?.sources.find((s) => s.exists);
-            if (first) {
-              try { await openPathInExplorer(first.path); } catch (e) { onNotice(String(e)); }
-            }
-          }}
-        >
-          <FolderOpen size={12} /> 打开目录
-        </button>
+      </div>
+    </>
+  );
+}
+
+// ─── PagePlugins ─────────────────────────────────────
+
+function PagePlugins({ settings, onSave, onNotice }: { settings: DesktopSettings; onSave: (v: DesktopSettings) => Promise<void>; onNotice: (s: string) => void }) {
+  const [view, setView] = useState<CapabilityView | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    capabilityView("plugins").then(setView).catch((e) => onNotice(String(e))).finally(() => setLoading(false));
+  }, []);
+
+  const toggle = async (item: CapabilityItem, enabled: boolean) => {
+    await onSave({ ...settings, feature_toggles: { ...settings.feature_toggles, [item.toggle_key]: enabled } });
+  };
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-4">
+        <div className="text-xs" style={{ color: "var(--text-muted)" }}>{view?.items.length ?? 0} 个插件</div>
+        <div className="flex gap-2">
+          <button className="small-btn" onClick={() => onNotice("本地导入功能待集成")}><FolderOpen size={12} /> 从本地导入</button>
+          <button className="small-btn" onClick={() => onNotice("插件市场即将上线")}><Puzzle size={12} /> 从市场安装</button>
+        </div>
+      </div>
+      <div className="space-y-2">
+        {loading ? (
+          <div className="py-8 text-xs text-center" style={{ color: "var(--text-muted)" }}>加载中…</div>
+        ) : (view?.items ?? []).length === 0 ? (
+          <div className="py-8 text-xs text-center" style={{ color: "var(--text-muted)" }}>未安装插件。</div>
+        ) : (
+          (view?.items ?? []).map((item) => (
+            <div key={item.id} className="rounded-xl border p-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-semibold truncate">{item.name}</div>
+                  <div className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>{item.description}</div>
+                  {expandedId === item.id && (
+                    <div className="mt-2 text-[10px] space-y-1" style={{ color: "var(--text-dim)" }}>
+                      <div>路径：{item.path}</div>
+                      <div>权限：文件系统、网络</div>
+                      <div className="flex flex-wrap gap-1 mt-1">{item.tags.map((t) => <Pill key={t}>{t}</Pill>)}</div>
+                    </div>
+                  )}
+                  <button className="mt-1 text-[10px]" style={{ color: "var(--accent-blue)" }} onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}>
+                    {expandedId === item.id ? "收起详情" : "查看详情"}
+                  </button>
+                </div>
+                <Toggle checked={settings.feature_toggles[item.toggle_key] ?? item.enabled} onChange={(v) => void toggle(item, v)} />
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </>
+  );
+}
+
+// ─── PageMemory ──────────────────────────────────────
+
+function PageMemory({ onNotice }: { onNotice: (s: string) => void }) {
+  const [entries, setEntries] = useState<MemoryEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    try { setEntries(await memoryList()); } catch (e) { onNotice(String(e)); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { void load(); }, []);
+
+  const allTags = useMemo(() => [...new Set(entries.flatMap((e) => e.tags))], [entries]);
+  const filtered = tagFilter ? entries.filter((e) => e.tags.includes(tagFilter)) : entries;
+
+  return (
+    <>
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <button className={`small-btn ${!tagFilter ? "font-semibold" : ""}`} onClick={() => setTagFilter(null)}>全部</button>
+        {allTags.map((tag) => (
+          <button key={tag} className={`small-btn ${tagFilter === tag ? "font-semibold" : ""}`} onClick={() => setTagFilter(tagFilter === tag ? null : tag)}>{tag}</button>
+        ))}
+      </div>
+      <div className="space-y-2">
+        {loading ? (
+          <div className="py-8 text-xs text-center" style={{ color: "var(--text-muted)" }}>加载中…</div>
+        ) : filtered.length === 0 ? (
+          <div className="py-8 text-xs text-center" style={{ color: "var(--text-muted)" }}>无记忆条目。</div>
+        ) : (
+          filtered.map((entry) => (
+            <div key={entry.id} className="rounded-xl border p-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
+              <div className="flex items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold truncate">{entry.title}</span>
+                    <span className="text-[9px]" style={{ color: "var(--text-dim)" }}>{entry.scope}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1 mt-1">{entry.tags.map((t) => <Pill key={t}>{t}</Pill>)}</div>
+                  <div className="text-[10px] mt-1" style={{ color: "var(--text-muted)" }}>{entry.summary}</div>
+                  {expandedId === entry.id && (
+                    <div className="mt-2 rounded-lg border p-2 text-[10px] whitespace-pre-wrap max-h-40 overflow-y-auto" style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)", color: "var(--text-muted)" }}>
+                      {entry.content}
+                    </div>
+                  )}
+                  <button className="mt-1 text-[10px]" style={{ color: "var(--accent-blue)" }} onClick={() => setExpandedId(expandedId === entry.id ? null : entry.id)}>
+                    {expandedId === entry.id ? "收起" : "展开全文"}
+                  </button>
+                </div>
+                <button className="icon-btn shrink-0" title="删除" onClick={async () => {
+                  try { await memoryDelete(entry.id); await load(); onNotice("记忆已删除"); } catch (e) { onNotice(String(e)); }
+                }}><Trash2 size={13} /></button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </>
+  );
+}
+
+// ─── PageHooks ───────────────────────────────────────
+
+const TRIGGER_LABELS: Record<string, string> = {
+  session_start: "会话开始",
+  tool_before: "工具调用前",
+  tool_after: "工具调用后",
+  message_before: "消息发送前",
+  message_after: "消息发送后",
+};
+
+function PageHooks({ onNotice }: { onNotice: (s: string) => void }) {
+  const [hooks, setHooks] = useState<HookConfig[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ name: "", trigger: "tool_after", command: "" });
+
+  const load = async () => {
+    setLoading(true);
+    try { setHooks(await hookList()); } catch (e) { onNotice(String(e)); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { void load(); }, []);
+
+  const addHook = async () => {
+    if (!form.name.trim() || !form.command.trim()) { onNotice("名称和命令不能为空"); return; }
+    try {
+      await hookAdd({ name: form.name, trigger: form.trigger as HookConfig["trigger"], command: form.command, enabled: true });
+      setShowAdd(false);
+      setForm({ name: "", trigger: "tool_after", command: "" });
+      await load();
+      onNotice("Hook 已添加");
+    } catch (e) { onNotice(String(e)); }
+  };
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-4">
+        <div className="text-xs" style={{ color: "var(--text-muted)" }}>{hooks.length} 个 Hooks</div>
+        <button className="primary-btn" onClick={() => setShowAdd(!showAdd)}><Plus size={13} /> 添加 Hook</button>
       </div>
 
-      {/* MCP JSON 导入区 */}
-      {category === "mcp" && showImport && (
-        <div className="mb-4 rounded-xl border p-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
-          <div className="text-[11px] font-medium mb-2">粘贴 MCP 服务器配置 JSON</div>
-          <textarea
-            className="w-full h-24 rounded-lg border p-2 text-[11px] font-mono resize-none outline-none"
-            style={{ background: "var(--surface-1)", borderColor: "var(--surface-3)", color: "var(--text-primary)" }}
-            placeholder='{"mcpServers": {"server-name": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-xxx"]}}}'
-            value={importJson}
-            onChange={(e) => setImportJson(e.target.value)}
-          />
-          <div className="flex gap-2 mt-2">
-            <button
-              className="primary-btn"
-              onClick={() => {
-                try {
-                  JSON.parse(importJson);
-                  onNotice("MCP 配置已解析，待后端集成");
-                  setShowImport(false);
-                  setImportJson("");
-                } catch {
-                  onNotice("JSON 格式无效");
-                }
-              }}
-            >
-              确认导入
-            </button>
-            <button className="small-btn" onClick={() => { setShowImport(false); setImportJson(""); }}>取消</button>
+      {showAdd && (
+        <div className="mb-4 rounded-xl border p-4 space-y-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
+          <div className="text-xs font-medium">新增 Hook</div>
+          <input className="control w-full" placeholder="名称" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <select className="control w-full" value={form.trigger} onChange={(e) => setForm({ ...form, trigger: e.target.value })}>
+            {Object.entries(TRIGGER_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+          <input className="control w-full" placeholder="执行命令" value={form.command} onChange={(e) => setForm({ ...form, command: e.target.value })} />
+          <div className="flex gap-2">
+            <button className="primary-btn" onClick={addHook}>确认添加</button>
+            <button className="small-btn" onClick={() => setShowAdd(false)}>取消</button>
           </div>
         </div>
       )}
 
       <div className="space-y-2">
         {loading ? (
-          <div className="py-8 text-xs text-center" style={{ color: "var(--text-muted)" }}>正在扫描本地目录…</div>
-        ) : filtered.length === 0 ? (
-          <div className="py-8 text-xs text-center" style={{ color: "var(--text-muted)" }}>没有找到匹配项。</div>
+          <div className="py-8 text-xs text-center" style={{ color: "var(--text-muted)" }}>加载中…</div>
+        ) : hooks.length === 0 ? (
+          <div className="py-8 text-xs text-center" style={{ color: "var(--text-muted)" }}>未配置 Hooks。</div>
         ) : (
-          filtered.map((item) => (
-            <div key={item.id} className="rounded-xl border p-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
-              <div className="flex items-start gap-3">
+          hooks.map((hook) => (
+            <div key={hook.id} className="rounded-xl border p-3 flex items-center gap-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold truncate">{hook.name}</span>
+                  <Pill>{TRIGGER_LABELS[hook.trigger] || hook.trigger}</Pill>
+                </div>
+                <div className="text-[10px] mt-0.5 font-mono truncate" style={{ color: "var(--text-muted)" }}>{hook.command}</div>
+              </div>
+              <button className="icon-btn" title="删除" onClick={async () => { try { await hookRemove(hook.id); await load(); } catch (e) { onNotice(String(e)); } }}><Trash2 size={13} /></button>
+              <Toggle checked={hook.enabled} onChange={async (v) => { try { await hookToggle(hook.id, v); await load(); } catch (e) { onNotice(String(e)); } }} />
+            </div>
+          ))
+        )}
+      </div>
+    </>
+  );
+}
+
+// ─── PageSubagents ───────────────────────────────────
+
+function PageSubagents({ onNotice }: { onNotice: (s: string) => void }) {
+  const [agents, setAgents] = useState<SubagentConfig[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ name: "", description: "", system_prompt: "", model: "", tools: "" });
+
+  const load = async () => {
+    setLoading(true);
+    try { setAgents(await subagentList()); } catch (e) { onNotice(String(e)); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { void load(); }, []);
+
+  const addAgent = async () => {
+    if (!form.name.trim()) { onNotice("名称不能为空"); return; }
+    try {
+      await subagentAdd({
+        name: form.name,
+        description: form.description,
+        system_prompt: form.system_prompt,
+        model: form.model || "gpt-4.1",
+        tools: form.tools ? form.tools.split(",").map((t) => t.trim()) : [],
+        enabled: true,
+      });
+      setShowAdd(false);
+      setForm({ name: "", description: "", system_prompt: "", model: "", tools: "" });
+      await load();
+      onNotice("子智能体已创建");
+    } catch (e) { onNotice(String(e)); }
+  };
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-4">
+        <div className="text-xs" style={{ color: "var(--text-muted)" }}>{agents.length} 个子智能体</div>
+        <button className="primary-btn" onClick={() => setShowAdd(!showAdd)}><Plus size={13} /> 创建子智能体</button>
+      </div>
+
+      {showAdd && (
+        <div className="mb-4 rounded-xl border p-4 space-y-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
+          <div className="text-xs font-medium">新建子智能体</div>
+          <input className="control w-full" placeholder="名称" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <input className="control w-full" placeholder="用途描述" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+          <textarea className="control w-full h-20 resize-none" placeholder="系统提示词" value={form.system_prompt} onChange={(e) => setForm({ ...form, system_prompt: e.target.value })} />
+          <input className="control w-full" placeholder="绑定模型（如 gpt-4.1）" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} />
+          <input className="control w-full" placeholder="可用工具（逗号分隔，如 shell,git,lsp）" value={form.tools} onChange={(e) => setForm({ ...form, tools: e.target.value })} />
+          <div className="flex gap-2">
+            <button className="primary-btn" onClick={addAgent}>确认创建</button>
+            <button className="small-btn" onClick={() => setShowAdd(false)}>取消</button>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {loading ? (
+          <div className="py-8 text-xs text-center" style={{ color: "var(--text-muted)" }}>加载中…</div>
+        ) : agents.length === 0 ? (
+          <div className="py-8 text-xs text-center" style={{ color: "var(--text-muted)" }}>未配置子智能体。点击“创建子智能体”开始。</div>
+        ) : (
+          agents.map((agent) => (
+            <div key={agent.id} className="rounded-xl border p-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "var(--surface-2)" }}>
+                  <Bot size={15} style={{ color: "var(--accent-purple)" }} />
+                </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    {/* MCP 状态指示器 */}
-                    {category === "mcp" && (
-                      <span
-                        className="w-2 h-2 rounded-full shrink-0"
-                        style={{ background: item.enabled ? "var(--accent-green)" : "var(--surface-4)" }}
-                        title={item.enabled ? "在线" : "离线"}
-                      />
-                    )}
-                    <span className="text-xs font-semibold truncate">{item.name}</span>
-                    <Pill>{item.scope}</Pill>
-                  </div>
-                  <div className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>{item.description}</div>
-                  {expandedId === item.id && (
-                    <div className="mt-2 text-[10px] space-y-1" style={{ color: "var(--text-dim)" }}>
-                      <div className="truncate">路径：{item.path}</div>
-                      <div className="flex flex-wrap gap-1">{item.tags.map((tag) => <Pill key={tag}>{tag}</Pill>)}</div>
-                      {/* 记忆内容预览 */}
-                      {category === "memory" && (
-                        <div className="mt-2 rounded-lg border p-2" style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)" }}>
-                          <div className="text-[9px] uppercase mb-1" style={{ color: "var(--text-dim)" }}>内容预览</div>
-                          <div className="text-[10px] whitespace-pre-wrap max-h-24 overflow-y-auto" style={{ color: "var(--text-muted)" }}>
-                            {item.status || "无可用预览"}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2 mt-1">
-                    <button className="text-[10px]" style={{ color: "var(--accent-blue)" }} onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}>
-                      {expandedId === item.id ? "收起" : "展开"}
-                    </button>
-                    {category === "memory" && (
-                      <button className="text-[10px] flex items-center gap-0.5" style={{ color: "var(--accent-blue)" }} onClick={() => setPreviewItem(previewItem?.id === item.id ? null : item)}>
-                        <Eye size={9} /> 预览
-                      </button>
-                    )}
+                  <div className="text-xs font-semibold truncate">{agent.name}</div>
+                  <div className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>{agent.description || "无描述"}</div>
+                  <div className="text-[9px] mt-0.5" style={{ color: "var(--text-dim)" }}>
+                    模型：{agent.model}{agent.tools.length > 0 && ` · 工具：${agent.tools.join(", ")}`}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button className="small-btn" onClick={async () => { try { await openPathInExplorer(item.path); } catch (e) { onNotice(String(e)); } }}>
-                    <FolderOpen size={11} />
-                  </button>
-                  <Toggle checked={settings.feature_toggles[item.toggle_key] ?? item.enabled} onChange={(v) => void updateEnabled(item, v)} />
-                </div>
+                <button className="icon-btn" title="删除" onClick={async () => { try { await subagentRemove(agent.id); await load(); } catch (e) { onNotice(String(e)); } }}><Trash2 size={13} /></button>
+                <Toggle checked={agent.enabled} onChange={async (v) => { try { await subagentToggle(agent.id, v); await load(); } catch (e) { onNotice(String(e)); } }} />
               </div>
             </div>
           ))

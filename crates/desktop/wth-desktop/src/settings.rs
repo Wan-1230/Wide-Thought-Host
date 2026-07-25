@@ -26,6 +26,47 @@ fn default_session_display() -> String {
 fn default_true() -> bool {
     true
 }
+fn default_font_scale() -> String {
+    "medium".into()
+}
+fn default_font_family() -> String {
+    "sans".into()
+}
+fn default_reasoning_effort() -> String {
+    "high".into()
+}
+fn default_edit_mode() -> String {
+    "auto".into()
+}
+fn default_web_search_engine() -> String {
+    "bing".into()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SubagentConfig {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub system_prompt: String,
+    pub model: String,
+    pub tools: Vec<String>,
+    pub enabled: bool,
+}
+
+impl Default for SubagentConfig {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            name: String::new(),
+            description: String::new(),
+            system_prompt: String::new(),
+            model: String::new(),
+            tools: Vec::new(),
+            enabled: true,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -35,6 +76,9 @@ pub struct DesktopSettings {
     pub close_action: String,
     pub sound_enabled: bool,
     pub theme: String,
+    pub font_scale: String,
+    pub font_family: String,
+    pub custom_font_family: Option<String>,
     pub session_display: String,
     pub terminal_shell: Option<String>,
     pub active_workspace: Option<String>,
@@ -44,6 +88,14 @@ pub struct DesktopSettings {
     pub feature_toggles: HashMap<String, bool>,
     pub legacy_migration_complete: bool,
     pub github_user: Option<GitHubProfile>,
+    pub subagents: Vec<SubagentConfig>,
+    pub reasoning_effort: String,
+    pub edit_mode: String,
+    pub budget_usd: Option<f64>,
+    pub show_system_events: bool,
+    pub web_search_engine: String,
+    pub headroom_enabled: bool,
+    pub headroom_port: u16,
 }
 
 impl Default for DesktopSettings {
@@ -54,6 +106,9 @@ impl Default for DesktopSettings {
             close_action: default_close_action(),
             sound_enabled: false,
             theme: default_theme(),
+            font_scale: default_font_scale(),
+            font_family: default_font_family(),
+            custom_font_family: None,
             session_display: default_session_display(),
             terminal_shell: None,
             active_workspace: None,
@@ -63,6 +118,14 @@ impl Default for DesktopSettings {
             feature_toggles: HashMap::new(),
             legacy_migration_complete: false,
             github_user: None,
+            subagents: Vec::new(),
+            reasoning_effort: default_reasoning_effort(),
+            edit_mode: default_edit_mode(),
+            budget_usd: None,
+            show_system_events: true,
+            web_search_engine: default_web_search_engine(),
+            headroom_enabled: false,
+            headroom_port: 8787,
         }
     }
 }
@@ -137,6 +200,21 @@ fn validate(settings: &DesktopSettings) -> Result<(), String> {
     }
     if !matches!(settings.theme.as_str(), "light" | "dark") {
         return Err("主题必须是 light 或 dark".into());
+    }
+    if !matches!(settings.font_scale.as_str(), "small" | "medium" | "large") {
+        return Err("字体缩放无效".into());
+    }
+    if !matches!(settings.font_family.as_str(), "sans" | "system" | "serif" | "custom") {
+        return Err("字体族无效".into());
+    }
+    if !matches!(settings.reasoning_effort.as_str(), "low" | "medium" | "high" | "max") {
+        return Err("推理力度无效".into());
+    }
+    if !matches!(settings.edit_mode.as_str(), "plan" | "review" | "auto" | "yolo") {
+        return Err("编辑模式无效".into());
+    }
+    if !matches!(settings.web_search_engine.as_str(), "bing" | "searxng" | "tavily" | "brave" | "perplexity") {
+        return Err("搜索引擎无效".into());
     }
     if !matches!(settings.session_display.as_str(), "standard" | "compact") {
         return Err("会话展示模式无效".into());

@@ -109,15 +109,30 @@ pub async fn agent_send(
     let window_clone = window.clone();
     let sid = session_id.clone();
 
+    // Inject headroom proxy if enabled and running
+    let (effective_base_url, upstream_headers) = {
+        let hr_state = state.inner().headroom.clone();
+        match hr_state.proxy_url() {
+            Some(proxy_url) => {
+                tracing::info!("Routing agent request through headroom proxy: {proxy_url}");
+                let mut headers = std::collections::HashMap::new();
+                headers.insert("X-Upstream-Base-URL".to_string(), provider.base_url.clone());
+                (format!("{}/v1", proxy_url), Some(headers))
+            }
+            None => (provider.base_url.clone(), None),
+        }
+    };
+
     tokio::spawn(async move {
         let result = run_agent(
             sid.clone(),
             message,
-            provider.base_url,
+            effective_base_url,
             api_key,
             provider.model,
             window_clone,
             abort_rx,
+            upstream_headers,
         )
         .await;
         if let Ok(mut agents) = agent_state.lock() {
@@ -161,6 +176,7 @@ async fn run_agent(
     model: String,
     window: tauri::Window,
     abort_rx: tokio::sync::oneshot::Receiver<()>,
+    upstream_headers: Option<std::collections::HashMap<String, String>>,
 ) -> Result<(), String> {
     let url = format!("{}/chat/completions", api_base.trim_end_matches('/'));
 
@@ -182,13 +198,17 @@ async fn run_agent(
     });
 
     let client = reqwest::Client::new();
-    let resp = match client
+    let mut req = client
         .post(&url)
         .header("Authorization", format!("Bearer {}", api_key))
-        .header("Content-Type", "application/json")
-        .json(&body)
-        .send()
-        .await
+        .header("Content-Type", "application/json");
+    // Add upstream routing headers for headroom proxy
+    if let Some(headers) = &upstream_headers {
+        for (k, v) in headers {
+            req = req.header(k.as_str(), v.as_str());
+        }
+    }
+    let resp = match req.json(&body).send().await
     {
         Ok(r) => {
             if !r.status().is_success() {

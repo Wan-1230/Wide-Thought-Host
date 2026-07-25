@@ -443,7 +443,7 @@ fn clear_does_not_remove_legacy_scope() {
 
 #[test]
 fn is_data_collection_disabled_matrix() {
-    // Gork Build: research collection is always disabled, independent of
+    // WTH Build: research collection is always disabled, independent of
     // ZDR / opt-out flags (those still matter for server-side retention).
     let cases: &[(&[&str], bool)] = &[
         (&["BLOCKED_REASON_NO_LOGS"], false),
@@ -466,12 +466,12 @@ fn is_data_collection_disabled_matrix() {
         };
         assert!(
             auth.is_data_collection_disabled(),
-            "Gork Build: reasons={reasons:?} opt_out={opt_out} must disable collection",
+            "WTH Build: reasons={reasons:?} opt_out={opt_out} must disable collection",
         );
     }
 }
 
-/// Gork Build: both collection predicates permanently suppress research
+/// WTH Build: both collection predicates permanently suppress research
 /// uploads, including with no credential and with a "normal" user.
 #[test]
 fn manager_collection_predicates_fail_directions() {
@@ -481,14 +481,14 @@ fn manager_collection_predicates_fail_directions() {
     assert!(mgr.is_data_collection_disabled());
     assert!(
         !mgr.allows_data_collection(),
-        "Gork Build: missing credential must not allow collection"
+        "WTH Build: missing credential must not allow collection"
     );
 
     mgr.hot_swap(GrokAuth::test_default());
     assert!(mgr.is_data_collection_disabled());
     assert!(
         !mgr.allows_data_collection(),
-        "Gork Build: normal user must not allow research collection"
+        "WTH Build: normal user must not allow research collection"
     );
 
     mgr.hot_swap(GrokAuth {
@@ -1082,7 +1082,7 @@ async fn auth_returns_expired_api_key_consistently_with_current() {
 
     // Async path: must NOT clone the stale key for downstream
     // consumers. Surface `TokenExpiredNoRefresh` so callers can
-    // funnel the user back through `gork login`.
+    // funnel the user back through `wth login`.
     let err = mgr.auth().await.unwrap_err();
     assert!(
         matches!(err, AuthError::TokenExpiredNoRefresh),
@@ -1466,11 +1466,11 @@ async fn permanent_failure_reads_absent_after_clear_so_auth_reports_not_logged_i
     );
     assert!(mgr.permanent_failure().is_some());
 
-    // User runs `gork logout` which calls clear().
+    // User runs `wth logout` which calls clear().
     mgr.clear().unwrap();
 
     // The diagnostic the user now sees on the next request should be
-    // "Not logged in. Run `gork login`.", not the stale invalid_grant.
+    // "Not logged in. Run `wth login`.", not the stale invalid_grant.
     let err = mgr.auth().await.unwrap_err();
     assert!(
         matches!(err, AuthError::NotLoggedIn),
@@ -2885,7 +2885,7 @@ async fn enrich_auth_inline_keeps_fields_absent_from_response() {
     assert_eq!(auth.principal_type.as_deref(), Some("Team"));
     assert_eq!(auth.principal_id.as_deref(), Some("team-1"));
     assert!(auth.is_zdr_team());
-    // Gork Build forces opt-out even when /user omits the field.
+    // WTH Build forces opt-out even when /user omits the field.
     assert!(
         auth.coding_data_retention_opt_out,
         "privacy build locks coding_data_retention_opt_out"

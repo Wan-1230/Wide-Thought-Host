@@ -2519,11 +2519,11 @@ async fn prepare_image_gen_config_fails_open_without_auth() {
 }
 #[tokio::test]
 async fn data_collection_disabled_for_normal_user_in_privacy_build() {
-    // Gork Build: research data collection is hard-off for every account.
+    // WTH Build: research data collection is hard-off for every account.
     let agent = build_agent_with_auth(crate::auth::GrokAuth::test_default());
     assert!(
         agent.is_data_collection_disabled(),
-        "Gork Build must disable research data collection for all users"
+        "WTH Build must disable research data collection for all users"
     );
     assert!(
         agent.trace_upload_config_snapshot().is_none(),
@@ -2594,7 +2594,7 @@ async fn data_collection_disabled_even_for_non_zdr_team_blocks_in_privacy_build(
     });
     assert!(
         agent.is_data_collection_disabled(),
-        "Gork Build disables collection regardless of team block reasons"
+        "WTH Build disables collection regardless of team block reasons"
     );
 }
 /// Enable trace uploads via config so only the auth-level privacy gate
@@ -2661,7 +2661,7 @@ async fn diagnostic_upload_blocked_for_normal_user_in_privacy_build() {
     assert_eq!(
         count.load(std::sync::atomic::Ordering::SeqCst),
         0,
-        "Gork Build: diagnostics upload must not leave the machine"
+        "WTH Build: diagnostics upload must not leave the machine"
     );
 }
 /// The diagnostics privacy gate fails closed: with no credential in the

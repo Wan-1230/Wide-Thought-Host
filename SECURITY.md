@@ -26,7 +26,7 @@ We aim to acknowledge reports promptly and coordinate disclosure.
 Wide Thought Host is derived from:
 
 - [xai-org/grok-build](https://github.com/xai-org/grok-build) (Apache-2.0)
-- [thedavidweng/gork-build](https://github.com/thedavidweng/gork-build) (Apache-2.0)
+- [thedavidweng/wth-build](https://github.com/thedavidweng/wth-build) (Apache-2.0)
 
 Bugs or vulnerabilities that exist in **upstream** code bases should also be
 reported to the respective upstream maintainers.

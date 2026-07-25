@@ -75,7 +75,7 @@ impl TelemetryClient {
         subscription_tier: Option<String>,
         http_client: reqwest::Client,
     ) -> Self {
-        // Gork Build: never construct a Mixpanel client. `Mixpanel::{track,engage}`
+        // WTH Build: never construct a Mixpanel client. `Mixpanel::{track,engage}`
         // are also no-ops as a second line of defense.
         let _ = (config.mixpanel_enabled, config.mixpanel_token.as_ref());
         let mixpanel: Option<Arc<Mixpanel>> = None;

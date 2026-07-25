@@ -127,7 +127,7 @@ fn build_env_default(value: Option<&'static str>) -> Option<String> {
 }
 impl Default for TelemetryConfig {
     fn default() -> Self {
-        // Gork Build: no baked or build-time product-telemetry endpoints.
+        // WTH Build: no baked or build-time product-telemetry endpoints.
         // External OTEL (customer collector) remains opt-in via config/env.
         let _ = internal_defaults();
         let _ = build_env_default(option_env!("GROK_TELEMETRY_BUILD_EVENTS_URL"));
@@ -221,7 +221,7 @@ mod tests {
     }
     #[test]
     fn default_is_privacy_hard_off() {
-        // Gork Build: product telemetry endpoints are never baked in.
+        // WTH Build: product telemetry endpoints are never baked in.
         let cfg = TelemetryConfig::default();
         assert!(!cfg.mixpanel_enabled);
         assert_eq!(cfg.events_url, None);

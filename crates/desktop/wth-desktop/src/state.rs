@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 
 use crate::ipc::session::SessionInfo;
+use crate::headroom::HeadroomManager;
 
 /// Active PTY terminal sessions keyed by ID.
 #[derive(Default)]
@@ -50,6 +51,7 @@ pub struct AppState {
     pub settings_path: Arc<RwLock<PathBuf>>,
     pub workspace_root: Arc<RwLock<PathBuf>>,
     pub github_auth: Arc<Mutex<Option<crate::auth::PendingDeviceFlow>>>,
+    pub headroom: Arc<HeadroomManager>,
 }
 
 impl Default for AppState {
@@ -65,6 +67,7 @@ impl Default for AppState {
                 dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")),
             )),
             github_auth: Default::default(),
+            headroom: Arc::new(HeadroomManager::new()),
         }
     }
 }

@@ -4,7 +4,7 @@
 // 新建按钮由父组件在标题区提供。
 
 import { useState, useMemo } from "react";
-import { Pin, PinOff, Pencil, Trash2, MessageSquare, Clock, FolderOpen, Download } from "lucide-react";
+import { Pin, PinOff, Pencil, Trash2, MessageSquare, Clock, Download } from "lucide-react";
 import type { SessionInfo } from "@/lib/ipc";
 import { sessionExport } from "@/lib/ipc";
 import { ContextMenu, contextMenuPointFromEvent, type ContextMenuPoint } from "@/components/common/ContextMenu";

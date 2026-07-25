@@ -1,9 +1,9 @@
 # Wide Thought Host (WTH) — privacy model
 
 Wide Thought Host (WTH) is a community distribution derived from
-[gork-build](https://github.com/thedavidweng/gork-build), which is itself a
+[wth-build](https://github.com/thedavidweng/wth-build), which is itself a
 privacy-first fork of [xAI Grok Build](https://github.com/xai-org/grok-build).
-WTH inherits gork-build's privacy hard-offs and extends them.
+WTH inherits wth-build's privacy hard-offs and extends them.
 
 **Same agent capabilities, no product tracking, no research data collection
 on the client.**
@@ -51,7 +51,7 @@ Anthropic, xAI, local models), so you can choose where your data goes.
 
 ## Verification
 
-The gork-build privacy hard-offs are inherited intact. WTH adds:
+The wth-build privacy hard-offs are inherited intact. WTH adds:
 - `WTH_API_KEY` / `WTH_API_BASE_URL` env vars for explicit backend control
 - Multi-backend support so you're not locked into a single vendor's API
 - `~/.wth/config.toml` for transparent configuration

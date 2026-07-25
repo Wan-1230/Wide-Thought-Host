@@ -1,7 +1,7 @@
 //! Wide Thought Host (WTH) CLI version — lockstepped with shipping binaries.
 //!
 //! **Wide Thought Host (WTH)** is an optimized coding agent harness derived from
-//! gork-build (community privacy fork of xAI Grok Build). Multi-backend LLM
+//! wth-build (community privacy fork of xAI Grok Build). Multi-backend LLM
 //! support, enhanced TUI, and deep extensibility.
 
 use semver::Version;
@@ -76,13 +76,13 @@ pub fn display_version_with_commit(version_with_commit: &str, channel_label: &st
 mod tests {
     use super::*;
 
-    /// Gork Build privacy policy constants — compile-time hard-offs that
+    /// WTH Build privacy policy constants — compile-time hard-offs that
     /// resolvers and updaters consult. These must stay true for this fork.
     #[test]
     fn privacy_build_locks_research_and_retention_policy() {
         assert!(
             PRIVACY_BUILD,
-            "Gork Build must ship with PRIVACY_BUILD=true"
+            "WTH Build must ship with PRIVACY_BUILD=true"
         );
         assert!(
             research_data_collection_forbidden(),

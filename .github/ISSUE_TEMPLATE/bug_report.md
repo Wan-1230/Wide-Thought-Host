@@ -1,12 +1,12 @@
 ---
 name: Bug Report
-about: Report a problem with Gork Build
+about: Report a problem with WTH Build
 labels: bug
 ---
 
 **Platform:** macOS / Linux / Windows (version)
 
-**Gork Build version:** (`gork --version` or commit)
+**WTH Build version:** (`wth --version` or commit)
 
 **Describe the bug:**
 
