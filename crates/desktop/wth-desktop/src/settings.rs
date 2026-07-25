@@ -23,9 +23,6 @@ fn default_theme() -> String {
 fn default_session_display() -> String {
     "standard".into()
 }
-fn default_true() -> bool {
-    true
-}
 fn default_font_scale() -> String {
     "medium".into()
 }

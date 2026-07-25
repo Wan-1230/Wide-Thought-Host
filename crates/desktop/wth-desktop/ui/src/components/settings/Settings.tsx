@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   Activity,
@@ -7,13 +7,11 @@ import {
   CircleHelp,
   Code2,
   Cpu,
-  Database,
   DollarSign,
   FolderOpen,
   Github,
   Info,
   Palette,
-  Pencil,
   Plug,
   Plus,
   Puzzle,
@@ -27,10 +25,7 @@ import {
   Star,
   Trash2,
   Webhook,
-  Wrench,
   X,
-  ClipboardPaste,
-  Eye,
 } from "lucide-react";
 import {
   capabilityView,

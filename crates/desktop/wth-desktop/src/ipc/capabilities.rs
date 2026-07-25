@@ -695,7 +695,7 @@ pub async fn mcp_list_servers(state: State<'_, AppState>) -> Result<Vec<McpServe
 #[tauri::command]
 pub async fn mcp_add_server(
     config: McpServerConfigDto,
-    state: State<'_, AppState>,
+    _state: State<'_, AppState>,
 ) -> Result<McpServerConfigDto, String> {
     if config.name.trim().is_empty() {
         return Err("服务器名称不能为空".into());
@@ -733,7 +733,7 @@ pub async fn mcp_add_server(
 }
 
 #[tauri::command]
-pub async fn mcp_remove_server(id: String, state: State<'_, AppState>) -> Result<(), String> {
+pub async fn mcp_remove_server(id: String, _state: State<'_, AppState>) -> Result<(), String> {
     let parts: Vec<&str> = id.splitn(2, "::").collect();
     if parts.len() != 2 {
         return Err("无效的服务器 ID".into());
@@ -755,7 +755,7 @@ pub async fn mcp_remove_server(id: String, state: State<'_, AppState>) -> Result
 }
 
 #[tauri::command]
-pub async fn mcp_test_server(id: String, state: State<'_, AppState>) -> Result<String, String> {
+pub async fn mcp_test_server(id: String, _state: State<'_, AppState>) -> Result<String, String> {
     Ok(format!("服务器 {id} 连接测试完成（模拟）"))
 }
 
@@ -835,7 +835,7 @@ pub async fn hook_list(state: State<'_, AppState>) -> Result<Vec<HookConfigDto>,
 }
 
 #[tauri::command]
-pub async fn hook_add(config: HookConfigDto, state: State<'_, AppState>) -> Result<HookConfigDto, String> {
+pub async fn hook_add(config: HookConfigDto, _state: State<'_, AppState>) -> Result<HookConfigDto, String> {
     if config.name.trim().is_empty() || config.command.trim().is_empty() {
         return Err("名称和命令不能为空".into());
     }
