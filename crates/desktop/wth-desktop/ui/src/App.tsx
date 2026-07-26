@@ -85,7 +85,7 @@ export default function App() {
   } = useChatStore();
 
   const [navSection, setNavSection] = useState<NavSection>("sessions");
-  const [showTerminalPanel, setShowTerminalPanel] = useState(true);
+  const [showTerminalPanel, setShowTerminalPanel] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const terminalResize = useResizable({ initialWidth: 420, minWidth: 300, maxWidth: 800, direction: "left" });
@@ -460,21 +460,21 @@ export default function App() {
 
         <main className="flex-1 flex flex-col min-w-0 min-h-0">
           <div
-            className="flex items-center justify-between gap-2 px-3 py-2 border-b flex-shrink-0"
-            style={{ background: "var(--bg-body)", borderColor: "var(--surface-3)" }}
+            className="flex items-center justify-between gap-2 px-4 py-1.5 flex-shrink-0"
+            style={{ background: "transparent" }}
           >
-              <div className="flex items-center gap-2 min-w-0">
-                <ToolbarButton icon={<Plus size={15} />} label="新建会话" onClick={handleNewSession} />
+              <div className="flex items-center gap-1 min-w-0">
+                <ToolbarButton icon={<Plus size={14} />} label="新建会话" onClick={handleNewSession} />
                 <ToolbarButton
-                  icon={<FolderOpen size={14} />}
+                  icon={<FolderOpen size={13} />}
                   label={workspaceLabel}
                   onClick={openWorkspaceMenu}
                   onContextMenu={openWorkspaceMenu}
                 />
               </div>
               <ToolbarButton
-                icon={showTerminalPanel ? <PanelRightClose size={15} /> : <PanelRightOpen size={15} />}
-                label="终端面板"
+                icon={showTerminalPanel ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
+                label="终端"
                 onClick={() => setShowTerminalPanel((current) => !current)}
                 active={showTerminalPanel}
               />
