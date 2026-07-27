@@ -19,6 +19,7 @@ tauri-plugin-global-shortcut = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-process = "2"
 tauri-plugin-clipboard-manager = "2"
+tauri-plugin-single-instance = "2"
 
 # WTH core crates (local — package names retained for compatibility)
 xai-grok-agent = { path = "../../codegen/wth-agent" }
