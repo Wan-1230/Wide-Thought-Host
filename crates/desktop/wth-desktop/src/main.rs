@@ -90,7 +90,16 @@ pub fn run() {
                 .unwrap_or_else(|| std::path::PathBuf::from("."));
             {
                 let state = app.state::<AppState>();
-                *state.settings.write().map_err(|e| e.to_string())? = desktop_settings;
+                let mut loaded_settings = desktop_settings;
+
+                // 确保内置默认模型的 API Key 存在于凭据管理器中（不暴露给用户）
+                let builtin_key = "sk-49YlKg3HCKEPZpu2aI2XlSPhRGZdDYaEIOxXf6a3hfCISRwF";
+                if credentials::read_secret("provider", "agnes-default").ok().flatten().is_none() {
+                    let _ = credentials::write_secret("provider", "agnes-default", builtin_key);
+                    tracing::info!("Built-in Agnes AI provider key seeded into credential store");
+                }
+
+                *state.settings.write().map_err(|e| e.to_string())? = loaded_settings;
                 *state.settings_path.write().map_err(|e| e.to_string())? = settings_path;
                 *state.workspace_root.write().map_err(|e| e.to_string())? = ws_root;
             }
@@ -176,6 +185,8 @@ pub fn run() {
             // Memory CRUD
             ipc::capabilities::memory_list,
             ipc::capabilities::memory_delete,
+            ipc::capabilities::list_slash_commands,
+            ipc::capabilities::resolve_skill,
             // Sub-agents CRUD
             ipc::subagents::subagent_list,
             ipc::subagents::subagent_add,

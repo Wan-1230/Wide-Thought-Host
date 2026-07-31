@@ -874,6 +874,101 @@ pub async fn hook_toggle(id: String, enabled: bool, state: State<'_, AppState>) 
     crate::settings::persist_state_settings(&state)
 }
 
+// ─── Slash Commands ──────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SlashCommandInfo {
+    pub name: String,
+    pub description: String,
+    pub source: String,  // "builtin" | "skill"
+    pub scope: String,   // "用户" | "工作区"
+    pub path: Option<String>,
+}
+
+const BUILTIN_COMMANDS: &[(&str, &str)] = &[
+    ("init", "初始化项目指令（提供 TECH.md / AGENTS.md 模板）"),
+    ("compact", "压缩当前会话上下文，释放 token 预算"),
+    ("clear", "清空当前会话消息"),
+    ("model", "切换默认模型"),
+    ("help", "显示可用命令和帮助信息"),
+    ("exit", "退出当前代理会话"),
+    ("dream", "让 Agent 生成项目愿景 / 创意发想"),
+    ("memory", "管理持久记忆（增/删/查）"),
+    ("context", "查看 / 调整上下文窗口使用策略"),
+    ("plugins", "管理已安装插件"),
+    ("feedback", "给当前会话 / 工具输出打分"),
+    ("goal", "设置 / 查看当前会话目标"),
+];
+
+#[tauri::command]
+pub async fn list_slash_commands(
+    state: State<'_, AppState>,
+) -> Result<Vec<SlashCommandInfo>, String> {
+    let mut commands = Vec::new();
+
+    // builtins
+    for (name, desc) in BUILTIN_COMMANDS {
+        commands.push(SlashCommandInfo {
+            name: name.to_string(),
+            description: desc.to_string(),
+            source: "builtin".into(),
+            scope: "—".into(),
+            path: None,
+        });
+    }
+
+    // skills from ~/.wth/skills and workspace/.wth/skills
+    let workspace = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    let user_home = xai_grok_config::wth_home();
+    let skill_roots = vec![
+        (user_home.join("skills"), "用户"),
+        (workspace.join(".wth").join("skills"), "工作区"),
+    ];
+
+    for (root, scope) in skill_roots {
+        let Ok(entries) = fs::read_dir(&root) else { continue };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let Ok(meta) = entry.metadata() else { continue };
+            if !meta.is_dir() { continue; }
+            let marker = path.join("SKILL.md");
+            if !marker.exists() { continue; }
+            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("skill").to_string();
+            let desc = markdown_preview(&marker).unwrap_or_else(|| "用户技能".into());
+            commands.push(SlashCommandInfo {
+                name,
+                description: desc,
+                source: "skill".into(),
+                scope: scope.to_string(),
+                path: Some(path.to_string_lossy().to_string()),
+            });
+        }
+    }
+
+    Ok(commands)
+}
+
+#[tauri::command]
+pub async fn resolve_skill(
+    name: String,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let workspace = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    let user_home = xai_grok_config::wth_home();
+
+    let candidates = vec![
+        user_home.join("skills").join(&name).join("SKILL.md"),
+        workspace.join(".wth").join("skills").join(&name).join("SKILL.md"),
+    ];
+
+    for path in candidates {
+        if path.exists() {
+            return fs::read_to_string(&path).map_err(|e| format!("读取技能文件失败：{e}"));
+        }
+    }
+    Err(format!("技能 \"{name}\" 未找到"))
+}
+
 // ─── Memory CRUD ─────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize)]

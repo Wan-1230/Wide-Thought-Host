@@ -29,9 +29,9 @@ import {
   AtSign,
 } from "lucide-react";
 import { THINKING_MESSAGE, useChatStore } from "@/stores/chat";
-import { agentSend, agentAbort, fileList } from "@/lib/ipc";
+import { agentSend, agentAbort, fileList, listSlashCommands, resolveSkill } from "@/lib/ipc";
 import type { ChatMessage, ToolCall } from "@/stores/chat";
-import type { FileEntry } from "@/lib/ipc";
+import type { FileEntry, SlashCommandInfo } from "@/lib/ipc";
 import wthBanner from "@/assets/wth-banner.png";
 import { ContextMenu, contextMenuPointFromEvent, type ContextMenuPoint } from "@/components/common/ContextMenu";
 
@@ -270,6 +270,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
   const [popupItems, setPopupItems] = useState<{ label: string; value: string }[]>([]);
   const [popupIndex, setPopupIndex] = useState(0);
   const [msgMenu, setMsgMenu] = useState<{ point: ContextMenuPoint; content: string } | null>(null);
+  const [slashCommands, setSlashCommands] = useState<SlashCommandInfo[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -294,13 +295,10 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
     }
   }, [input]);
 
-  const SLASH_COMMANDS = [
-    { label: "/init — 初始化项目指令", value: "/init" },
-    { label: "/compact — 压缩上下文", value: "/compact" },
-    { label: "/clear — 清空会话", value: "/clear" },
-    { label: "/model — 切换模型", value: "/model" },
-    { label: "/help — 帮助信息", value: "/help" },
-  ];
+  // 动态加载斜杠命令（内置 + 技能）
+  useEffect(() => {
+    listSlashCommands().then(setSlashCommands).catch(() => {});
+  }, []);
 
   const handleInputChange = async (value: string) => {
     setInput(value);
@@ -318,7 +316,10 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
     } else if (lastChar === "/" && value.trim() === "/") {
       setShowPopup("command");
       setPopupIndex(0);
-      setPopupItems(SLASH_COMMANDS);
+      setPopupItems(slashCommands.map((c) => ({
+        label: `/${c.name}${c.source === "skill" ? ` [${c.scope}]` : ""} — ${c.description.slice(0, 40)}`,
+        value: `/${c.name}`,
+      })));
     } else if (showPopup !== "none") {
       // Filter popup items
       const trigger = showPopup === "file" ? "@" : "/";
@@ -328,7 +329,11 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
       } else {
         const query = value.slice(lastTriggerIdx + 1).toLowerCase();
         if (showPopup === "command") {
-          setPopupItems(SLASH_COMMANDS.filter((c) => c.label.toLowerCase().includes(query)));
+          const candidates = slashCommands.map((c) => ({
+            label: `/${c.name}${c.source === "skill" ? ` [${c.scope}]` : ""} — ${c.description.slice(0, 40)}`,
+            value: `/${c.name}`,
+          }));
+          setPopupItems(candidates.filter((c) => c.label.toLowerCase().includes(query)));
         }
         setPopupIndex(0);
       }
@@ -348,8 +353,27 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
 
   const handleSend = async () => {
     if (!activeSessionId) return;
-    const content = input.trim();
+    let content = input.trim();
     if (!content || isStreaming) return;
+
+    // 技能斜杠命令：加载 SKILL.md 并注入内容
+    if (content.startsWith("/")) {
+      const parts = content.slice(1).split(/\s+/);
+      const cmdName = parts[0];
+      const skillMatch = slashCommands.find(
+        (c) => c.name === cmdName && c.source === "skill"
+      );
+      if (skillMatch) {
+        try {
+          const skillContent = await resolveSkill(cmdName);
+          const args = parts.slice(1).join(" ");
+          // 注入技能内容：将 SKILL.md 作为系统指令，args 作为用户输入
+          content = `[技能指令: /${cmdName}]\n\n${skillContent}\n\n---\n用户输入: ${args || "执行技能"}`;
+        } catch (err) {
+          console.warn("技能加载失败，将以纯文本发送：", err);
+        }
+      }
+    }
 
     // 添加 user 消息到 store
     addMessage(activeSessionId, {

@@ -744,9 +744,11 @@ function PageModels({
                   设为默认
                 </button>
               )}
-              <button className="icon-btn" title="删除" onClick={async () => { await providerDelete(selected.id); setSelectedId(null); await onRefresh(); }}>
-                <Trash2 size={13} />
-              </button>
+              {selected.id !== "agnes-default" && (
+                <button className="icon-btn" title="删除" onClick={async () => { await providerDelete(selected.id); setSelectedId(null); await onRefresh(); }}>
+                  <Trash2 size={13} />
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -759,7 +761,14 @@ function PageModels({
             启用
           </label>
           <input className="control col-span-2" placeholder="https://api.example.com/v1" value={draft.base_url} onChange={(e) => setDraft({ ...draft, base_url: e.target.value })} />
-          <input className="control col-span-2" type="password" placeholder="API Key（仅写入，不回显）" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+          {selected?.id !== "agnes-default" && (
+            <input className="control col-span-2" type="password" placeholder="API Key（仅写入，不回显）" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+          )}
+          {selected?.id === "agnes-default" && (
+            <div className="col-span-2 text-[11px] px-3 py-2 rounded-lg" style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}>
+              ✓ API Key 已安全存储于系统凭据管理器，无需手动配置
+            </div>
+          )}
           <button className="primary-btn col-span-2" disabled={!draft.name || !draft.model || !draft.base_url} onClick={save}>
             <Save size={13} /> {selected ? "保存修改" : "添加提供商"}
           </button>

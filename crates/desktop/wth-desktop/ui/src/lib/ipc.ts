@@ -366,3 +366,16 @@ export const headroomIsInstalled = () => invoke<boolean>("headroom_is_installed"
 export const headroomStart = (port: number) => invoke<HeadroomStatus>("headroom_start", { port });
 export const headroomStop = () => invoke<HeadroomStatus>("headroom_stop");
 export const headroomInstall = () => invoke<string>("headroom_install");
+
+// ─── Slash Commands ──────────────────────────────────
+
+export interface SlashCommandInfo {
+  name: string;
+  description: string;
+  source: string;
+  scope: string;
+  path?: string | null;
+}
+
+export const listSlashCommands = () => invoke<SlashCommandInfo[]>("list_slash_commands");
+export const resolveSkill = (name: string) => invoke<string>("resolve_skill", { name });
