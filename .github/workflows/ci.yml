@@ -219,7 +219,10 @@ jobs:
           cache-targets: "true"
 
       - name: Build wth (release)
-        run: cargo build -p wth-pager-bin --release
+        run: |
+          # MinGW-w64 from choco installs to C:\tools\mingw64\bin; make sure it is on PATH.
+          $env:Path = 'C:\tools\mingw64\bin;' + $env:Path
+          cargo build -p wth-pager-bin --release
 
       - name: Smoke wth CLI
         run: |
@@ -273,4 +276,62 @@ jobs:
           name: privacy-egress-hosts
           path: ${{ runner.temp }}/wth-privacy-egress/**
           if-no-files-found: ignore
+          retention-days: 14
+# ================= Windows =================
+  # Windows is not covered by the Linux jobs above; keep a dedicated build +
+  # smoke job so cross-platform regressions (Unix-only paths, PE stack size,
+  # GNU vs MSVC linkers) surface in CI instead of only on developer machines.
+  build-wth-windows:
+    name: Build wth (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      # Repo-bundled Windows protoc (the dotslash bin/protoc has no Windows entry).
+      PROTOC: ${{ github.workspace }}\bin\protoc-win64\bin\protoc.exe
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain (GNU)
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable-x86_64-pc-windows-gnu
+          components: rustfmt
+
+      - name: Install MinGW-w64 (GNU linker)
+        shell: pwsh
+        run: choco install mingw --no-progress -y
+
+      - name: Build wth (release)
+        shell: pwsh
+        run: |
+          # MinGW-w64 from choco installs to C:\tools\mingw64\bin; make sure it is on PATH.
+          $env:Path = 'C:\tools\mingw64\bin;' + $env:Path
+          cargo build -p wth-pager-bin --release
+
+      - name: Smoke wth CLI
+        shell: pwsh
+        run: |
+          target\release\wth.exe --version
+          $help = target\release\wth.exe --help
+          if ($help -notmatch "Wide Thought Host") { throw "help banner missing" }
+          if ($help -notmatch "Usage: wth") { throw "usage line missing" }
+          Write-Host "smoke ok"
+
+      - name: Check PE stack reserve (>= 8MB)
+        shell: pwsh
+        run: |
+          $path = "target\release\wth.exe"
+          $bytes = [System.IO.File]::ReadAllBytes($path)
+          $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
+          # PE32+ OptionalHeader: SizeOfStackReserve at +0x48 from the optional header start.
+          $stack = [BitConverter]::ToUInt32($bytes, $peOffset + 24 + 0x48)
+          Write-Host "SizeOfStackReserve = $stack bytes"
+          if ($stack -lt 8388608) { throw "stack reserve too small: $stack" }
+
+      - name: Upload wth binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: wth-windows-x86_64
+          path: target/release/wth.exe
+          if-no-files-found: error
           retention-days: 14

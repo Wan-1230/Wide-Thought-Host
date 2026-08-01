@@ -50,11 +50,14 @@ a rich plugin ecosystem, and deep shell/tool integration.
 cargo run -p wth-pager-bin              # build + launch TUI (binary: wth)
 cargo build -p wth-pager-bin --release  # target/release/wth
 
-# Headless mode
-wth --headless --prompt "Explain the architecture of this project"
+# Headless single-turn mode (prints the response and exits)
+wth -p "Explain the architecture of this project"
 
-# Use a specific backend
-wth --backend anthropic --model claude-sonnet-4-20250514
+# Use a specific model
+wth -m claude-sonnet-4-20250514
+
+# Point at any OpenAI-compatible endpoint (OpenAI, DeepSeek, Ollama, vLLM, ...)
+WTH_API_BASE_URL=http://localhost:11434/v1 WTH_API_KEY=... wth -p "hello"
 ```
 
 ### Desktop app
@@ -68,27 +71,26 @@ npm run tauri build   # production build → target/release/bundle/
 
 The desktop app starts with **Alt+W** (toggle window visibility) and lives in the system tray.
 
+> **Scope note:** the desktop app is currently a multi-backend chat client (OpenAI-compatible
+> chat/completions with streaming). The file tree and embedded terminal are manual UI panels - the
+> full agent tool loop (shell, file editing, MCP, sub-agents, permission control) lives in the CLI/TUI.
 ## Configuration
 
 ```toml
-# ~/.wth/config.toml
-[backends.openai]
-api_base = "https://api.openai.com/v1"
-api_key_env = "OPENAI_API_KEY"
-default_model = "gpt-4.1"
-
-[backends.anthropic]
-api_key_env = "ANTHROPIC_API_KEY"
-default_model = "claude-sonnet-4-20250514"
+# ~/.wth/config.toml  (or $WTH_HOME/config.toml; ~/.grok/config.toml is a legacy fallback)
+[endpoints]
+# Any OpenAI-compatible endpoint. Env equivalents: WTH_API_BASE_URL / GROK_XAI_API_BASE_URL
+# xai_api_base_url = "https://api.openai.com/v1"
+# models_base_url = "https://api.openai.com/v1"
 
 [ui]
-theme = "dark"          # dark | light | solarized
+theme = "dark"          # dark | light | solarized | custom
 default_panels = ["chat", "diff", "terminal"]
 
 [agent]
-max_context_tokens = 128000
-cache_prompts = true
-subagent_delegation = true
+# Agent definition selection: a built-in name or a .md file with YAML frontmatter
+# name = "grok-build"
+# definition = "$HOME/.wth/agents/my-agent.md"
 ```
 
 ## Project structure

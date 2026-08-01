@@ -402,7 +402,7 @@ async fn legacy_auth_hint_on_404_model_not_found() {
                 "hint must mention `wth logout`, got: {msg}"
             );
             assert!(
-                msg.contains("grok login"),
+                msg.contains("wth login"),
                 "hint must mention `wth login`, got: {msg}"
             );
             assert!(
@@ -471,7 +471,7 @@ async fn legacy_auth_hint_on_401_unauthorized() {
                 "hint must mention `wth logout`, got: {msg}"
             );
             assert!(
-                msg.contains("grok login"),
+                msg.contains("wth login"),
                 "hint must mention `wth login`, got: {msg}"
             );
         })

@@ -512,7 +512,7 @@ fn auth_required_message(interactive: bool) -> String {
             .to_string()
     } else {
         "Not signed in. To authenticate without a browser, run:\n  \
-         grok login --device-code\n\n\
+         wth login --device-code\n\n\
          Alternatively, set the XAI_API_KEY environment variable \
          or run `wth login` on a machine with a browser."
             .to_string()
