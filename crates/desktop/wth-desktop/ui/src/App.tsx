@@ -19,6 +19,7 @@ import {
   Plus,
   Search,
   Settings as SettingsIcon,
+  Cpu,
   Sparkles,
   Sun,
   Terminal,
@@ -85,6 +86,7 @@ export default function App() {
     appendToLastMessage,
     finalizeAssistantMessage,
     setStreaming,
+    addUsage,
     addToolCall,
     updateToolCall,
     updateToolCallResult,
@@ -106,6 +108,7 @@ export default function App() {
   const [showGithub, setShowGithub] = useState(false);
   const [workspaceMenuPoint, setWorkspaceMenuPoint] = useState<ContextMenuPoint | null>(null);
   const editorVisible = useWorkbenchStore((s) => s.editorVisible);
+  const sessionUsage = useChatStore((s) => (activeSessionId ? s.usage[activeSessionId] : undefined));
   const openFileInEditor = useWorkbenchStore((s) => s.openFile);
 
   const workspaceActive = workspace?.active ?? true;
@@ -176,6 +179,7 @@ export default function App() {
           updateToolCallResult(sid, chunk.tool_id!, chunk.result);
           break;
         case "done":
+          if (chunk.usage) addUsage(sid, chunk.usage);
           finalizeAssistantMessage(sid, "（本轮没有返回内容）");
           setStreaming(sid, false);
           break;
@@ -198,6 +202,7 @@ export default function App() {
     };
   }, [
     addMessage,
+    addUsage,
     addToolCall,
     appendToLastMessage,
     finalizeAssistantMessage,
@@ -584,6 +589,7 @@ export default function App() {
 
       <StatusBar
         modelLabel={activeSession?.model}
+        sessionTokens={sessionUsage?.total_tokens ?? 0}
         workspaceLabel={workspaceLabel}
         workspaceActive={workspace?.active ?? false}
         workspaceBranch={workspaceBranch}
@@ -644,6 +650,7 @@ function StatusBar({
   workspaceBranch,
   sessionCount,
   messageCount,
+  sessionTokens,
   streaming,
   github,
   onWorkspaceClick,
@@ -655,6 +662,7 @@ function StatusBar({
   workspaceBranch: string | null;
   sessionCount: number;
   messageCount: number;
+  sessionTokens: number;
   streaming: boolean;
   github: GitHubAuthStatus | null;
   onWorkspaceClick: (event: ReactMouseEvent<HTMLElement>) => void;
@@ -706,6 +714,14 @@ function StatusBar({
         >
           <Database size={11} />
           <span>{sessionCount} 会话 · {messageCount} 消息</span>
+        </span>
+        <span
+          className="hidden md:flex items-center gap-1.5 rounded-full px-2.5 py-1 border"
+          style={{ borderColor: "var(--surface-3)", color: "var(--text-muted)" }}
+          title="当前会话 Token 用量"
+        >
+          <Cpu size={11} />
+          <span>{sessionTokens > 0 ? `${sessionTokens.toLocaleString()} tok` : "— tok"}</span>
         </span>
         <span
           className="flex items-center gap-1.5 rounded-full px-2.5 py-1 border"

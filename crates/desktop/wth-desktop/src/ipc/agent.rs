@@ -10,7 +10,7 @@ use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use tauri::{Emitter, State};
 use tokio::sync::{mpsc, oneshot};
 
@@ -122,6 +122,12 @@ pub async fn agent_send(
 
     let agent_state = state.inner().agents.clone();
     let approvals = state.inner().approvals.clone();
+    let settings_ref = state.inner().settings.clone();
+    let settings_path = state
+        .settings_path
+        .read()
+        .map_err(|e| e.to_string())?
+        .clone();
     let window_clone = window.clone();
     let sid = session_id.clone();
 
@@ -153,6 +159,8 @@ pub async fn agent_send(
             edit_mode,
             reasoning_effort,
             approvals,
+            settings_ref,
+            settings_path,
         )
         .await;
         if let Ok(mut agents) = agent_state.lock() {
@@ -238,6 +246,8 @@ async fn run_agent(
     edit_mode: String,
     reasoning_effort: String,
     approvals: Arc<Mutex<crate::state::AgentApprovals>>,
+    settings_ref: Arc<RwLock<crate::settings::DesktopSettings>>,
+    settings_path: std::path::PathBuf,
 ) -> Result<(), String> {
     // 配置与密钥只从 Rust 侧快照读取，前端永不传递敏感值。
     // 身份提示词：模型必须以 WTH 自居，不得暴露底层模型/厂商信息。
@@ -273,9 +283,58 @@ async fn run_agent(
         }
     }
 
+    // 上下文压缩与预算配置快照
+    let (budget_usd, compression_enabled, window_tokens) = {
+        let s = settings_ref.read().map_err(|e| e.to_string())?;
+        (
+            s.budget_usd,
+            s.context_compression,
+            s.context_window_tokens,
+        )
+    };
+    // 工具执行所需的设置快照（搜索引擎选择等）
+    let settings_snapshot = settings_ref.read().map_err(|e| e.to_string())?.clone();
+    // 预算拦截：累计消耗已达到上限时拒绝继续请求
+    if let Some(budget) = budget_usd {
+        let spent = settings_ref
+            .read()
+            .map_err(|e| e.to_string())?
+            .usage_stats
+            .total_cost_usd;
+        if spent >= budget {
+            return Err(format!(
+                "已达预算上限（累计 ${spent:.2} ≥ ${budget:.2}）。请前往“设置 → 预算”调整上限，或清除用量统计。"
+            ));
+        }
+    }
+
     let mut usage_accum: Option<UsageInfo> = None;
+    let mut compressed = false;
 
     for _iteration in 0..tools::MAX_TOOL_ITERATIONS {
+        // 上下文压缩：接近窗口上限时，把早期对话压缩为摘要，保留最近消息
+        if compression_enabled && !compressed {
+            let threshold = (window_tokens as usize).saturating_mul(4);
+            let total_len: usize = messages.iter().map(|m| m.to_string().len()).sum();
+            if total_len > threshold && messages.len() > 6 {
+                let (kept, history) = split_messages(&messages);
+                if !history.is_empty() {
+                    let summary =
+                        summarize_history(&api_base, &api_key, &model, &history, &upstream_headers)
+                            .await?;
+                    let kept_count = kept.len();
+                    let history_count = history.len();
+                    let mut next: Vec<Value> = vec![json!({
+                        "role": "system",
+                        "content": format!("以下是更早对话的摘要（已被自动压缩）：\n{summary}")
+                    })];
+                    next.extend(kept);
+                    messages = next;
+                    compressed = true;
+                    tracing::info!("Context compressed: kept {kept_count} messages, summarized {history_count}");
+                }
+            }
+        }
         let mut body = json!({
             "model": model,
             "messages": messages,
@@ -314,7 +373,14 @@ async fn run_agent(
         let (assistant_msg, tool_calls, usage) =
             collect_stream(resp, &window, &session_id, &mut abort_rx).await?;
         if let Some(u) = usage {
-            usage_accum = Some(u);
+            usage_accum = Some(match usage_accum {
+                Some(prev) => UsageInfo {
+                    prompt_tokens: prev.prompt_tokens + u.prompt_tokens,
+                    completion_tokens: prev.completion_tokens + u.completion_tokens,
+                    total_tokens: prev.total_tokens + u.total_tokens,
+                },
+                None => u,
+            });
         }
 
         messages.push(assistant_msg);
@@ -357,7 +423,7 @@ async fn run_agent(
 
             let (model_result, full_before, full_after) = if approved {
                 let exec = tokio::select! {
-                    r = tools::execute_tool(&tc.name, &tc.arguments, &workspace_root) => r,
+                    r = tools::execute_tool(&tc.name, &tc.arguments, &workspace_root, &settings_snapshot) => r,
                     _ = abort_rx.recv() => return Err("已中止".into()),
                 };
                 match exec {
@@ -399,6 +465,32 @@ async fn run_agent(
         }
     }
 
+    // 更新用量统计（今日/本周/累计）并持久化
+    if let Some(u) = &usage_accum {
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let mut s = settings_ref.write().map_err(|e| e.to_string())?;
+        let cost = u.total_tokens as f64 / 1_000_000.0 * s.price_per_million_tokens;
+        let stats = &mut s.usage_stats;
+        if stats.last_updated.as_deref() != Some(today.as_str()) {
+            stats.today_tokens = 0;
+            stats.today_cost_usd = 0.0;
+        }
+        if !is_same_week(stats.last_updated.as_deref(), Some(&today)) {
+            stats.week_tokens = 0;
+            stats.week_cost_usd = 0.0;
+        }
+        stats.last_updated = Some(today);
+        stats.total_tokens = stats.total_tokens.saturating_add(u.total_tokens);
+        stats.total_cost_usd += cost;
+        stats.today_tokens = stats.today_tokens.saturating_add(u.total_tokens);
+        stats.today_cost_usd += cost;
+        stats.week_tokens = stats.week_tokens.saturating_add(u.total_tokens);
+        stats.week_cost_usd += cost;
+        let persisted = s.clone();
+        drop(s);
+        let _ = crate::settings::save_settings(&settings_path, &persisted);
+    }
+
     let _ = window.emit(
         "agent:stream",
         AgentStreamChunk {
@@ -410,6 +502,101 @@ async fn run_agent(
     );
     Ok(())
 }
+
+// ─── Context compression & usage helpers ───────────────
+
+/// 划分消息：保留全部 system 消息与最后 10 条对话消息，中间部分作为待压缩历史。
+fn split_messages(messages: &[Value]) -> (Vec<Value>, Vec<Value>) {
+    let mut kept: Vec<Value> = Vec::new();
+    let mut history: Vec<Value> = Vec::new();
+    let mut tail: Vec<Value> = Vec::new();
+    let total = messages.len();
+    for (i, m) in messages.iter().enumerate() {
+        let role = m["role"].as_str().unwrap_or("");
+        if role == "system" {
+            kept.push(m.clone());
+        } else if total - i <= 10 {
+            tail.push(m.clone());
+        } else {
+            history.push(m.clone());
+        }
+    }
+    if history.is_empty() {
+        return (messages.to_vec(), Vec::new());
+    }
+    kept.extend(tail);
+    (kept, history)
+}
+
+/// 调用模型把一段对话历史压缩为中文摘要（非流式）。
+async fn summarize_history(
+    api_base: &str,
+    api_key: &str,
+    model: &str,
+    history: &[Value],
+    upstream_headers: &Option<HashMap<String, String>>,
+) -> Result<String, String> {
+    let url = format!("{}/chat/completions", api_base.trim_end_matches('/'));
+    let history_json = serde_json::to_string(history).unwrap_or_default();
+    let body = json!({
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": "请把以下对话历史压缩为简洁的中文摘要，保留关键决策、文件路径、错误信息、待办事项与结论。只输出摘要本身，不要任何前言。"
+            },
+            {
+                "role": "user",
+                "content": format!("对话历史（JSON 数组，每条含 role/content 或 tool 调用）：\n{}", history_json)
+            }
+        ],
+        "stream": false,
+    });
+    let client = reqwest::Client::new();
+    let mut req = client
+        .post(&url)
+        .header("Authorization", format!("Bearer {}", api_key))
+        .header("Content-Type", "application/json");
+    if let Some(headers) = upstream_headers {
+        for (k, v) in headers {
+            req = req.header(k.as_str(), v.as_str());
+        }
+    }
+    let resp = req
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("压缩请求失败: {e}"))?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let err_body = resp.text().await.unwrap_or_default();
+        return Err(format!("压缩请求错误 ({}): {}", status, err_body));
+    }
+    let parsed: Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("解析压缩响应失败: {e}"))?;
+    parsed["choices"][0]["message"]["content"]
+        .as_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "压缩响应缺少内容".into())
+}
+
+/// 判断两个 YYYY-MM-DD 日期是否在同一 ISO 周。
+fn is_same_week(a: Option<&str>, b: Option<&str>) -> bool {
+    use chrono::Datelike;
+    let parse = |s: &str| -> Option<chrono::NaiveDate> {
+        chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok()
+    };
+    match (a.and_then(parse), b.and_then(parse)) {
+        (Some(x), Some(y)) => {
+            x.iso_week().year() == y.iso_week().year()
+                && x.iso_week().week() == y.iso_week().week()
+        }
+        _ => true, // 缺省视为同一周，避免误重置
+    }
+}
+
 
 // ─── Approval wait ─────────────────────────────────────
 

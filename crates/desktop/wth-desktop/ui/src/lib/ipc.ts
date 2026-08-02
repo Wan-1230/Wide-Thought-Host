@@ -82,6 +82,26 @@ export type FontFamily = "sans" | "system" | "serif" | "custom";
 export type ReasoningEffort = "low" | "medium" | "high" | "max";
 export type EditMode = "plan" | "review" | "auto" | "yolo";
 
+export interface UsageStats {
+  total_tokens: number;
+  total_cost_usd: number;
+  today_tokens: number;
+  today_cost_usd: number;
+  week_tokens: number;
+  week_cost_usd: number;
+  last_updated?: string | null;
+}
+
+export interface UsageStats {
+  total_tokens: number;
+  total_cost_usd: number;
+  today_tokens: number;
+  today_cost_usd: number;
+  week_tokens: number;
+  week_cost_usd: number;
+  last_updated?: string | null;
+}
+
 export interface DesktopSettings {
   schema_version: number;
   language: "zh-CN" | "en-US";
@@ -107,6 +127,10 @@ export interface DesktopSettings {
   web_search_engine: string;
   headroom_enabled: boolean;
   headroom_port: number;
+  context_compression: boolean;
+  context_window_tokens: number;
+  price_per_million_tokens: number;
+  usage_stats: UsageStats;
   subagents?: SubagentConfig[];
 }
 
@@ -204,6 +228,14 @@ export async function agentApproveTool(sessionId: string, toolCallId: string): P
 
 export async function agentDenyTool(sessionId: string, toolCallId: string): Promise<void> {
   return invoke("agent_deny_tool", { sessionId, toolCallId });
+}
+
+export async function setServiceApiKey(service: string, apiKey: string): Promise<void> {
+  return invoke("set_service_api_key", { service, apiKey });
+}
+
+export async function clearServiceApiKey(service: string): Promise<void> {
+  return invoke("clear_service_api_key", { service });
 }
 
 // ─── Filesystem ──────────────────────────────────────

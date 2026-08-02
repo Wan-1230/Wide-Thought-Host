@@ -1,7 +1,7 @@
 // Zustand store for chat/session state.
 
 import { create } from "zustand";
-import type { SessionInfo, StreamChunk } from "@/lib/ipc";
+import type { SessionInfo, StreamChunk, UsageInfo } from "@/lib/ipc";
 
 export const THINKING_MESSAGE = "模型正在思考…";
 
@@ -28,6 +28,7 @@ interface ChatStore {
   activeSessionId: string | null;
   messages: Record<string, ChatMessage[]>;
   streaming: Record<string, boolean>;
+  usage: Record<string, UsageInfo>;
 
   setSessions: (sessions: SessionInfo[]) => void;
   setActiveSession: (id: string) => void;
@@ -39,6 +40,7 @@ interface ChatStore {
   appendToLastMessage: (sessionId: string, delta: string) => void;
   finalizeAssistantMessage: (sessionId: string, fallback: string) => void;
   setStreaming: (sessionId: string, active: boolean) => void;
+  addUsage: (sessionId: string, usage: UsageInfo) => void;
   addToolCall: (sessionId: string, call: ToolCall) => void;
   updateToolCall: (sessionId: string, toolId: string, patch: Partial<ToolCall>) => void;
   updateToolCallResult: (sessionId: string, toolId: string, result: unknown) => void;
@@ -49,6 +51,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   activeSessionId: null,
   messages: {},
   streaming: {},
+  usage: {},
 
   setSessions: (sessions) =>
     set({
@@ -78,12 +81,15 @@ export const useChatStore = create<ChatStore>((set) => ({
       const sessions = state.sessions.filter((item) => item.id !== sessionId);
       const { [sessionId]: removedMessages, ...messages } = state.messages;
       const { [sessionId]: removedStreaming, ...streaming } = state.streaming;
+      const { [sessionId]: removedUsage, ...usage } = state.usage;
       void removedMessages;
       void removedStreaming;
+      void removedUsage;
       return {
         sessions,
         messages,
         streaming,
+        usage,
         activeSessionId: state.activeSessionId === sessionId ? sessions[0]?.id ?? null : state.activeSessionId,
       };
     }),
@@ -157,6 +163,19 @@ export const useChatStore = create<ChatStore>((set) => ({
     set((state) => ({
       streaming: { ...state.streaming, [sessionId]: active },
     })),
+
+  addUsage: (sessionId, usage) =>
+    set((state) => {
+      const prev = state.usage[sessionId];
+      const next = prev
+        ? {
+            prompt_tokens: prev.prompt_tokens + usage.prompt_tokens,
+            completion_tokens: prev.completion_tokens + usage.completion_tokens,
+            total_tokens: prev.total_tokens + usage.total_tokens,
+          }
+        : usage;
+      return { usage: { ...state.usage, [sessionId]: next } };
+    }),
 
   addToolCall: (sessionId, call) =>
     set((state) => {

@@ -154,6 +154,14 @@ pub struct DesktopSettings {
     pub web_search_engine: String,
     pub headroom_enabled: bool,
     pub headroom_port: u16,
+    /// 接近上下文窗口时自动压缩早期对话
+    pub context_compression: bool,
+    /// 模型上下文窗口（Token），用于估算压缩阈值
+    pub context_window_tokens: u32,
+    /// 每百万 Token 的统一估算单价（USD），用于预算与用量统计
+    pub price_per_million_tokens: f64,
+    /// 用量统计（跨会话累计）
+    pub usage_stats: UsageStats,
 }
 
 impl Default for DesktopSettings {
@@ -192,8 +200,25 @@ impl Default for DesktopSettings {
             web_search_engine: default_web_search_engine(),
             headroom_enabled: false,
             headroom_port: 8787,
+            context_compression: true,
+            context_window_tokens: 128_000,
+            price_per_million_tokens: 2.0,
+            usage_stats: UsageStats::default(),
         }
     }
+}
+
+/// 用量统计（由 agent 运行后累计，持久化到 settings.json）。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct UsageStats {
+    pub total_tokens: u64,
+    pub total_cost_usd: f64,
+    pub today_tokens: u64,
+    pub today_cost_usd: f64,
+    pub week_tokens: u64,
+    pub week_cost_usd: f64,
+    /// 最近一次更新的日期（YYYY-MM-DD，用于跨天重置今日统计）
+    pub last_updated: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -289,6 +314,12 @@ fn validate(settings: &DesktopSettings) -> Result<(), String> {
     if !matches!(settings.session_display.as_str(), "standard" | "compact") {
         return Err("会话展示模式无效".into());
     }
+    if settings.context_window_tokens == 0 {
+        return Err("上下文窗口大小必须大于 0".into());
+    }
+    if settings.price_per_million_tokens < 0.0 {
+        return Err("Token 单价不能为负数".into());
+    }
     Ok(())
 }
 
@@ -314,6 +345,22 @@ pub fn persist_state_settings(state: &AppState) -> Result<(), String> {
         .map_err(|e| e.to_string())?
         .clone();
     save_settings(&path, &settings)
+}
+
+/// 设置服务级 API Key（如 Tavily 搜索），写入 Windows 凭据管理器。
+#[tauri::command]
+pub async fn set_service_api_key(service: String, api_key: String) -> Result<(), String> {
+    let key = api_key.trim();
+    if key.is_empty() {
+        return Err("API Key 不能为空".into());
+    }
+    crate::credentials::write_secret("service", &service, key)
+}
+
+/// 清除服务级 API Key。
+#[tauri::command]
+pub async fn clear_service_api_key(service: String) -> Result<(), String> {
+    crate::credentials::delete_secret("service", &service)
 }
 
 #[tauri::command]

@@ -45,6 +45,8 @@ import {
   hookAdd,
   hookRemove,
   hookToggle,
+  setServiceApiKey,
+  clearServiceApiKey,
   subagentList,
   subagentAdd,
   subagentRemove,
@@ -126,6 +128,18 @@ const emptySettings: DesktopSettings = {
   web_search_engine: "bing",
   headroom_enabled: false,
   headroom_port: 8787,
+  context_compression: true,
+  context_window_tokens: 128000,
+  price_per_million_tokens: 2.0,
+  usage_stats: {
+    total_tokens: 0,
+    total_cost_usd: 0,
+    today_tokens: 0,
+    today_cost_usd: 0,
+    week_tokens: 0,
+    week_cost_usd: 0,
+    last_updated: null,
+  },
 };
 
 const blankProviderConfig: ProviderConfig = {
@@ -333,7 +347,7 @@ function SettingsBody({
     return <PageShortcuts />;
   }
   if (page === "usage") {
-    return <PageUsage />;
+    return <PageUsage settings={settings} onSave={onSave} onNotice={onNotice} />;
   }
   if (page === "mcp") {
     return <PageMcp onNotice={onNotice} />;
@@ -353,12 +367,21 @@ function SettingsBody({
   if (page === "subagents") {
     return <PageSubagents onNotice={onNotice} />;
   }
-  return <PageGeneral settings={settings} onSave={onSave} />;
+  return <PageGeneral settings={settings} onSave={onSave} onNotice={onNotice} />;
 }
 
 // ─── General Page ────────────────────────────────────
 
-function PageGeneral({ settings, onSave }: { settings: DesktopSettings; onSave: (v: DesktopSettings) => Promise<void> }) {
+function PageGeneral({
+  settings,
+  onSave,
+  onNotice,
+}: {
+  settings: DesktopSettings;
+  onSave: (v: DesktopSettings) => Promise<void>;
+  onNotice: (s: string) => void;
+}) {
+  const [tavilyKey, setTavilyKey] = useState("");
   return (
     <>
       <section className="section">
@@ -426,7 +449,7 @@ function PageGeneral({ settings, onSave }: { settings: DesktopSettings; onSave: 
             onChange={(edit_mode) => onSave({ ...settings, edit_mode: edit_mode as EditMode })}
           />
         </SettingRow>
-        <SettingRow label="预算上限 (USD)" hint="单次会话最大花费，留空为不限制">
+        <SettingRow label="预算上限 (USD)" hint="累计消耗达到该金额后停止请求，留空为不限制">
           <input
             className="control w-28"
             type="number"
@@ -437,6 +460,40 @@ function PageGeneral({ settings, onSave }: { settings: DesktopSettings; onSave: 
             onChange={(e) => {
               const v = e.target.value.trim();
               onSave({ ...settings, budget_usd: v === "" ? null : Number(v) });
+            }}
+          />
+        </SettingRow>
+        <SettingRow label="上下文自动压缩" hint="接近窗口上限时自动把早期对话压缩为摘要，避免超限">
+          <Toggle
+            checked={settings.context_compression}
+            onChange={(context_compression) => onSave({ ...settings, context_compression })}
+          />
+        </SettingRow>
+        <SettingRow label="上下文窗口 (Token)" hint="当前模型的上下文窗口大小，用于估算压缩阈值">
+          <input
+            className="control w-32"
+            type="number"
+            min="4096"
+            step="1024"
+            placeholder="例如：128000"
+            value={settings.context_window_tokens}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              if (v > 0) onSave({ ...settings, context_window_tokens: Math.floor(v) });
+            }}
+          />
+        </SettingRow>
+        <SettingRow label="Token 单价 (USD/百万)" hint="估算用量费用的统一单价，用于预算与用量统计">
+          <input
+            className="control w-28"
+            type="number"
+            min="0"
+            step="0.1"
+            placeholder="例如：2"
+            value={settings.price_per_million_tokens}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              if (v >= 0) onSave({ ...settings, price_per_million_tokens: v });
             }}
           />
         </SettingRow>
@@ -457,6 +514,39 @@ function PageGeneral({ settings, onSave }: { settings: DesktopSettings; onSave: 
             <option value="perplexity">Perplexity</option>
           </select>
         </SettingRow>
+        {settings.web_search_engine === "tavily" && (
+          <SettingRow label="Tavily API Key" hint="写入 Windows 凭据管理器，仅用于 Tavily 搜索">
+            <div className="flex items-center gap-2">
+              <input
+                className="control w-64"
+                type="password"
+                placeholder="tvly-xxxxxxxx"
+                value={tavilyKey}
+                onChange={(e) => setTavilyKey(e.target.value)}
+              />
+              <button
+                onClick={async () => {
+                  try {
+                    if (tavilyKey.trim()) {
+                      await setServiceApiKey("tavily", tavilyKey.trim());
+                      onNotice("Tavily API Key 已保存");
+                    } else {
+                      await clearServiceApiKey("tavily");
+                      onNotice("Tavily API Key 已清除");
+                    }
+                    setTavilyKey("");
+                  } catch (error) {
+                    onNotice(`保存失败：${String(error)}`);
+                  }
+                }}
+                className="px-3 py-1.5 rounded-md text-[11px] font-medium text-white"
+                style={{ background: "var(--accent-blue)" }}
+              >
+                保存
+              </button>
+            </div>
+          </SettingRow>
+        )}
       </section>
 
       <section className="section">
@@ -1281,16 +1371,61 @@ function PageShortcuts() {
 
 // ─── Usage Page ──────────────────────────────────────
 
-function PageUsage() {
+function PageUsage({
+  settings,
+  onSave,
+  onNotice,
+}: {
+  settings: DesktopSettings;
+  onSave: (v: DesktopSettings) => Promise<void>;
+  onNotice: (s: string) => void;
+}) {
+  const stats = settings.usage_stats;
+  const fmt = (n: number) => n.toLocaleString();
+  const resetStats = async () => {
+    if (!window.confirm("确定清除全部用量统计吗？")) return;
+    await onSave({
+      ...settings,
+      usage_stats: {
+        total_tokens: 0,
+        total_cost_usd: 0,
+        today_tokens: 0,
+        today_cost_usd: 0,
+        week_tokens: 0,
+        week_cost_usd: 0,
+        last_updated: null,
+      },
+    });
+    onNotice("用量统计已清除");
+  };
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
-        <StatCard label="今日 Token" value="—" hint="输入 + 输出" />
-        <StatCard label="本周会话" value="—" hint="活跃会话数" />
-        <StatCard label="累计消耗" value="—" hint="估算 USD" />
+        <StatCard label="今日 Token" value={stats.today_tokens > 0 ? fmt(stats.today_tokens) : "0"} hint="输入 + 输出" />
+        <StatCard label="本周 Token" value={stats.week_tokens > 0 ? fmt(stats.week_tokens) : "0"} hint="近 7 天" />
+        <StatCard
+          label="累计消耗"
+          value={stats.total_cost_usd > 0 ? `$${stats.total_cost_usd.toFixed(2)}` : "$0.00"}
+          hint={`${fmt(stats.total_tokens)} Tokens 总量`}
+        />
       </div>
-      <div className="rounded-xl border p-6 text-center text-xs" style={{ borderColor: "var(--surface-3)", color: "var(--text-muted)" }}>
-        用量统计功能即将上线，当前版本暂不支持历史数据聚合。
+      <div className="rounded-xl border p-4 text-xs space-y-2" style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)" }}>
+        <div className="flex items-center justify-between">
+          <span style={{ color: "var(--text-muted)" }}>
+            用量来自模型响应的真实 usage 数据，按 Token 单价估算费用，仅保存在本地。
+          </span>
+          <button
+            onClick={resetStats}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium"
+            style={{ background: "var(--surface-2)", border: "1px solid var(--surface-4)", color: "var(--text-primary)" }}
+          >
+            <Trash2 size={11} />
+            清除统计
+          </button>
+        </div>
+        {stats.last_updated && (
+          <div style={{ color: "var(--text-dim)" }}>最近更新：{stats.last_updated}</div>
+        )}
       </div>
     </div>
   );

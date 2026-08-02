@@ -178,6 +178,8 @@ pub fn run() {
             ipc::session::session_get,
             settings::settings_get,
             settings::settings_update,
+            settings::set_service_api_key,
+            settings::clear_service_api_key,
             ipc::capabilities::capability_view,
             settings::provider_list,
             settings::provider_upsert,

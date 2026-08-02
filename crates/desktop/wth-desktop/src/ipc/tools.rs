@@ -234,6 +234,7 @@ pub async fn execute_tool(
     tool_name: &str,
     arguments: &Value,
     workspace_root: &Path,
+    settings: &crate::settings::DesktopSettings,
 ) -> Result<ToolOutput, String> {
     let root = dunce::canonicalize(workspace_root)
         .unwrap_or_else(|_| workspace_root.to_path_buf());
@@ -408,7 +409,22 @@ pub async fn execute_tool(
                 .get("query")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| "缺少 query 参数".to_string())?;
-            web_search(query).await
+            match settings.web_search_engine.as_str() {
+                "tavily" => match crate::credentials::read_secret("service", "tavily") {
+                    Ok(Some(key)) => web_search_tavily(query, &key).await,
+                    Ok(None) => Ok(ToolOutput::plain(json!({
+                        "query": query,
+                        "results": [],
+                        "note": "已选择 Tavily 但尚未配置 API Key：请在“设置 → 搜索”中填写 Tavily API Key"
+                    }))),
+                    Err(e) => Ok(ToolOutput::plain(json!({
+                        "query": query,
+                        "results": [],
+                        "note": format!("读取 Tavily 凭据失败：{e}")
+                    }))),
+                },
+                _ => web_search(query).await,
+            }
         }
         _ => Err(format!("未知工具: {tool_name}")),
     }
@@ -492,6 +508,44 @@ async fn run_git(args: &[String], root: &Path) -> Result<ShellOutput, String> {
         stdout: truncate(&String::from_utf8_lossy(&output.stdout)),
         stderr: truncate(&String::from_utf8_lossy(&output.stderr)),
     })
+}
+
+/// Tavily 搜索（需 API Key，配置于“设置 → 搜索”）。
+async fn web_search_tavily(query: &str, api_key: &str) -> Result<ToolOutput, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("创建搜索客户端失败: {e}"))?;
+    let resp = client
+        .post("https://api.tavily.com/search")
+        .json(&json!({
+            "api_key": api_key,
+            "query": query,
+            "max_results": 5,
+            "search_depth": "basic",
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Tavily 请求失败: {e}"))?;
+    let parsed: Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("解析 Tavily 响应失败: {e}"))?;
+    let results: Vec<Value> = parsed["results"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .take(5)
+        .map(|item| {
+            json!({
+                "title": item["title"].as_str().unwrap_or(""),
+                "url": item["url"].as_str().unwrap_or(""),
+                "snippet": item["content"].as_str().unwrap_or(""),
+            })
+        })
+        .collect();
+    Ok(ToolOutput::plain(json!({ "query": query, "results": results })))
 }
 
 /// 轻量 Web 搜索：DuckDuckGo Lite，无需 API Key。
