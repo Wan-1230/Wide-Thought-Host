@@ -184,6 +184,7 @@ pub async fn subagent_run(
                 session_id: sid.clone(),
                 content: task,
                 attachments: vec![],
+                system_instruction: None,
             },
             provider.base_url.clone(),
             api_key,

@@ -22,6 +22,9 @@ pub struct AgentMessage {
     pub content: String,
     #[serde(default)]
     pub attachments: Vec<Attachment>,
+    /// 本次请求附带的系统指令（技能 SKILL.md 等），仅单次请求生效
+    #[serde(default)]
+    pub system_instruction: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -306,6 +309,14 @@ pub(crate) async fn run_agent(
             memory_text.push_str(&format!("{}. 【{}】\n{}\n", i + 1, entry.title, entry.content));
         }
         messages.push(json!({ "role": "system", "content": memory_text }));
+    }
+    if let Some(instruction) = message.system_instruction {
+        if !instruction.trim().is_empty() {
+            messages.push(json!({
+                "role": "system",
+                "content": format!("【本次会话指令】\n{instruction}")
+            }));
+        }
     }
     messages.push(json!({
         "role": "user",

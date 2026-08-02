@@ -485,7 +485,8 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
       return;
     }
 
-    // 技能斜杠命令：加载 SKILL.md 并注入内容
+    // 技能斜杠命令：加载 SKILL.md 作为本次会话系统指令注入
+    let systemInstruction: string | undefined;
     if (content.startsWith("/")) {
       const parts = content.slice(1).split(/\s+/);
       const cmdName = parts[0];
@@ -496,10 +497,17 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
         try {
           const skillContent = await resolveSkill(cmdName);
           const args = parts.slice(1).join(" ");
-          // 注入技能内容：将 SKILL.md 作为系统指令，args 作为用户输入
-          content = `[技能指令: /${cmdName}]\n\n${skillContent}\n\n---\n用户输入: ${args || "执行技能"}`;
+          systemInstruction = `[技能: ${cmdName}]\n请严格遵循以下 SKILL.md 指令完成用户任务：\n\n${skillContent}`;
+          content = args || `请使用技能 ${cmdName}`;
         } catch (err) {
-          console.warn("技能加载失败，将以纯文本发送：", err);
+          // 技能加载失败：明确提示，不静默发送
+          addMessage(activeSessionId, {
+            id: crypto.randomUUID(),
+            role: "system",
+            content: `技能「${cmdName}」加载失败：${err}`,
+            timestamp: new Date().toISOString(),
+          });
+          return;
         }
       }
     }
@@ -527,6 +535,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
       await agentSend({
         session_id: activeSessionId,
         content,
+        system_instruction: systemInstruction,
       });
     } catch (err) {
       console.error("发送失败：", err);
