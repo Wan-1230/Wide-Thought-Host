@@ -15,3 +15,5 @@ crates/desktop/wth-desktop/icons/StoreLogo.png
 crates/desktop/wth-desktop/icons/Square*Logo.png
 crates/desktop/wth-desktop/icons/android/
 crates/desktop/wth-desktop/icons/ios/
+
+tauri-build*.log
