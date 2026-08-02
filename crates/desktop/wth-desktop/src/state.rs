@@ -106,8 +106,3 @@ pub fn push_log(
         }
     }
 }
-
-/// 记录一条应用日志（时间 + 级别 + 内容），供诊断页"最近日志"展示。
-pub fn log_event(state: &AppState, level: &str, message: impl AsRef<str>) {
-    push_log(&state.log_buffer, level, message);
-}
