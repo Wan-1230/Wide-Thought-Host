@@ -159,6 +159,7 @@ pub async fn agent_send(
         .map_err(|e| e.to_string())?
         .clone();
     let mcp_manager = state.inner().mcp.clone();
+    let log_buffer = state.inner().log_buffer.clone();
     let window_clone = window.clone();
     let sid = session_id.clone();
 
@@ -202,6 +203,7 @@ pub async fn agent_send(
             }
         }
         if let Err(e) = result {
+            crate::state::push_log(&log_buffer, "ERROR", &format!("会话 {sid} 运行失败：{e}"));
             let _ = window.emit(
                 "agent:stream",
                 AgentStreamChunk {
@@ -209,6 +211,8 @@ pub async fn agent_send(
                     payload: StreamPayload::Error { message: e },
                 },
             );
+        } else {
+            crate::state::push_log(&log_buffer, "INFO", &format!("会话 {sid} 完成"));
         }
     });
 

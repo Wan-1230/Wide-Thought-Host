@@ -53,6 +53,7 @@ import {
   subagentToggle,
   memoryList,
   memoryWrite,
+  diagnosticsGet,
   memoryDelete,
   type CapabilityItem,
   type CapabilitySource,
@@ -68,6 +69,7 @@ import {
   type HookConfig,
   type SubagentConfig,
   type MemoryEntry,
+  type DiagnosticItem,
 } from "@/lib/ipc";
 import { SegmentedControl } from "@/components/common/SegmentedControl";
 
@@ -1581,27 +1583,68 @@ function PageUsage({
 // ─── Diagnostics Page ────────────────────────────────
 
 function PageDiagnostics({ onNotice }: { onNotice: (s: string) => void }) {
-  const checks = [
-    ["WebView2", "正常"],
-    ["Git", "待运行检查"],
-    ["Shell", "自动检测"],
-    ["Agent 核心", "已链接"],
-    ["凭据存储", "Windows Credential Manager"],
-  ];
+  const [items, setItems] = useState<DiagnosticItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      setItems(await diagnosticsGet());
+    } catch (e) {
+      onNotice(`诊断失败：${e}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { void load(); }, []);
+
+  const statusColor = (status: string) =>
+    status === "ok" ? "var(--accent-green)" : status === "warn" ? "var(--accent-yellow)" : "var(--accent-red)";
+  const statusLabel = (status: string) =>
+    status === "ok" ? "正常" : status === "warn" ? "警告" : "异常";
 
   return (
     <>
       <div className="space-y-2">
-        {checks.map(([a, b]) => (
-          <div key={a} className="setting-row">
-            <ShieldCheck size={15} style={{ color: "var(--accent-green)" }} />
-            <div className="l"><div className="n">{a}</div></div>
-            <span className="text-xs" style={{ color: "var(--text-muted)" }}>{b}</span>
-          </div>
-        ))}
+        {loading ? (
+          <div className="py-8 text-xs text-center" style={{ color: "var(--text-muted)" }}>正在采集诊断数据…</div>
+        ) : items.length === 0 ? (
+          <div className="py-8 text-xs text-center" style={{ color: "var(--text-muted)" }}>暂无诊断数据。</div>
+        ) : (
+          items.map((item) => (
+            <div key={item.name} className="setting-row">
+              <ShieldCheck size={15} style={{ color: statusColor(item.status) }} />
+              <div className="l">
+                <div className="n">{item.name}</div>
+                <div className="d text-[10px]" style={{ color: "var(--text-dim)" }}>
+                  {item.detail.split("\n").length > 1 ? (
+                    expanded === item.name ? (
+                      <pre className="whitespace-pre-wrap text-[10px] mt-1" style={{ color: "var(--text-muted)" }}>{item.detail}</pre>
+                    ) : (
+                      <span>{item.detail.split("\n")[0]}…</span>
+                    )
+                  ) : (
+                    item.detail
+                  )}
+                </div>
+                {item.detail.split("\n").length > 1 && (
+                  <button
+                    className="mt-1 text-[10px]"
+                    style={{ color: "var(--accent-blue)" }}
+                    onClick={() => setExpanded(expanded === item.name ? null : item.name)}
+                  >
+                    {expanded === item.name ? "收起" : "展开全部"}
+                  </button>
+                )}
+              </div>
+              <span className="text-xs" style={{ color: statusColor(item.status) }}>{statusLabel(item.status)}</span>
+            </div>
+          ))
+        )}
       </div>
-      <button className="primary-btn mt-4" onClick={() => onNotice("诊断检查已刷新")}>
-        运行诊断
+      <button className="primary-btn mt-4" onClick={() => void load()} disabled={loading}>
+        重新运行诊断
       </button>
     </>
   );

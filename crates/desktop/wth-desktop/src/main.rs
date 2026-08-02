@@ -231,6 +231,7 @@ pub fn run() {
             settings::set_service_api_key,
             settings::clear_service_api_key,
             ipc::capabilities::capability_view,
+            ipc::capabilities::diagnostics_get,
             settings::provider_list,
             settings::provider_upsert,
             settings::provider_delete,

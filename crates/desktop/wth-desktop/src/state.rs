@@ -3,7 +3,7 @@
 //! Uses `Arc<Mutex<...>>` for interior mutability — Tauri commands
 //! access this through `tauri::State<AppState>`.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -62,6 +62,8 @@ pub struct AppState {
     pub headroom: Arc<HeadroomManager>,
     pub approvals: Arc<Mutex<AgentApprovals>>,
     pub mcp: Arc<tokio::sync::Mutex<McpManager>>,
+    /// 最近应用日志（环形缓冲，供诊断页展示，最多 200 条）
+    pub log_buffer: Arc<Mutex<VecDeque<String>>>,
 }
 
 impl Default for AppState {
@@ -80,6 +82,32 @@ impl Default for AppState {
             headroom: Arc::new(HeadroomManager::new()),
             approvals: Default::default(),
             mcp: Arc::new(tokio::sync::Mutex::new(McpManager::default())),
+            log_buffer: Default::default(),
         }
     }
+}
+
+/// 向日志环形缓冲写入一条记录。
+pub fn push_log(
+    log_buffer: &Arc<Mutex<VecDeque<String>>>,
+    level: &str,
+    message: impl AsRef<str>,
+) {
+    let line = format!(
+        "[{}] {} {}",
+        chrono::Local::now().format("%H:%M:%S"),
+        level,
+        message.as_ref()
+    );
+    if let Ok(mut buf) = log_buffer.lock() {
+        buf.push_back(line);
+        while buf.len() > 200 {
+            buf.pop_front();
+        }
+    }
+}
+
+/// 记录一条应用日志（时间 + 级别 + 内容），供诊断页"最近日志"展示。
+pub fn log_event(state: &AppState, level: &str, message: impl AsRef<str>) {
+    push_log(&state.log_buffer, level, message);
 }

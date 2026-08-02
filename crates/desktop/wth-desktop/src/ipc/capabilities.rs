@@ -1201,3 +1201,133 @@ pub async fn memory_delete(id: String, _state: State<'_, AppState>) -> Result<()
     }
     Ok(())
 }
+
+// ─── Diagnostics ─────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DiagnosticItemDto {
+    pub name: String,
+    pub status: String,
+    pub detail: String,
+}
+
+/// 读取 WebView2 运行时版本（注册表 pv 值）。
+fn webview2_version() -> String {
+    let key = r"HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
+    match std::process::Command::new("reg").args(["query", key, "/v", "pv"]).output() {
+        Ok(out) if out.status.success() => {
+            let text = String::from_utf8_lossy(&out.stdout);
+            text.lines()
+                .find_map(|line| {
+                    let line = line.trim();
+                    let idx = line.rfind("REG_SZ")?;
+                    Some(line[idx + "REG_SZ".len()..].trim().to_string())
+                })
+                .unwrap_or_else(|| "WebView2 运行时已安装".into())
+        }
+        _ => "未检测到独立版本（Tauri 依赖 WebView2 运行）".into(),
+    }
+}
+
+fn git_version() -> String {
+    match std::process::Command::new("git").arg("--version").output() {
+        Ok(out) if out.status.success() => String::from_utf8_lossy(&out.stdout).trim().to_string(),
+        _ => "Git 未安装或不在 PATH 中".into(),
+    }
+}
+
+/// 凭据存储读写往返测试（写 → 读 → 删）。
+fn credentials_roundtrip() -> String {
+    let service = "wth-diagnostics";
+    let account = "probe";
+    match crate::credentials::write_secret(service, account, "ok") {
+        Ok(()) => {
+            let read = crate::credentials::read_secret(service, account);
+            let _ = crate::credentials::delete_secret(service, account);
+            match read {
+                Ok(Some(value)) if value == "ok" => "OK（写入/读取/删除通过）".into(),
+                _ => "读取校验失败".into(),
+            }
+        }
+        Err(e) => format!("写入失败：{e}"),
+    }
+}
+
+/// 诊断页真实数据：环境、Agent、凭据、最近日志。
+#[tauri::command]
+pub async fn diagnostics_get(state: State<'_, AppState>) -> Result<Vec<DiagnosticItemDto>, String> {
+    let mut items = Vec::new();
+
+    // WebView2
+    let wv = webview2_version();
+    items.push(DiagnosticItemDto {
+        name: "WebView2 运行时".into(),
+        status: if wv.starts_with("未检测到") { "warn".into() } else { "ok".into() },
+        detail: wv,
+    });
+
+    // Git
+    let git = git_version();
+    items.push(DiagnosticItemDto {
+        name: "Git".into(),
+        status: if git.contains("git version") { "ok".into() } else { "warn".into() },
+        detail: git,
+    });
+
+    // Shell
+    let shell = {
+        let s = state.settings.read().map_err(|e| e.to_string())?;
+        s.terminal_shell.clone().unwrap_or_else(|| "powershell.exe（默认）".into())
+    };
+    items.push(DiagnosticItemDto {
+        name: "终端 Shell".into(),
+        status: "ok".into(),
+        detail: shell,
+    });
+
+    // Agent 核心
+    let agent_detail = {
+        let s = state.settings.read().map_err(|e| e.to_string())?;
+        let provider_id = s.default_provider_id.clone().unwrap_or_default();
+        let has_provider = s.providers.iter().any(|p| p.id == provider_id && p.enabled);
+        let has_key = crate::credentials::read_secret("provider", &provider_id)
+            .ok()
+            .flatten()
+            .is_some();
+        if has_provider && has_key {
+            "默认模型已配置且凭据有效".to_string()
+        } else if has_provider {
+            "默认模型已配置，但 API Key 缺失".to_string()
+        } else {
+            "未配置默认模型".to_string()
+        }
+    };
+    items.push(DiagnosticItemDto {
+        name: "Agent 核心".into(),
+        status: if agent_detail.starts_with("默认模型已配置且") { "ok".into() } else { "warn".into() },
+        detail: agent_detail,
+    });
+
+    // 凭据存储
+    let cred = credentials_roundtrip();
+    items.push(DiagnosticItemDto {
+        name: "凭据存储".into(),
+        status: if cred.starts_with("OK") { "ok".into() } else { "error".into() },
+        detail: cred,
+    });
+
+    // 最近日志（脱敏：仅展示时间/级别/消息，不含密钥）
+    let logs = state.log_buffer.lock().map_err(|e| e.to_string())?;
+    let recent: Vec<String> = logs.iter().rev().take(20).cloned().collect();
+    items.push(DiagnosticItemDto {
+        name: "最近日志".into(),
+        status: "ok".into(),
+        detail: if recent.is_empty() {
+            "暂无运行日志".into()
+        } else {
+            recent.join("\n")
+        },
+    });
+
+    Ok(items)
+}
