@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   Activity,
@@ -345,7 +345,7 @@ function SettingsBody({
     return <PageDiagnostics onNotice={onNotice} />;
   }
   if (page === "shortcuts") {
-    return <PageShortcuts />;
+    return <PageShortcuts settings={settings} onSave={onSave} onNotice={onNotice} />;
   }
   if (page === "usage") {
     return <PageUsage settings={settings} onSave={onSave} onNotice={onNotice} />;
@@ -1379,33 +1379,139 @@ function PageSubagents({ onNotice }: { onNotice: (s: string) => void }) {
 
 // ─── Shortcuts Page ──────────────────────────────────
 
-function PageShortcuts() {
-  const shortcuts = [
-    { keys: "Ctrl + K", action: "打开命令面板" },
-    { keys: "Ctrl + N", action: "新建会话" },
-    { keys: "Ctrl + ,", action: "打开设置" },
-    { keys: "Ctrl + Shift + T", action: "切换终端面板" },
-    { keys: "Ctrl + D", action: "切换深色/浅色" },
-    { keys: "Escape", action: "关闭弹窗/取消" },
-    { keys: "Ctrl + Enter", action: "发送消息" },
-    { keys: "Ctrl + Shift + C", action: "复制最后回复" },
-  ];
+const SHORTCUT_ACTIONS: { id: string; label: string; desc: string; global?: boolean }[] = [
+  { id: "toggle_window", label: "显示/隐藏窗口", desc: "全局生效，修改后需重启应用", global: true },
+  { id: "command_palette", label: "打开命令面板", desc: "Ctrl+K" },
+  { id: "new_session", label: "新建会话", desc: "Ctrl+N" },
+  { id: "open_settings", label: "打开设置", desc: "Ctrl+," },
+  { id: "toggle_terminal", label: "切换终端面板", desc: "Ctrl+Shift+T" },
+  { id: "toggle_theme", label: "切换深色/浅色", desc: "Ctrl+D" },
+  { id: "send_message", label: "发送消息", desc: "Ctrl+Enter" },
+];
+
+const DEFAULT_SHORTCUTS: Record<string, string> = {
+  toggle_window: "Alt+W",
+  command_palette: "Ctrl+K",
+  new_session: "Ctrl+N",
+  open_settings: "Ctrl+,",
+  toggle_terminal: "Ctrl+Shift+T",
+  toggle_theme: "Ctrl+D",
+  send_message: "Ctrl+Enter",
+};
+
+function formatKeys(keys: string): string {
+  return keys.split("+").map((p) => p.trim()).join(" + ");
+}
+
+function PageShortcuts({
+  settings,
+  onSave,
+  onNotice,
+}: {
+  settings: DesktopSettings;
+  onSave: (v: DesktopSettings) => Promise<void>;
+  onNotice: (s: string) => void;
+}) {
+  const [draft, setDraft] = useState<Record<string, string>>(() => ({
+    ...DEFAULT_SHORTCUTS,
+    ...(settings.shortcuts || {}),
+  }));
+  const [recordingId, setRecordingId] = useState<string | null>(null);
+  const recordingRef = useRef<string | null>(null);
+  recordingRef.current = recordingId;
+
+  // 录制组合键：全局捕获，仅允许带修饰键的组合
+  useEffect(() => {
+    if (!recordingId) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const parts: string[] = [];
+      if (e.ctrlKey) parts.push("Ctrl");
+      if (e.altKey) parts.push("Alt");
+      if (e.shiftKey) parts.push("Shift");
+      if (e.metaKey) parts.push("Super");
+      if (parts.length === 0) return;
+      let key = e.key.length === 1 ? e.key.toUpperCase() : e.key;
+      if (key === " ") key = "Space";
+      if (key === "Control" || key === "Alt" || key === "Shift" || key === "Meta" || key.startsWith("Arrow")) return;
+      const combo = [...parts, key].join("+");
+      const id = recordingRef.current;
+      if (id) {
+        setDraft((prev) => ({ ...prev, [id]: combo }));
+        setRecordingId(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [recordingId]);
+
+  const handleSave = async () => {
+    const seen = new Map<string, string>();
+    for (const [id, keys] of Object.entries(draft)) {
+      const normalized = keys.trim();
+      if (!normalized) continue;
+      const prev = seen.get(normalized);
+      if (prev) {
+        const labelA = SHORTCUT_ACTIONS.find((a) => a.id === prev)?.label || prev;
+        const labelB = SHORTCUT_ACTIONS.find((a) => a.id === id)?.label || id;
+        onNotice(`快捷键冲突：「${labelA}」与「${labelB}」使用了相同的 ${formatKeys(normalized)}`);
+        return;
+      }
+      seen.set(normalized, id);
+    }
+    try {
+      await onSave({ ...settings, shortcuts: draft });
+      onNotice("快捷键已保存；全局快捷键（显示/隐藏窗口）需重启应用后生效");
+    } catch (e) {
+      onNotice(String(e));
+    }
+  };
 
   return (
     <div className="space-y-2">
-      {shortcuts.map((s) => (
-        <div key={s.keys} className="setting-row">
-          <div className="l">
-            <div className="n">{s.action}</div>
+      <div className="flex items-center gap-2 mb-3">
+        <button className="small-btn font-semibold" onClick={handleSave}>保存快捷键</button>
+        <button
+          className="small-btn"
+          onClick={() => {
+            setDraft({ ...DEFAULT_SHORTCUTS });
+            onNotice("已恢复默认快捷键，点击「保存快捷键」生效");
+          }}
+        >
+          恢复默认
+        </button>
+      </div>
+      {SHORTCUT_ACTIONS.map((s) => {
+        const keys = draft[s.id] || DEFAULT_SHORTCUTS[s.id];
+        const recording = recordingId === s.id;
+        return (
+          <div key={s.id} className="setting-row">
+            <div className="l">
+              <div className="n">{s.label}</div>
+              {s.desc && (
+                <div className="d" style={{ color: "var(--text-dim)" }}>{s.desc}</div>
+              )}
+            </div>
+            <button
+              className="rounded-md px-2.5 py-1 text-[11px] font-mono transition-colors"
+              style={{
+                background: recording ? "var(--accent-blue)" : "var(--surface-2)",
+                border: "1px solid var(--surface-3)",
+                color: recording ? "#fff" : "var(--text-primary)",
+                minWidth: "7rem",
+              }}
+              title={recording ? "按下新的组合键…" : "点击后按新的组合键"}
+              onClick={() => setRecordingId(recording ? null : s.id)}
+            >
+              {recording ? "按下组合键…" : formatKeys(keys)}
+            </button>
           </div>
-          <kbd
-            className="rounded-md px-2.5 py-1 text-[11px] font-mono"
-            style={{ background: "var(--surface-2)", border: "1px solid var(--surface-3)" }}
-          >
-            {s.keys}
-          </kbd>
-        </div>
-      ))}
+        );
+      })}
+      <p className="text-[10px] pt-1" style={{ color: "var(--text-dim)" }}>
+        点击按键框后直接按下组合键（如 Ctrl+Shift+K）即可录入；保存后前端快捷键立即生效。
+      </p>
     </div>
   );
 }

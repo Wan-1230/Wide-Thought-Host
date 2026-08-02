@@ -39,6 +39,19 @@ fn default_web_search_engine() -> String {
     "bing".into()
 }
 
+/// 默认快捷键表（action → 按键组合）。
+pub fn default_shortcuts() -> HashMap<String, String> {
+    let mut map = HashMap::new();
+    map.insert("toggle_window".into(), "Alt+W".into());
+    map.insert("command_palette".into(), "Ctrl+K".into());
+    map.insert("new_session".into(), "Ctrl+N".into());
+    map.insert("open_settings".into(), "Ctrl+,".into());
+    map.insert("toggle_terminal".into(), "Ctrl+Shift+T".into());
+    map.insert("toggle_theme".into(), "Ctrl+D".into());
+    map.insert("send_message".into(), "Ctrl+Enter".into());
+    map
+}
+
 /// 预置的常用子智能体：开箱即用，用户可删除或修改。
 /// `model` 留空表示跟随默认模型；`tools` 为允许子智能体使用的工具。
 pub fn default_subagents() -> Vec<SubagentConfig> {
@@ -162,6 +175,8 @@ pub struct DesktopSettings {
     pub price_per_million_tokens: f64,
     /// 用量统计（跨会话累计）
     pub usage_stats: UsageStats,
+    /// 快捷键映射（action → 按键组合），缺省项回退默认
+    pub shortcuts: HashMap<String, String>,
 }
 
 impl Default for DesktopSettings {
@@ -204,6 +219,7 @@ impl Default for DesktopSettings {
             context_window_tokens: 128_000,
             price_per_million_tokens: 2.0,
             usage_stats: UsageStats::default(),
+            shortcuts: default_shortcuts(),
         }
     }
 }

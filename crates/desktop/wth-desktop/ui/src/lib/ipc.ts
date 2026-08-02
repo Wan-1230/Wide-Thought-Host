@@ -152,6 +152,8 @@ export interface DesktopSettings {
   price_per_million_tokens: number;
   usage_stats: UsageStats;
   subagents?: SubagentConfig[];
+  /** 快捷键映射（action → 按键组合） */
+  shortcuts?: Record<string, string>;
 }
 
 export interface GitHubProfile { login: string; name?: string | null; avatar_url?: string | null; }

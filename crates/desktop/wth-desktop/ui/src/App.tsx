@@ -58,6 +58,7 @@ import {
   fileRead,
   sessionSetPinned,
   settingsGet,
+  type DesktopSettings,
   type GitHubAuthStatus,
   type StreamChunk,
   type WorkspaceInfo,
@@ -70,6 +71,22 @@ import {
 import wthIcon from "@/assets/wth-icon.png";
 
 type NavSection = "sessions" | "files";
+
+/** 判断键盘事件是否匹配快捷键字符串（如 "Ctrl+K" / "Ctrl+Shift+T"）。 */
+function keysMatch(e: KeyboardEvent, keys: string): boolean {
+  const parts = keys.split("+").map((p) => p.trim().toLowerCase());
+  const ctrl = parts.includes("ctrl") || parts.includes("cmdorctrl") || parts.includes("cmd") || parts.includes("control");
+  const alt = parts.includes("alt");
+  const shift = parts.includes("shift");
+  const superKey = parts.includes("super") || parts.includes("meta") || parts.includes("win");
+  if (e.ctrlKey !== ctrl || e.altKey !== alt || e.shiftKey !== shift || e.metaKey !== superKey) return false;
+  const expected = parts.find(
+    (p) => !["ctrl", "alt", "shift", "super", "meta", "win", "cmdorctrl", "cmd", "control"].includes(p),
+  );
+  if (!expected) return false;
+  const actual = e.key.length === 1 ? e.key.toLowerCase() : e.key.toLowerCase();
+  return actual === expected;
+}
 
 export default function App() {
   const {
@@ -100,6 +117,7 @@ export default function App() {
   const terminalResize = useResizable({ initialWidth: 420, minWidth: 300, maxWidth: 800, direction: "left" });
   const editorResize = useResizable({ initialHeight: 320, minHeight: 160, maxHeight: 620, direction: "up" });
   const [theme, setTheme] = useState<"dark" | "light">("light");
+  const [appSettings, setAppSettings] = useState<DesktopSettings | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceInfo | null>(null);
   const [workspaceBranch, setWorkspaceBranch] = useState<string | null>(null);
   const [recentWorkspaces, setRecentWorkspaces] = useState<WorkspaceInfo[]>([]);
@@ -149,7 +167,10 @@ export default function App() {
 
   useEffect(() => {
     sessionList().then(setSessions).catch(console.error);
-    settingsGet().then((value) => setTheme(value.theme)).catch(console.error);
+    settingsGet().then((value) => {
+      setTheme(value.theme);
+      setAppSettings(value);
+    }).catch(console.error);
     refreshWorkspace().catch(console.error);
     refreshGitHub().catch(console.error);
 
@@ -247,21 +268,6 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [github?.state]);
 
-  // Ctrl+K command palette & Ctrl+, settings
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
-        e.preventDefault();
-        setShowCommandPalette((v) => !v);
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === ",") {
-        e.preventDefault();
-        setShowSettings(true);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
 
   useEffect(() => {
     const dispose = listen("menu:new-session", async () => {
@@ -295,6 +301,39 @@ export default function App() {
       console.error("创建会话失败：", error);
     }
   }, [setActiveSession, upsertSession]);
+
+  // 可配置快捷键（读取 settings.shortcuts，缺省回退默认组合）
+  useEffect(() => {
+    const sc = appSettings?.shortcuts || {};
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (keysMatch(e, sc.command_palette || "Ctrl+K")) {
+        e.preventDefault();
+        setShowCommandPalette((v) => !v);
+        return;
+      }
+      if (keysMatch(e, sc.open_settings || "Ctrl+,")) {
+        e.preventDefault();
+        setShowSettings(true);
+        return;
+      }
+      if (keysMatch(e, sc.toggle_theme || "Ctrl+D")) {
+        e.preventDefault();
+        setTheme((c) => (c === "dark" ? "light" : "dark"));
+        return;
+      }
+      if (keysMatch(e, sc.new_session || "Ctrl+N")) {
+        e.preventDefault();
+        void handleNewSession();
+        return;
+      }
+      if (keysMatch(e, sc.toggle_terminal || "Ctrl+Shift+T")) {
+        e.preventDefault();
+        setShowTerminalPanel((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [appSettings, handleNewSession]);
 
   const handleOpenFile = useCallback(async (path: string) => {
     try {

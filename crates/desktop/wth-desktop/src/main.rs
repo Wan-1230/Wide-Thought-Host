@@ -23,6 +23,35 @@ use tauri::Manager;
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// 解析形如 "Alt+W" / "Ctrl+Shift+T" 的快捷键字符串为全局快捷键对象。
+fn parse_global_shortcut(s: &str) -> Option<tauri_plugin_global_shortcut::Shortcut> {
+    use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
+    let mut modifiers = Modifiers::empty();
+    let mut key = String::new();
+    for part in s.split('+') {
+        let part = part.trim();
+        match part.to_ascii_lowercase().as_str() {
+            "alt" => modifiers |= Modifiers::ALT,
+            "ctrl" | "control" | "cmdorctrl" | "cmd" => modifiers |= Modifiers::CONTROL,
+            "shift" => modifiers |= Modifiers::SHIFT,
+            "super" | "meta" | "win" => modifiers |= Modifiers::SUPER,
+            other => key = other.to_string(),
+        }
+    }
+    let code = match key.to_ascii_lowercase().as_str() {
+        "w" => Code::KeyW,
+        "k" => Code::KeyK,
+        "n" => Code::KeyN,
+        "t" => Code::KeyT,
+        "d" => Code::KeyD,
+        "q" => Code::KeyQ,
+        "enter" => Code::Enter,
+        "escape" => Code::Escape,
+        _ => return None,
+    };
+    Some(Shortcut::new(Some(modifiers), code))
+}
+
 pub fn run() {
     // Initialize tracing
     tracing_subscriber::registry()
@@ -142,14 +171,34 @@ pub fn run() {
                 });
             }
 
-            // Register global shortcut (Alt+W — toggle window visibility)
-            // Note: Alt+Space conflicts with WorkBuddy and other desktop apps,
-            // so we use Alt+W as a non-colliding alternative.
+            // Register global shortcut (default Alt+W — toggle window visibility)
+            // 快捷键可读自设置（settings.shortcuts["toggle_window"]），注册失败降级为默认。
             use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
-            let shortcut = Shortcut::new(Some(Modifiers::ALT), Code::KeyW);
-            match app.global_shortcut().register(shortcut) {
-                Ok(_) => tracing::info!("Global shortcut Alt+W registered"),
-                Err(e) => tracing::warn!("Failed to register Alt+W: {}", e),
+            let toggle_keys = app
+                .state::<AppState>()
+                .settings
+                .read()
+                .ok()
+                .and_then(|s| s.shortcuts.get("toggle_window").cloned())
+                .unwrap_or_else(|| "Alt+W".into());
+            if let Some(shortcut) = parse_global_shortcut(&toggle_keys) {
+                match app.global_shortcut().on_shortcut(shortcut, |app, _shortcut, _event| {
+                    if let Some(window) = app.get_webview_window("main") {
+                        if window.is_visible().unwrap_or(false) {
+                            let _ = window.hide();
+                        } else {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                }) {
+                    Ok(_) => tracing::info!("Global shortcut {toggle_keys} registered"),
+                    Err(e) => tracing::warn!("Failed to register global shortcut {toggle_keys}: {e}"),
+                }
+            } else {
+                tracing::warn!("无法解析全局快捷键「{toggle_keys}」，使用默认 Alt+W");
+                let fallback = Shortcut::new(Some(Modifiers::ALT), Code::KeyW);
+                let _ = app.global_shortcut().register(fallback);
             }
 
             tracing::info!("Wide Thought Host desktop started");
