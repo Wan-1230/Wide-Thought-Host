@@ -456,6 +456,16 @@ export interface UpdateCheckInfo {
 
 export const updateCheck = () => invoke<UpdateCheckInfo>("update_check");
 
+export interface WorkspaceSearchHit {
+  path: string;
+  line: number;
+  snippet: string;
+  score: number;
+}
+
+export const workspaceSearch = (query: string, limit?: number) =>
+  invoke<WorkspaceSearchHit[]>("workspace_search", { query, limit });
+
 export const memoryList = () => invoke<MemoryEntry[]>("memory_list");
 export const memoryWrite = (title: string, content: string, tags?: string[], scope?: "user" | "workspace") =>
   invoke<MemoryEntry>("memory_write", { title, content, tags, scope });

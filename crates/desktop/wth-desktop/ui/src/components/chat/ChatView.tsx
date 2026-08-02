@@ -29,13 +29,14 @@ import {
   AtSign,
   Paperclip,
   GitBranch,
+  Search,
   X,
 } from "lucide-react";
 import { THINKING_MESSAGE, useChatStore } from "@/stores/chat";
 import { useWorkbenchStore } from "@/stores/workbench";
-import { agentSend, agentAbort, agentApproveTool, agentDenyTool, fileList, listSlashCommands, resolveSkill, subagentList, subagentRun, memoryWrite, sessionCreate } from "@/lib/ipc";
+import { agentSend, agentAbort, agentApproveTool, agentDenyTool, fileList, listSlashCommands, resolveSkill, subagentList, subagentRun, memoryWrite, sessionCreate, workspaceSearch } from "@/lib/ipc";
 import type { ChatMessage, ToolCall } from "@/stores/chat";
-import type { FileEntry, HistoryMessage, SlashCommandInfo, SubagentConfig } from "@/lib/ipc";
+import type { FileEntry, HistoryMessage, SlashCommandInfo, SubagentConfig, WorkspaceSearchHit } from "@/lib/ipc";
 import wthBanner from "@/assets/wth-banner.png";
 import { ContextMenu, contextMenuPointFromEvent, type ContextMenuPoint } from "@/components/common/ContextMenu";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -429,7 +430,8 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
 
   const [input, setInput] = useState("");
   const [showPopup, setShowPopup] = useState<"none" | "file" | "command">("none");
-  const [popupItems, setPopupItems] = useState<{ label: string; value: string; kind: "file" | "subagent" | "command" }[]>([]);
+  type PopupItem = { label: string; value: string; kind: "file" | "subagent" | "command" | "search"; hit?: WorkspaceSearchHit };
+  const [popupItems, setPopupItems] = useState<PopupItem[]>([]);
   const [popupIndex, setPopupIndex] = useState(0);
   const [msgMenu, setMsgMenu] = useState<{ point: ContextMenuPoint; content: string; role: ChatMessage["role"]; id: string } | null>(null);
   const [slashCommands, setSlashCommands] = useState<SlashCommandInfo[]>([]);
@@ -506,6 +508,22 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
             kind: "command" as const,
           }));
           setPopupItems(candidates.filter((c) => c.label.toLowerCase().includes(query)));
+        } else if (showPopup === "file" && query.length > 0) {
+          // 代码检索：文件名 + 内容关键词命中
+          try {
+            const hits = await workspaceSearch(query, 6);
+            const searchItems: PopupItem[] = hits.map((h) => ({
+              label: `${h.path}:${h.line}`,
+              value: `${h.path}:${h.line}`,
+              kind: "search" as const,
+              hit: h,
+            }));
+            const fileItems = popupItems.filter((p) => p.kind === "file");
+            const subItems = popupItems.filter((p) => p.kind === "subagent");
+            setPopupItems([...searchItems, ...fileItems, ...subItems]);
+          } catch {
+            // 检索失败时保留原列表
+          }
         }
         setPopupIndex(0);
       }
@@ -558,7 +576,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
     setAttachments((prev) => [...prev, ...fresh].slice(0, 5));
   };
 
-  const selectPopupItem = (item: { label: string; value: string; kind: "file" | "subagent" | "command" }) => {
+  const selectPopupItem = (item: PopupItem) => {
     if (item.kind === "file") {
       const lastAt = input.lastIndexOf("@");
       setInput(input.slice(0, lastAt) + `@${item.value} `);
@@ -568,6 +586,14 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
         setDelegatingTo(sub);
         setInput("");
       }
+    } else if (item.kind === "search" && item.hit) {
+      const h = item.hit;
+      const base = h.path.split(/[\\/]/).pop() || h.path;
+      setAttachments((prev) =>
+        [...prev, { name: `${base}:${h.line}`, mime_type: "text/plain", content: `[代码引用：${h.path}:${h.line}]\n${h.snippet}` }].slice(0, 5),
+      );
+      const lastAt = input.lastIndexOf("@");
+      setInput(input.slice(0, lastAt) + `已引用 ${base}:${h.line} `);
     } else {
       setInput(item.value + " ");
     }
@@ -898,6 +924,8 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
                       <FileText size={12} style={{ color: "var(--text-muted)" }} />
                     ) : item.kind === "subagent" ? (
                       <Bot size={12} style={{ color: "var(--accent-purple)" }} />
+                    ) : item.kind === "search" ? (
+                      <Search size={12} style={{ color: "var(--accent-green)" }} />
                     ) : (
                       <Slash size={12} style={{ color: "var(--accent-blue)" }} />
                     )}

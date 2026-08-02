@@ -234,6 +234,7 @@ pub fn run() {
             ipc::capabilities::diagnostics_get,
             ipc::capabilities::plugin_import,
             ipc::capabilities::update_check,
+            ipc::capabilities::workspace_search,
             settings::provider_list,
             settings::provider_upsert,
             settings::provider_delete,

@@ -994,6 +994,153 @@ pub async fn list_slash_commands(
     Ok(commands)
 }
 
+// ─── Workspace RAG (lightweight keyword index) ───────
+
+#[derive(Debug, Clone, Serialize)]
+pub struct WorkspaceSearchHitDto {
+    pub path: String,
+    pub line: usize,
+    pub snippet: String,
+    pub score: usize,
+}
+
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+struct IndexedFile {
+    path: String,
+    name: String,
+    size: u64,
+}
+
+fn workspace_index_cache(workspace: &Path) -> PathBuf {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    workspace.to_string_lossy().hash(&mut hasher);
+    let hash = hasher.finish();
+    xai_grok_config::wth_home()
+        .join("index")
+        .join(format!("ws-{hash:x}.json"))
+}
+
+fn build_workspace_index(workspace: &Path) -> Vec<IndexedFile> {
+    const IGNORE: &[&str] = &[
+        "node_modules", ".git", "target", "dist", ".next", ".wth",
+        ".idea", ".vscode", "vendor", "__pycache__", "bin", "obj",
+    ];
+    const EXTS: &[&str] = &[
+        "rs", "ts", "tsx", "js", "jsx", "py", "go", "java", "kt", "c", "cpp", "h", "hpp",
+        "md", "txt", "json", "toml", "yaml", "yml", "html", "css", "scss", "vue", "svelte",
+        "sql", "sh", "ps1", "xml", "ini",
+    ];
+    let mut files = Vec::new();
+    for entry in WalkDir::new(workspace)
+        .into_iter()
+        .filter_entry(|e| {
+            if e.depth() == 0 {
+                return true;
+            }
+            let name = e.file_name().to_string_lossy().to_string();
+            !IGNORE.iter().any(|ig| name == *ig)
+        })
+        .flatten()
+    {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let path = entry.path();
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+        if !EXTS.contains(&ext.as_str()) {
+            continue;
+        }
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
+        let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+        if size > 1_048_576 {
+            continue;
+        }
+        let rel = path
+            .strip_prefix(workspace)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .to_string();
+        files.push(IndexedFile {
+            path: rel,
+            name,
+            size,
+        });
+        if files.len() >= 20_000 {
+            break;
+        }
+    }
+    files
+}
+
+fn load_workspace_index(workspace: &Path, cache: &Path) -> Vec<IndexedFile> {
+    if let Ok(content) = fs::read_to_string(cache) {
+        if let Ok(files) = serde_json::from_str::<Vec<IndexedFile>>(&content) {
+            if !files.is_empty() {
+                return files;
+            }
+        }
+    }
+    let files = build_workspace_index(workspace);
+    if let Some(parent) = cache.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let _ = fs::write(cache, serde_json::to_string(&files).unwrap_or_default());
+    files
+}
+
+/// 工作区轻量检索：文件名与内容关键词匹配，返回 top-k 片段。
+#[tauri::command]
+pub async fn workspace_search(
+    state: State<'_, AppState>,
+    query: String,
+    limit: Option<usize>,
+) -> Result<Vec<WorkspaceSearchHitDto>, String> {
+    let workspace = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    if !workspace.is_dir() {
+        return Err("未选择工作区".into());
+    }
+    let query = query.trim().to_string();
+    if query.is_empty() {
+        return Ok(Vec::new());
+    }
+    let limit = limit.unwrap_or(10).min(50);
+    let workspace_clone = workspace.clone();
+    let hits = tokio::task::spawn_blocking(move || {
+        let cache = workspace_index_cache(&workspace_clone);
+        let files = load_workspace_index(&workspace_clone, &cache);
+        let q = query.to_lowercase();
+        let mut hits = Vec::new();
+        for file in files {
+            let name_score = file.name.to_lowercase().matches(&q).count();
+            let full_path = workspace_clone.join(&file.path);
+            let Ok(content) = fs::read_to_string(&full_path) else {
+                continue;
+            };
+            for (i, line) in content.lines().enumerate() {
+                if line.to_lowercase().contains(&q) {
+                    hits.push(WorkspaceSearchHitDto {
+                        path: file.path.clone(),
+                        line: i + 1,
+                        snippet: line.trim().chars().take(200).collect(),
+                        score: name_score * 10 + 1,
+                    });
+                }
+            }
+            if hits.len() >= limit * 30 {
+                break;
+            }
+        }
+        hits.sort_by(|a, b| b.score.cmp(&a.score));
+        hits.truncate(limit);
+        hits
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(hits)
+}
+
 // ─── Update check ────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize)]
