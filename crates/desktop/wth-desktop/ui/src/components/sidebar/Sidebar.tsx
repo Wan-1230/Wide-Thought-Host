@@ -6,7 +6,7 @@
 import { useState, useMemo } from "react";
 import { Pin, PinOff, Pencil, Trash2, MessageSquare, Clock, Download } from "lucide-react";
 import type { SessionInfo } from "@/lib/ipc";
-import { sessionExport } from "@/lib/ipc";
+
 import { ContextMenu, contextMenuPointFromEvent, type ContextMenuPoint } from "@/components/common/ContextMenu";
 
 interface SidebarProps {
@@ -16,6 +16,7 @@ interface SidebarProps {
   onDeleteSession: (id: string) => Promise<void>;
   onRenameSession: (id: string, title: string) => Promise<void>;
   onTogglePinSession: (id: string, pinned: boolean) => Promise<void>;
+  onExportSession: (id: string, format: "markdown" | "json") => void;
   searchQuery?: string;
 }
 
@@ -34,7 +35,7 @@ function relativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
-export function Sidebar({ sessions, activeId, onSelect, onDeleteSession, onRenameSession, onTogglePinSession, searchQuery = "" }: SidebarProps) {
+export function Sidebar({ sessions, activeId, onSelect, onDeleteSession, onRenameSession, onTogglePinSession, onExportSession, searchQuery = "" }: SidebarProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [menuPoint, setMenuPoint] = useState<ContextMenuPoint | null>(null);
   const [menuSession, setMenuSession] = useState<SessionInfo | null>(null);
@@ -219,22 +220,20 @@ export function Sidebar({ sessions, activeId, onSelect, onDeleteSession, onRenam
                   },
                 },
                 {
-                  key: "export",
+                  key: "export-md",
                   icon: <Download size={14} />,
-                  label: "导出会话",
-                  onSelect: async () => {
-                    try {
-                      const content = await sessionExport(menuSession.id, "markdown");
-                      const blob = new Blob([content], { type: "text/markdown" });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      a.href = url;
-                      a.download = `${menuSession.title || "会话"}.md`;
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    } catch (err) {
-                      console.error("导出失败：", err);
-                    }
+                  label: "导出为 Markdown",
+                  onSelect: () => {
+                    onExportSession(menuSession.id, "markdown");
+                    closeMenu();
+                  },
+                },
+                {
+                  key: "export-json",
+                  icon: <Download size={14} />,
+                  label: "导出为 JSON",
+                  onSelect: () => {
+                    onExportSession(menuSession.id, "json");
                     closeMenu();
                   },
                 },

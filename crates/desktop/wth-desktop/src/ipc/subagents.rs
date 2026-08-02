@@ -185,6 +185,7 @@ pub async fn subagent_run(
                 content: task,
                 attachments: vec![],
                 system_instruction: None,
+                history: vec![],
             },
             provider.base_url.clone(),
             api_key,

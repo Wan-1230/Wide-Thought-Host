@@ -37,6 +37,8 @@ interface ChatStore {
   renameSession: (sessionId: string, title: string) => void;
   pinSession: (sessionId: string, pinned: boolean) => void;
   addMessage: (sessionId: string, msg: ChatMessage) => void;
+  setMessages: (sessionId: string, msgs: ChatMessage[]) => void;
+  truncateMessages: (sessionId: string, fromMessageId: string) => void;
   appendToLastMessage: (sessionId: string, delta: string) => void;
   finalizeAssistantMessage: (sessionId: string, fallback: string) => void;
   setStreaming: (sessionId: string, active: boolean) => void;
@@ -123,6 +125,24 @@ export const useChatStore = create<ChatStore>((set) => ({
         [sessionId]: [...(state.messages[sessionId] || []), msg],
       },
     })),
+
+  setMessages: (sessionId, msgs) =>
+    set((state) => ({
+      messages: { ...state.messages, [sessionId]: msgs },
+    })),
+
+  truncateMessages: (sessionId, fromMessageId) =>
+    set((state) => {
+      const msgs = state.messages[sessionId] || [];
+      const idx = msgs.findIndex((m) => m.id === fromMessageId);
+      if (idx < 0) return state;
+      return {
+        messages: {
+          ...state.messages,
+          [sessionId]: msgs.slice(0, idx),
+        },
+      };
+    }),
 
   appendToLastMessage: (sessionId, delta) =>
     set((state) => {

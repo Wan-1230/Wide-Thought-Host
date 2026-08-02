@@ -28,13 +28,14 @@ import {
   Slash,
   AtSign,
   Paperclip,
+  GitBranch,
   X,
 } from "lucide-react";
 import { THINKING_MESSAGE, useChatStore } from "@/stores/chat";
 import { useWorkbenchStore } from "@/stores/workbench";
-import { agentSend, agentAbort, agentApproveTool, agentDenyTool, fileList, listSlashCommands, resolveSkill, subagentList, subagentRun, memoryWrite } from "@/lib/ipc";
+import { agentSend, agentAbort, agentApproveTool, agentDenyTool, fileList, listSlashCommands, resolveSkill, subagentList, subagentRun, memoryWrite, sessionCreate } from "@/lib/ipc";
 import type { ChatMessage, ToolCall } from "@/stores/chat";
-import type { FileEntry, SlashCommandInfo, SubagentConfig } from "@/lib/ipc";
+import type { FileEntry, HistoryMessage, SlashCommandInfo, SubagentConfig } from "@/lib/ipc";
 import wthBanner from "@/assets/wth-banner.png";
 import { ContextMenu, contextMenuPointFromEvent, type ContextMenuPoint } from "@/components/common/ContextMenu";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -417,16 +418,20 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
     messages,
     streaming,
     addMessage,
+    setMessages,
+    truncateMessages,
     appendToLastMessage,
     finalizeAssistantMessage,
     setStreaming,
+    upsertSession,
+    setActiveSession,
   } = useChatStore();
 
   const [input, setInput] = useState("");
   const [showPopup, setShowPopup] = useState<"none" | "file" | "command">("none");
   const [popupItems, setPopupItems] = useState<{ label: string; value: string; kind: "file" | "subagent" | "command" }[]>([]);
   const [popupIndex, setPopupIndex] = useState(0);
-  const [msgMenu, setMsgMenu] = useState<{ point: ContextMenuPoint; content: string; role: ChatMessage["role"] } | null>(null);
+  const [msgMenu, setMsgMenu] = useState<{ point: ContextMenuPoint; content: string; role: ChatMessage["role"]; id: string } | null>(null);
   const [slashCommands, setSlashCommands] = useState<SlashCommandInfo[]>([]);
   const [subagents, setSubagents] = useState<SubagentConfig[]>([]);
   const [delegatingTo, setDelegatingTo] = useState<SubagentConfig | null>(null);
@@ -570,6 +575,61 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
     textareaRef.current?.focus();
   };
 
+  /** 构造历史上下文（仅 user/assistant 文本消息）。 */
+  const buildHistory = (msgs: ChatMessage[]): HistoryMessage[] =>
+    msgs
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .filter((m) => m.content && m.content !== THINKING_MESSAGE)
+      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+
+  /** 发送核心：添加消息 → 占位 → agentSend（带历史上下文）。 */
+  const runAgentRequest = async (
+    content: string,
+    history: HistoryMessage[],
+    atts: Attachment[],
+    systemInstruction?: string,
+  ) => {
+    if (!activeSessionId) return;
+    // 添加 user 消息到 store
+    addMessage(activeSessionId, {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: atts.length
+        ? `${content}\n\n[附件：${atts.map((a) => a.name).join("、")}]`
+        : content,
+      timestamp: new Date().toISOString(),
+    });
+    // 添加占位的 assistant 消息（流式 chunk 会 appendToLastMessage）
+    addMessage(activeSessionId, {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: THINKING_MESSAGE,
+      timestamp: new Date().toISOString(),
+    });
+    setStreaming(activeSessionId, true);
+    setInput("");
+    try {
+      await agentSend({
+        session_id: activeSessionId,
+        content,
+        system_instruction: systemInstruction,
+        attachments: atts,
+        history,
+      });
+      setAttachments([]);
+    } catch (err) {
+      console.error("发送失败：", err);
+      finalizeAssistantMessage(activeSessionId, "（发送失败）");
+      addMessage(activeSessionId, {
+        id: crypto.randomUUID(),
+        role: "system",
+        content: `发送失败：${err}`,
+        timestamp: new Date().toISOString(),
+      });
+      setStreaming(activeSessionId, false);
+    }
+  };
+
   const handleSend = async () => {
     if (!activeSessionId) return;
     let content = input.trim();
@@ -631,45 +691,48 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
       }
     }
 
-    // 添加 user 消息到 store
-    addMessage(activeSessionId, {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: attachments.length
-        ? `${content}\n\n[附件：${attachments.map((a) => a.name).join("、")}]`
-        : content,
-      timestamp: new Date().toISOString(),
-    });
+    const history = buildHistory(sessionMessages);
+    await runAgentRequest(content, history, attachments, systemInstruction);
+  };
 
-    // 添加占位的 assistant 消息（流式 chunk 会 appendToLastMessage）
-    addMessage(activeSessionId, {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: THINKING_MESSAGE,
-      timestamp: new Date().toISOString(),
-    });
+  /** 重新生成：截断该条及之后，重放其前一条用户消息（含历史上下文）。 */
+  const regenerateFrom = async (target: ChatMessage) => {
+    if (!activeSessionId || isStreaming) return;
+    const msgs = sessionMessages;
+    const idx = msgs.findIndex((m) => m.id === target.id);
+    if (idx <= 0) return;
+    let userIdx = -1;
+    for (let i = idx - 1; i >= 0; i--) {
+      if (msgs[i].role === "user") {
+        userIdx = i;
+        break;
+      }
+    }
+    if (userIdx === -1) return;
+    const userMsg = msgs[userIdx];
+    const history = buildHistory(msgs.slice(0, userIdx));
+    truncateMessages(activeSessionId, target.id);
+    await runAgentRequest(userMsg.content, history, []);
+  };
 
-    setStreaming(activeSessionId, true);
-    setInput("");
-
+  /** 从此处分支：以该条之前的上下文为新会话前缀。 */
+  const forkFrom = async (target: ChatMessage) => {
+    if (!activeSessionId) return;
+    const msgs = sessionMessages;
+    const idx = msgs.findIndex((m) => m.id === target.id);
+    const prefix = idx >= 0 ? msgs.slice(0, idx) : msgs;
     try {
-      await agentSend({
-        session_id: activeSessionId,
-        content,
-        system_instruction: systemInstruction,
-        attachments,
-      });
-      setAttachments([]);
+      const session = await sessionCreate("分支会话", "");
+      setMessages(session.id, prefix.map((m) => ({ ...m })));
+      upsertSession(session);
+      setActiveSession(session.id);
     } catch (err) {
-      console.error("发送失败：", err);
-      finalizeAssistantMessage(activeSessionId, "（发送失败）");
       addMessage(activeSessionId, {
         id: crypto.randomUUID(),
         role: "system",
-        content: `发送失败：${err}`,
+        content: `创建分支会话失败：${err}`,
         timestamp: new Date().toISOString(),
       });
-      setStreaming(activeSessionId, false);
     }
   };
 
@@ -800,7 +863,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
                   msg={msg}
                   onContextMenu={(e) => {
                     e.preventDefault();
-                    setMsgMenu({ point: contextMenuPointFromEvent(e), content: msg.content || "", role: msg.role });
+                    setMsgMenu({ point: contextMenuPointFromEvent(e), content: msg.content || "", role: msg.role, id: msg.id });
                   }}
                 />
                 {showCursor && <StreamingCursor />}
@@ -973,6 +1036,60 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
                     setMsgMenu(null);
                   },
                 },
+                {
+                  key: "fork",
+                  icon: <GitBranch size={14} />,
+                  label: "从此处分支",
+                  onSelect: () => {
+                    const target = sessionMessages.find((m) => m.id === msgMenu.id);
+                    if (target) void forkFrom(target);
+                    setMsgMenu(null);
+                  },
+                },
+                ...(msgMenu.role === "assistant" && msgMenu.content !== THINKING_MESSAGE
+                  ? [
+                      {
+                        key: "regenerate",
+                        icon: <RotateCcw size={14} />,
+                        label: "重新生成",
+                        onSelect: () => {
+                          const target = sessionMessages.find((m) => m.id === msgMenu.id);
+                          if (target) void regenerateFrom(target);
+                          setMsgMenu(null);
+                        },
+                      },
+                    ]
+                  : []),
+                ...(msgMenu.role === "assistant"
+                  ? [
+                      {
+                        key: "remember",
+                        icon: <Brain size={14} />,
+                        label: "记住这条",
+                        onSelect: async () => {
+                          try {
+                            const title =
+                              msgMenu.content.replace(/[#*`>\n]/g, " ").trim().slice(0, 24) || "记忆";
+                            await memoryWrite(title, msgMenu.content);
+                            addMessage(activeSessionId!, {
+                              id: crypto.randomUUID(),
+                              role: "system" as const,
+                              content: `已保存到长期记忆：${title}`,
+                              timestamp: new Date().toISOString(),
+                            });
+                          } catch (err) {
+                            addMessage(activeSessionId!, {
+                              id: crypto.randomUUID(),
+                              role: "system" as const,
+                              content: `保存记忆失败：${err}`,
+                              timestamp: new Date().toISOString(),
+                            });
+                          }
+                          setMsgMenu(null);
+                        },
+                      },
+                    ]
+                  : []),
               ]
             : []
         }

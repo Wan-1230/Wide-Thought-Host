@@ -15,6 +15,13 @@ use std::sync::{Arc, Mutex, RwLock};
 use tauri::{Emitter, State};
 use tokio::sync::{mpsc, oneshot};
 
+/// 前端回传的历史对话消息（多轮上下文）。
+#[derive(Debug, Clone, Deserialize)]
+pub struct HistoryMessage {
+    pub role: String,
+    pub content: String,
+}
+
 /// Incoming message from the frontend.
 #[derive(Debug, Deserialize)]
 pub struct AgentMessage {
@@ -25,6 +32,9 @@ pub struct AgentMessage {
     /// 本次请求附带的系统指令（技能 SKILL.md 等），仅单次请求生效
     #[serde(default)]
     pub system_instruction: Option<String>,
+    /// 历史对话（当前消息之前的 user/assistant 对），保持多轮上下文
+    #[serde(default)]
+    pub history: Vec<HistoryMessage>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -319,6 +329,13 @@ pub(crate) async fn run_agent(
                 "role": "system",
                 "content": format!("【本次会话指令】\n{instruction}")
             }));
+        }
+    }
+    // 历史上下文：按序回填之前的 user/assistant 消息（只保留 text 内容）
+    for h in &message.history {
+        let role = h.role.as_str();
+        if matches!(role, "user" | "assistant") && !h.content.is_empty() {
+            messages.push(json!({ "role": role, "content": h.content }));
         }
     }
     // 附件：文本拼接入用户消息；图片转多模态内容块

@@ -322,6 +322,50 @@ export default function App() {
     pinSession(updated.id, Boolean(updated.pinned));
   }, [pinSession]);
 
+  /** 导出会话：从 store 取消息，生成 Markdown / JSON 文件下载。 */
+  const handleExportSession = useCallback(
+    (id: string, format: "markdown" | "json") => {
+      const msgs = useChatStore.getState().messages[id] || [];
+      const session = sessions.find((s) => s.id === id);
+      const title = session?.title || "会话";
+      const safeTitle = title.replace(/[\\/:*?"<>|]/g, "_") || "会话";
+      if (format === "json") {
+        const payload = JSON.stringify(
+          { id, title, exported_at: new Date().toISOString(), messages: msgs },
+          null,
+          2,
+        );
+        const blob = new Blob([payload], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${safeTitle}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        return;
+      }
+      const lines: string[] = [`# ${title}`, ""];
+      for (const m of msgs) {
+        const who =
+          m.role === "user" ? "用户" : m.role === "assistant" ? "WTH" : m.role === "system" ? "系统" : "工具";
+        lines.push(`## ${who}`, "", m.content || "", "");
+        if (m.tool_calls?.length) {
+          for (const tc of m.tool_calls) {
+            lines.push(`> 工具调用：${tc.name}`, "", "```json", JSON.stringify(tc.arguments, null, 2), "```", "");
+          }
+        }
+      }
+      const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${safeTitle}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+    [sessions],
+  );
+
   const selectWorkspace = useCallback(async () => {
     const selected = await open({
       directory: true,
@@ -479,6 +523,7 @@ export default function App() {
                 onDeleteSession={handleDeleteSession}
                 onRenameSession={handleRenameSession}
                 onTogglePinSession={handleTogglePinSession}
+                onExportSession={handleExportSession}
                 searchQuery={searchQuery}
               />
             ) : navSection === "files" ? (

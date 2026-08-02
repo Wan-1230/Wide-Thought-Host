@@ -15,12 +15,19 @@ export interface Attachment {
   data_url?: string;
 }
 
+export interface HistoryMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export interface AgentMessage {
   session_id: string;
   content: string;
   attachments?: Attachment[];
   /** 本次请求附带的系统指令（技能 SKILL.md 等），仅单次请求生效 */
   system_instruction?: string;
+  /** 历史对话（当前消息之前的 user/assistant 对） */
+  history?: HistoryMessage[];
 }
 
 export interface StreamChunk {
