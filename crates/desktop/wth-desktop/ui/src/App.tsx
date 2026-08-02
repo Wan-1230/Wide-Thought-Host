@@ -33,10 +33,13 @@ import { ChatView } from "./components/chat/ChatView";
 import { FileTree } from "./components/filetree/FileTree";
 import { SettingsModal } from "./components/settings/Settings";
 import { TerminalPanel } from "./components/terminal/TerminalPanel";
+import { EditorPanel } from "./components/editor/EditorPanel";
+import { DiffModal } from "./components/editor/DiffModal";
 import { CommandPalette } from "./components/common/CommandPalette";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { ContextMenu, contextMenuPointFromEvent, type ContextMenuItem, type ContextMenuPoint } from "./components/common/ContextMenu";
 import { useChatStore } from "./stores/chat";
+import { useWorkbenchStore } from "./stores/workbench";
 import { useResizable } from "./hooks/useResizable";
 import {
   githubAuthCancel,
@@ -44,11 +47,13 @@ import {
   githubAuthPoll,
   githubAuthStart,
   githubAuthStatus,
+  onAgentApproval,
   onAgentStream,
   sessionCreate,
   sessionDelete,
   sessionList,
   sessionRename,
+  fileRead,
   sessionSetPinned,
   settingsGet,
   type GitHubAuthStatus,
@@ -81,6 +86,7 @@ export default function App() {
     finalizeAssistantMessage,
     setStreaming,
     addToolCall,
+    updateToolCall,
     updateToolCallResult,
   } = useChatStore();
 
@@ -89,6 +95,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const terminalResize = useResizable({ initialWidth: 420, minWidth: 300, maxWidth: 800, direction: "left" });
+  const editorResize = useResizable({ initialHeight: 320, minHeight: 160, maxHeight: 620, direction: "up" });
   const [theme, setTheme] = useState<"dark" | "light">("light");
   const [workspace, setWorkspace] = useState<WorkspaceInfo | null>(null);
   const [workspaceBranch, setWorkspaceBranch] = useState<string | null>(null);
@@ -98,6 +105,8 @@ export default function App() {
   const [github, setGithub] = useState<GitHubAuthStatus | null>(null);
   const [showGithub, setShowGithub] = useState(false);
   const [workspaceMenuPoint, setWorkspaceMenuPoint] = useState<ContextMenuPoint | null>(null);
+  const editorVisible = useWorkbenchStore((s) => s.editorVisible);
+  const openFileInEditor = useWorkbenchStore((s) => s.openFile);
 
   const workspaceActive = workspace?.active ?? true;
   const workspaceLabel = workspace
@@ -140,6 +149,14 @@ export default function App() {
     refreshWorkspace().catch(console.error);
     refreshGitHub().catch(console.error);
 
+    const unlistenApproval = onAgentApproval((evt) => {
+      updateToolCall(evt.session_id, evt.tool_id, {
+        arguments: evt.arguments,
+        status: "pending",
+        needsApproval: true,
+      });
+    });
+
     const unlisten = onAgentStream((chunk: StreamChunk) => {
       const sid = chunk.session_id;
       switch (chunk.type) {
@@ -151,6 +168,8 @@ export default function App() {
             id: chunk.tool_id!,
             name: chunk.tool_name!,
             arguments: chunk.arguments,
+            status: chunk.needs_approval ? "pending" : "running",
+            needsApproval: chunk.needs_approval ?? false,
           });
           break;
         case "tool_call_end":
@@ -175,6 +194,7 @@ export default function App() {
 
     return () => {
       unlisten.then((fn) => fn());
+      unlistenApproval.then((fn) => fn());
     };
   }, [
     addMessage,
@@ -185,6 +205,7 @@ export default function App() {
     refreshWorkspace,
     setSessions,
     setStreaming,
+    updateToolCall,
     updateToolCallResult,
   ]);
 
@@ -246,6 +267,17 @@ export default function App() {
       console.error("创建会话失败：", error);
     }
   }, [setActiveSession, upsertSession]);
+
+  const handleOpenFile = useCallback(async (path: string) => {
+    try {
+      const content = await fileRead(path);
+      const name = path.split(/[\\/]/).pop() || path;
+      openFileInEditor(path, name, content);
+    } catch (error) {
+      console.error("打开文件失败：", error);
+      window.alert(`打开文件失败：${String(error)}`);
+    }
+  }, [openFileInEditor]);
 
   const handleDeleteSession = useCallback(async (id: string) => {
     await sessionDelete(id);
@@ -422,7 +454,7 @@ export default function App() {
                 searchQuery={searchQuery}
               />
             ) : navSection === "files" ? (
-              <FileTree workspaceActive={workspaceActive} />
+              <FileTree workspaceActive={workspaceActive} onFileOpen={handleOpenFile} />
             ) : null}
           </div>
 
@@ -480,7 +512,8 @@ export default function App() {
               />
             </div>
 
-          <div className="flex-1 min-h-0 flex overflow-hidden">
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+            <div className="flex-1 min-h-0 flex overflow-hidden">
             <>
               <div className="flex-1 min-w-0 min-h-0 relative">
                 <ChatView onNewSession={handleNewSession} />
@@ -529,6 +562,22 @@ export default function App() {
                   </>
                 )}
             </>
+            </div>
+            {editorVisible && (
+              <>
+                <div
+                  className="h-1 shrink-0 cursor-row-resize transition-colors"
+                  style={{ background: editorResize.isDragging ? "var(--accent-blue)" : "var(--surface-3)" }}
+                  onMouseDown={editorResize.handleMouseDown}
+                />
+                <div
+                  className="shrink-0 overflow-hidden"
+                  style={{ height: editorResize.height, background: "var(--surface-0)" }}
+                >
+                  <EditorPanel theme={theme} />
+                </div>
+              </>
+            )}
           </div>
         </main>
       </div>
@@ -545,6 +594,8 @@ export default function App() {
         onWorkspaceClick={openWorkspaceMenu}
         onSettingsClick={() => setShowSettings(true)}
       />
+
+      <DiffModal theme={theme} />
 
       <ContextMenu
         open={Boolean(workspaceMenuPoint)}

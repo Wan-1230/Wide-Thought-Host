@@ -230,7 +230,13 @@ function TreeNode({
   );
 }
 
-export function FileTree({ workspaceActive = true }: { workspaceActive?: boolean }) {
+export function FileTree({
+  workspaceActive = true,
+  onFileOpen,
+}: {
+  workspaceActive?: boolean;
+  onFileOpen?: (path: string) => void;
+}) {
   const [rootEntries, setRootEntries] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -257,10 +263,12 @@ export function FileTree({ workspaceActive = true }: { workspaceActive?: boolean
     }
   }, [loadRoot, workspaceActive]);
 
-  const handleFileOpen = useCallback((path: string) => {
-    // 子项目 3 会实现文件预览；这里只记录到 console。
-    console.log("[FileTree] 文件点击：", path);
-  }, []);
+  const handleFileOpen = useCallback(
+    (path: string) => {
+      onFileOpen?.(path);
+    },
+    [onFileOpen],
+  );
 
   const handleOpenExplorer = useCallback(async (path: string) => {
     await openInExplorer(path);

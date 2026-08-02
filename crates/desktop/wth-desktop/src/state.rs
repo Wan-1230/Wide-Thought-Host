@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 
 use crate::ipc::session::SessionInfo;
+use crate::ipc::tools::ApprovalRequest;
 use crate::headroom::HeadroomManager;
 
 /// Active PTY terminal sessions keyed by ID.
@@ -36,7 +37,13 @@ pub struct AgentHandle {
     pub title: String,
     pub running: bool,
     /// Channel to abort a running agent
-    pub abort_tx: Option<tokio::sync::oneshot::Sender<()>>,
+    pub abort_tx: Option<tokio::sync::mpsc::Sender<()>>,
+}
+
+/// Pending tool-approval requests keyed by session ID.
+#[derive(Default)]
+pub struct AgentApprovals {
+    pub pending: HashMap<String, Vec<ApprovalRequest>>,
 }
 
 /// Application state injected into all Tauri commands.
@@ -52,6 +59,7 @@ pub struct AppState {
     pub workspace_root: Arc<RwLock<PathBuf>>,
     pub github_auth: Arc<Mutex<Option<crate::auth::PendingDeviceFlow>>>,
     pub headroom: Arc<HeadroomManager>,
+    pub approvals: Arc<Mutex<AgentApprovals>>,
 }
 
 impl Default for AppState {
@@ -68,6 +76,7 @@ impl Default for AppState {
             )),
             github_auth: Default::default(),
             headroom: Arc::new(HeadroomManager::new()),
+            approvals: Default::default(),
         }
     }
 }

@@ -26,9 +26,18 @@ export interface StreamChunk {
   tool_id?: string;
   tool_name?: string;
   arguments?: unknown;
+  needs_approval?: boolean;
   result?: unknown;
   usage?: UsageInfo;
   message?: string;
+}
+
+/** 待用户确认的工具调用事件（agent:approval）。 */
+export interface ApprovalEvent {
+  session_id: string;
+  tool_id: string;
+  tool_name: string;
+  arguments: unknown;
 }
 
 export interface UsageInfo {
@@ -183,6 +192,18 @@ export async function agentAbort(sessionId: string): Promise<void> {
 
 export function onAgentStream(cb: (chunk: StreamChunk) => void): Promise<UnlistenFn> {
   return listen<StreamChunk>("agent:stream", (event) => cb(event.payload));
+}
+
+export function onAgentApproval(cb: (evt: ApprovalEvent) => void): Promise<UnlistenFn> {
+  return listen<ApprovalEvent>("agent:approval", (event) => cb(event.payload));
+}
+
+export async function agentApproveTool(sessionId: string, toolCallId: string): Promise<void> {
+  return invoke("agent_approve_tool", { sessionId, toolCallId });
+}
+
+export async function agentDenyTool(sessionId: string, toolCallId: string): Promise<void> {
+  return invoke("agent_deny_tool", { sessionId, toolCallId });
 }
 
 // ─── Filesystem ──────────────────────────────────────

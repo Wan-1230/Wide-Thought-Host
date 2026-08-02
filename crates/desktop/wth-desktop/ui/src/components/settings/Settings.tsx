@@ -1232,7 +1232,7 @@ function PageSubagents({ onNotice }: { onNotice: (s: string) => void }) {
                   <div className="text-xs font-semibold truncate">{agent.name}</div>
                   <div className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>{agent.description || "无描述"}</div>
                   <div className="text-[9px] mt-0.5" style={{ color: "var(--text-dim)" }}>
-                    模型：{agent.model}{agent.tools.length > 0 && ` · 工具：${agent.tools.join(", ")}`}
+                    模型：{agent.model || "默认"}{agent.tools.length > 0 && ` · 工具：${agent.tools.join(", ")}`}
                   </div>
                 </div>
                 <button className="icon-btn" title="删除" onClick={async () => { try { await subagentRemove(agent.id); await load(); } catch (e) { onNotice(String(e)); } }}><Trash2 size={13} /></button>

@@ -100,9 +100,28 @@ pub fn run() {
                     tracing::info!("Built-in Agnes AI provider key seeded into credential store");
                 }
 
-                *state.settings.write().map_err(|e| e.to_string())? = loaded_settings;
-                *state.settings_path.write().map_err(|e| e.to_string())? = settings_path;
+                // 首次启动（或旧版本升级）预置默认子智能体；用户删除后不再自动恢复
+                let subagents_seeded = loaded_settings
+                    .feature_toggles
+                    .get("subagents_seeded")
+                    .copied()
+                    .unwrap_or(false);
+                if !subagents_seeded {
+                    loaded_settings.subagents = settings::default_subagents();
+                    loaded_settings
+                        .feature_toggles
+                        .insert("subagents_seeded".to_string(), true);
+                }
+
+                *state.settings.write().map_err(|e| e.to_string())? = loaded_settings.clone();
+                *state.settings_path.write().map_err(|e| e.to_string())? = settings_path.clone();
                 *state.workspace_root.write().map_err(|e| e.to_string())? = ws_root;
+
+                // 预置默认子智能体后立即落盘，避免下次启动重复预置
+                if !subagents_seeded {
+                    let _ = settings::save_settings(&settings_path, &loaded_settings);
+                    tracing::info!("Seeded default subagents");
+                }
             }
 
             // Build system tray
@@ -138,6 +157,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             ipc::agent::agent_send,
             ipc::agent::agent_abort,
+            ipc::agent::agent_approve_tool,
+            ipc::agent::agent_deny_tool,
             ipc::filesystem::file_read,
             ipc::filesystem::file_write,
             ipc::filesystem::file_delete,

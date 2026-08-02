@@ -39,6 +39,67 @@ fn default_web_search_engine() -> String {
     "bing".into()
 }
 
+/// 预置的常用子智能体：开箱即用，用户可删除或修改。
+/// `model` 留空表示跟随默认模型；`tools` 为允许子智能体使用的工具。
+pub fn default_subagents() -> Vec<SubagentConfig> {
+    vec![
+        SubagentConfig {
+            id: "builtin-code-review".into(),
+            name: "代码审查员".into(),
+            description: "审查代码变更，发现潜在缺陷、安全风险与改进点".into(),
+            system_prompt: "你是一名资深代码审查员。请仔细审查提供的代码或 diff，重点检查：逻辑错误与边界条件、安全问题（注入、越权、敏感信息泄露）、错误处理缺失、性能隐患与可维护性问题。按严重程度分级（严重/建议/可选）给出结论，每条问题附具体位置与修改建议，语言简洁、结论明确。".into(),
+            model: String::new(),
+            tools: vec!["shell".into(), "git".into()],
+            enabled: true,
+        },
+        SubagentConfig {
+            id: "builtin-test-writer".into(),
+            name: "测试工程师".into(),
+            description: "为代码编写单元测试与集成测试，覆盖关键路径与边界".into(),
+            system_prompt: "你是一名测试工程师。分析被测代码的功能、关键路径与边界条件，编写清晰、可维护的测试用例（单元测试为主，必要时补充集成测试）。测试应覆盖正常路径、异常输入与边界值，命名清晰，并在完成后运行测试确保全部通过。".into(),
+            model: String::new(),
+            tools: vec!["shell".into(), "git".into()],
+            enabled: true,
+        },
+        SubagentConfig {
+            id: "builtin-refactor".into(),
+            name: "重构专家".into(),
+            description: "重构代码以提升可读性、可维护性与性能，保持行为不变".into(),
+            system_prompt: "你是一名代码重构专家。识别重复代码、过高的复杂度、糟糕的命名与过长函数等问题，提出并实施保持行为不变的重构方案。遵循最小改动原则，分小步进行，每步可独立验证，重构后运行测试确认无回归。".into(),
+            model: String::new(),
+            tools: vec!["shell".into(), "git".into()],
+            enabled: true,
+        },
+        SubagentConfig {
+            id: "builtin-doc-writer".into(),
+            name: "文档撰写员".into(),
+            description: "编写与更新项目文档、README 与代码注释".into(),
+            system_prompt: "你是一名技术文档撰写员。用清晰、简洁、结构化的中文编写项目文档与代码注释，遵循项目既有的文档风格。说明用途、使用方式与示例，示例必须可运行，避免冗余与空话。".into(),
+            model: String::new(),
+            tools: vec!["shell".into()],
+            enabled: true,
+        },
+        SubagentConfig {
+            id: "builtin-security-audit".into(),
+            name: "安全审计员".into(),
+            description: "审计代码中的安全漏洞与风险点".into(),
+            system_prompt: "你是一名应用安全审计员。重点检查注入（SQL/命令/模板）、XSS、越权访问、敏感信息硬编码与泄露、不安全反序列化、依赖漏洞等风险。对每个发现给出位置、攻击场景、影响面与修复建议，并说明优先级。".into(),
+            model: String::new(),
+            tools: vec!["shell".into(), "git".into()],
+            enabled: true,
+        },
+        SubagentConfig {
+            id: "builtin-perf-optimizer".into(),
+            name: "性能优化师".into(),
+            description: "定位并优化性能瓶颈，提升响应速度与资源效率".into(),
+            system_prompt: "你是一名性能优化专家。通过代码分析与必要的性能剖析定位瓶颈（时间/内存/IO），优先优化影响最大的部分。任何优化必须以数据或测试佐证收益，避免过度优化与可读性损失，优化后运行测试确认无回归。".into(),
+            model: String::new(),
+            tools: vec!["shell".into(), "git".into()],
+            enabled: true,
+        },
+    ]
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SubagentConfig {
@@ -123,7 +184,7 @@ impl Default for DesktopSettings {
             feature_toggles: HashMap::new(),
             legacy_migration_complete: false,
             github_user: None,
-            subagents: Vec::new(),
+            subagents: default_subagents(),
             reasoning_effort: default_reasoning_effort(),
             edit_mode: default_edit_mode(),
             budget_usd: None,

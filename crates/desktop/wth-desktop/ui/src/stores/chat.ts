@@ -18,6 +18,9 @@ export interface ToolCall {
   name: string;
   arguments: unknown;
   result?: unknown;
+  /** pending=等待用户确认；running=执行中；done=已完成 */
+  status?: "pending" | "running" | "done";
+  needsApproval?: boolean;
 }
 
 interface ChatStore {
@@ -37,6 +40,7 @@ interface ChatStore {
   finalizeAssistantMessage: (sessionId: string, fallback: string) => void;
   setStreaming: (sessionId: string, active: boolean) => void;
   addToolCall: (sessionId: string, call: ToolCall) => void;
+  updateToolCall: (sessionId: string, toolId: string, patch: Partial<ToolCall>) => void;
   updateToolCallResult: (sessionId: string, toolId: string, result: unknown) => void;
 }
 
@@ -175,6 +179,29 @@ export const useChatStore = create<ChatStore>((set) => ({
       return state;
     }),
 
+  updateToolCall: (sessionId, toolId, patch) =>
+    set((state) => {
+      const msgs = state.messages[sessionId] || [];
+      const last = msgs[msgs.length - 1];
+      if (last?.tool_calls) {
+        return {
+          messages: {
+            ...state.messages,
+            [sessionId]: [
+              ...msgs.slice(0, -1),
+              {
+                ...last,
+                tool_calls: last.tool_calls.map((tc) =>
+                  tc.id === toolId ? { ...tc, ...patch } : tc
+                ),
+              },
+            ],
+          },
+        };
+      }
+      return state;
+    }),
+
   updateToolCallResult: (sessionId, toolId, result) =>
     set((state) => {
       const msgs = state.messages[sessionId] || [];
@@ -188,7 +215,7 @@ export const useChatStore = create<ChatStore>((set) => ({
               {
                 ...last,
                 tool_calls: last.tool_calls.map((tc) =>
-                  tc.id === toolId ? { ...tc, result } : tc
+                  tc.id === toolId ? { ...tc, result, status: "done" as const } : tc
                 ),
               },
             ],

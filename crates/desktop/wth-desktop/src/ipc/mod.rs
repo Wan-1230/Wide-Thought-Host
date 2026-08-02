@@ -5,3 +5,4 @@ pub mod headroom;
 pub mod session;
 pub mod subagents;
 pub mod terminal;
+pub mod tools;

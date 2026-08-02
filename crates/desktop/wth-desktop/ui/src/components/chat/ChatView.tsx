@@ -29,24 +29,73 @@ import {
   AtSign,
 } from "lucide-react";
 import { THINKING_MESSAGE, useChatStore } from "@/stores/chat";
-import { agentSend, agentAbort, fileList, listSlashCommands, resolveSkill } from "@/lib/ipc";
+import { useWorkbenchStore } from "@/stores/workbench";
+import { agentSend, agentAbort, agentApproveTool, agentDenyTool, fileList, listSlashCommands, resolveSkill } from "@/lib/ipc";
 import type { ChatMessage, ToolCall } from "@/stores/chat";
 import type { FileEntry, SlashCommandInfo } from "@/lib/ipc";
 import wthBanner from "@/assets/wth-banner.png";
 import { ContextMenu, contextMenuPointFromEvent, type ContextMenuPoint } from "@/components/common/ContextMenu";
 
-/// 渲染单条 tool call 卡片（折叠式）。
+/// 渲染单条 tool call 卡片（折叠式）。支持“等待确认 → 允许/拒绝 → 执行结果”状态。
 function ToolCallCard({ call }: { call: ToolCall }) {
   const [expanded, setExpanded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const activeSessionId = useChatStore((s) => s.activeSessionId);
+  const updateToolCall = useChatStore((s) => s.updateToolCall);
+  const showDiff = useWorkbenchStore((s) => s.showDiff);
   const argStr = JSON.stringify(call.arguments, null, 2);
   const resultStr =
     call.result !== undefined ? JSON.stringify(call.result, null, 2) : null;
 
-  const statusColor = resultStr === null
-    ? "var(--accent-orange)"
-    : String(call.result).includes("error") || String(call.result).includes("Error")
-      ? "var(--accent-red)"
-      : "var(--accent-green)";
+  const pending = call.status === "pending";
+  const running = call.status === "running" || (resultStr === null && !pending);
+  const resultObj = (call.result ?? null) as Record<string, unknown> | null;
+  const hasDiff =
+    resultObj !== null &&
+    typeof resultObj.before_full === "string" &&
+    typeof resultObj.after_full === "string" &&
+    typeof resultObj.path === "string";
+
+  let statusColor = "var(--accent-green)";
+  let statusLabel: string | null = null;
+  if (pending) {
+    statusColor = "var(--accent-yellow)";
+    statusLabel = "等待确认";
+  } else if (running) {
+    statusColor = "var(--accent-orange)";
+    statusLabel = "运行中…";
+  } else if (resultStr !== null && (String(call.result).includes("error") || String(call.result).includes("Error"))) {
+    statusColor = "var(--accent-red)";
+  }
+
+  const handleApprove = async () => {
+    if (!activeSessionId || busy) return;
+    setBusy(true);
+    try {
+      await agentApproveTool(activeSessionId, call.id);
+      updateToolCall(activeSessionId, call.id, { status: "running" });
+    } catch (error) {
+      console.error("批准工具调用失败：", error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDeny = async () => {
+    if (!activeSessionId || busy) return;
+    setBusy(true);
+    try {
+      await agentDenyTool(activeSessionId, call.id);
+      updateToolCall(activeSessionId, call.id, {
+        status: "done",
+        result: { denied: true, message: "用户拒绝了该操作" },
+      });
+    } catch (error) {
+      console.error("拒绝工具调用失败：", error);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="my-2 border rounded-lg overflow-hidden text-xs" style={{ borderColor: "var(--surface-4)", background: "var(--surface-1)" }}>
@@ -63,8 +112,8 @@ function ToolCallCard({ call }: { call: ToolCall }) {
         <span className="font-mono" style={{ color: "var(--text-primary)" }}>{call.name}</span>
         <span className="ml-auto flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full" style={{ background: statusColor }} />
-          {resultStr === null && (
-            <span className="text-[10px] text-accent-orange animate-pulse">运行中…</span>
+          {statusLabel && (
+            <span className="text-[10px] animate-pulse" style={{ color: statusColor }}>{statusLabel}</span>
           )}
         </span>
       </button>
@@ -76,12 +125,47 @@ function ToolCallCard({ call }: { call: ToolCall }) {
               {argStr}
             </pre>
           </div>
+          {pending && (
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                onClick={handleApprove}
+                disabled={busy}
+                className="px-3 py-1.5 rounded-md text-[11px] font-medium text-white disabled:opacity-50"
+                style={{ background: "var(--accent-green)" }}
+              >
+                允许执行
+              </button>
+              <button
+                onClick={handleDeny}
+                disabled={busy}
+                className="px-3 py-1.5 rounded-md text-[11px] font-medium disabled:opacity-50"
+                style={{ background: "var(--surface-2)", border: "1px solid var(--surface-4)", color: "var(--text-primary)" }}
+              >
+                拒绝
+              </button>
+            </div>
+          )}
           {resultStr !== null && (
             <div>
               <div className="text-[10px] uppercase mb-1" style={{ color: "var(--text-muted)" }}>结果</div>
               <pre className="font-mono overflow-x-auto text-[11px] max-h-48 overflow-y-auto" style={{ color: "var(--text-primary)" }}>
                 {resultStr}
               </pre>
+              {hasDiff && (
+                <button
+                  onClick={() =>
+                    showDiff({
+                      path: String(resultObj.path),
+                      before: String(resultObj.before_full),
+                      after: String(resultObj.after_full),
+                    })
+                  }
+                  className="mt-2 px-3 py-1.5 rounded-md text-[11px] font-medium text-white"
+                  style={{ background: "var(--accent-blue)" }}
+                >
+                  查看 Diff / 撤销
+                </button>
+              )}
             </div>
           )}
         </div>

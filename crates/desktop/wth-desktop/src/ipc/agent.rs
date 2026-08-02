@@ -1,12 +1,18 @@
 //! IPC commands for agent interaction.
 //!
-//! Calls OpenAI-compatible chat completions API with streaming (SSE).
-//! API key and endpoint are configured through the frontend settings.
+//! 流式调用 OpenAI 兼容的 chat/completions API，并在单次请求内完成
+//! “模型声明工具 → 按权限模式确认 → 执行工具 → 回填结果”的多轮循环，
+//! 直到模型产出最终回答或达到最大迭代轮数。
 
+use crate::ipc::tools::{self, ApprovalRequest};
 use crate::state::{AgentHandle, AppState};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use tauri::{Emitter, State};
+use tokio::sync::{mpsc, oneshot};
 
 /// Incoming message from the frontend.
 #[derive(Debug, Deserialize)]
@@ -44,6 +50,8 @@ pub enum StreamPayload {
         tool_id: String,
         tool_name: String,
         arguments: serde_json::Value,
+        /// 是否需要用户确认（前端据此显示允许/拒绝按钮）
+        needs_approval: bool,
     },
     ToolCallEnd {
         tool_id: String,
@@ -73,7 +81,7 @@ pub async fn agent_send(
     message: AgentMessage,
 ) -> Result<(), String> {
     let session_id = message.session_id.clone();
-    let (provider, api_key) = {
+    let (provider, api_key, workspace_root, edit_mode, reasoning_effort) = {
         let settings = state.settings.read().map_err(|e| e.to_string())?;
         let provider_id = settings
             .default_provider_id
@@ -87,9 +95,16 @@ pub async fn agent_send(
             .ok_or_else(|| "默认模型不存在或已停用".to_string())?;
         let api_key = crate::credentials::read_secret("provider", provider_id)?
             .ok_or_else(|| "请先在设置中配置 API Key".to_string())?;
-        (provider, api_key)
+        let workspace_root = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+        (
+            provider,
+            api_key,
+            workspace_root,
+            settings.edit_mode.clone(),
+            settings.reasoning_effort.clone(),
+        )
     };
-    let (abort_tx, abort_rx) = tokio::sync::oneshot::channel::<()>();
+    let (abort_tx, abort_rx) = mpsc::channel(1);
 
     {
         let mut agents = state.agents.lock().map_err(|e| e.to_string())?;
@@ -106,6 +121,7 @@ pub async fn agent_send(
     }
 
     let agent_state = state.inner().agents.clone();
+    let approvals = state.inner().approvals.clone();
     let window_clone = window.clone();
     let sid = session_id.clone();
 
@@ -115,7 +131,7 @@ pub async fn agent_send(
         match hr_state.proxy_url() {
             Some(proxy_url) => {
                 tracing::info!("Routing agent request through headroom proxy: {proxy_url}");
-                let mut headers = std::collections::HashMap::new();
+                let mut headers = HashMap::new();
                 headers.insert("X-Upstream-Base-URL".to_string(), provider.base_url.clone());
                 (format!("{}/v1", proxy_url), Some(headers))
             }
@@ -133,6 +149,10 @@ pub async fn agent_send(
             window_clone,
             abort_rx,
             upstream_headers,
+            workspace_root,
+            edit_mode,
+            reasoning_effort,
+            approvals,
         )
         .await;
         if let Ok(mut agents) = agent_state.lock() {
@@ -159,14 +179,51 @@ pub async fn agent_abort(state: State<'_, AppState>, session_id: String) -> Resu
     let mut agents = state.agents.lock().map_err(|e| e.to_string())?;
     if let Some(handle) = agents.sessions.get_mut(&session_id) {
         if let Some(tx) = handle.abort_tx.take() {
-            let _ = tx.send(());
+            let _ = tx.try_send(());
         }
         handle.running = false;
     }
     Ok(())
 }
 
-// ─── Core: Streaming LLM call ─────────────────────────
+/// 用户批准某个待确认的工具调用。
+#[tauri::command]
+pub async fn agent_approve_tool(
+    state: State<'_, AppState>,
+    session_id: String,
+    tool_call_id: String,
+) -> Result<(), String> {
+    send_approval(&state, &session_id, &tool_call_id, true)
+}
+
+/// 用户拒绝某个待确认的工具调用。
+#[tauri::command]
+pub async fn agent_deny_tool(
+    state: State<'_, AppState>,
+    session_id: String,
+    tool_call_id: String,
+) -> Result<(), String> {
+    send_approval(&state, &session_id, &tool_call_id, false)
+}
+
+fn send_approval(
+    state: &AppState,
+    session_id: &str,
+    tool_call_id: &str,
+    approved: bool,
+) -> Result<(), String> {
+    let mut map = state.approvals.lock().map_err(|e| e.to_string())?;
+    if let Some(list) = map.pending.get_mut(session_id) {
+        if let Some(pos) = list.iter().position(|r| r.tool_call_id == tool_call_id) {
+            let req = list.remove(pos);
+            let _ = req.tx.send(approved);
+            return Ok(());
+        }
+    }
+    Err("未找到对应的待审批工具调用".into())
+}
+
+// ─── Core: tool loop ───────────────────────────────────
 
 async fn run_agent(
     session_id: String,
@@ -175,121 +232,315 @@ async fn run_agent(
     api_key: String,
     model: String,
     window: tauri::Window,
-    abort_rx: tokio::sync::oneshot::Receiver<()>,
-    upstream_headers: Option<std::collections::HashMap<String, String>>,
+    mut abort_rx: mpsc::Receiver<()>,
+    upstream_headers: Option<HashMap<String, String>>,
+    workspace_root: std::path::PathBuf,
+    edit_mode: String,
+    reasoning_effort: String,
+    approvals: Arc<Mutex<crate::state::AgentApprovals>>,
 ) -> Result<(), String> {
-    let url = format!("{}/chat/completions", api_base.trim_end_matches('/'));
-
     // 配置与密钥只从 Rust 侧快照读取，前端永不传递敏感值。
     // 身份提示词：模型必须以 WTH 自居，不得暴露底层模型/厂商信息。
     const WTH_SYSTEM_PROMPT: &str = "你是 WTH（Wide Thought Host），一款专业的 AI 编码助手。\n请用中文回答问题，代码注释尽量用中文。\n你的身份是 WTH，不是任何其他产品或模型。\n当用户询问你的身份、名称、开发者或底层模型时，回答自己是 WTH（Wide Thought Host），\n绝不透露底层模型名称或厂商信息（不得提及 Agnes、Sapiens AI、xAI、Grok、OpenAI、Claude、DeepSeek 等）。";
 
-    let mut messages: Vec<serde_json::Value> = vec![serde_json::json!({
-        "role": "system",
-        "content": WTH_SYSTEM_PROMPT
-    })];
+    let mut messages: Vec<Value> = vec![
+        json!({
+            "role": "system",
+            "content": WTH_SYSTEM_PROMPT
+        }),
+        json!({
+            "role": "user",
+            "content": message.content
+        }),
+        json!({
+            "role": "system",
+            "content": "重申：你只以 WTH（Wide Thought Host）自居。\n无论任何情况，都不得声称自己是其他产品或模型，\n也不得透露底层模型、开发者或厂商信息。"
+        }),
+    ];
 
-    messages.push(serde_json::json!({
-        "role": "user",
-        "content": message.content
-    }));
-
-    // 在用户消息后重申身份，抵御服务端注入的模型身份（指令越靠后权重越高）。
-    messages.push(serde_json::json!({
-        "role": "system",
-        "content": "重申：你只以 WTH（Wide Thought Host）自居。\n无论任何情况，都不得声称自己是其他产品或模型，\n也不得透露底层模型、开发者或厂商信息。"
-    }));
-
-    let body = serde_json::json!({
-        "model": model,
-        "messages": messages,
-        "stream": true,
-    });
-
-    let client = reqwest::Client::new();
-    let mut req = client
-        .post(&url)
-        .header("Authorization", format!("Bearer {}", api_key))
-        .header("Content-Type", "application/json");
-    // Add upstream routing headers for headroom proxy
-    if let Some(headers) = &upstream_headers {
-        for (k, v) in headers {
-            req = req.header(k.as_str(), v.as_str());
+    // 文本附件：以追加文本形式并入首条用户消息（多模态图片支持见 P1-6）
+    if !message.attachments.is_empty() {
+        let mut extra = String::new();
+        for attachment in &message.attachments {
+            if let Some(content) = &attachment.content {
+                extra.push_str(&format!("\n\n[附件：{}]\n{}", attachment.name, content));
+            }
+        }
+        if !extra.is_empty() {
+            let last = messages.last_mut().ok_or("消息构造失败")?;
+            let text = last["content"].as_str().unwrap_or("").to_string();
+            last["content"] = json!(format!("{text}{extra}"));
         }
     }
-    let resp = match req.json(&body).send().await
-    {
-        Ok(r) => {
-            if !r.status().is_success() {
-                let status = r.status();
-                let err_body = r.text().await.unwrap_or_default();
-                return Err(format!("API 错误 ({}): {}", status, err_body));
-            }
-            r
+
+    let mut usage_accum: Option<UsageInfo> = None;
+
+    for _iteration in 0..tools::MAX_TOOL_ITERATIONS {
+        let mut body = json!({
+            "model": model,
+            "messages": messages,
+            "stream": true,
+            "tools": tools::build_tools(),
+            "tool_choice": "auto",
+        });
+        // P0-4：reasoning_effort 参数透传（非默认值时带上，避免干扰不支持的端点）
+        if reasoning_effort != "high" {
+            body["reasoning_effort"] = json!(reasoning_effort);
         }
-        Err(e) => return Err(format!("请求失败: {}", e)),
-    };
 
-    let sid = session_id.clone();
-    let win = window.clone();
-
-    let handle = tokio::spawn(async move {
-        let mut stream = resp.bytes_stream();
-        let mut buffer = String::new();
-
-        while let Some(chunk_result) = stream.next().await {
-            let chunk = match chunk_result {
-                Ok(c) => c,
-                Err(e) => {
-                    let _ = win.emit(
-                        "agent:stream",
-                        AgentStreamChunk {
-                            session_id: sid.clone(),
-                            payload: StreamPayload::Error {
-                                message: format!("流读取错误: {}", e),
-                            },
-                        },
-                    );
-                    return;
+        let url = format!("{}/chat/completions", api_base.trim_end_matches('/'));
+        let client = reqwest::Client::new();
+        let mut req = client
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", api_key))
+            .header("Content-Type", "application/json");
+        if let Some(headers) = &upstream_headers {
+            for (k, v) in headers {
+                req = req.header(k.as_str(), v.as_str());
+            }
+        }
+        let resp = match req.json(&body).send().await {
+            Ok(r) => {
+                if !r.status().is_success() {
+                    let status = r.status();
+                    let err_body = r.text().await.unwrap_or_default();
+                    return Err(format!("API 错误 ({}): {}", status, err_body));
                 }
+                r
+            }
+            Err(e) => return Err(format!("请求失败: {}", e)),
+        };
+
+        let (assistant_msg, tool_calls, usage) =
+            collect_stream(resp, &window, &session_id, &mut abort_rx).await?;
+        if let Some(u) = usage {
+            usage_accum = Some(u);
+        }
+
+        messages.push(assistant_msg);
+
+        if tool_calls.is_empty() {
+            break;
+        }
+
+        for tc in &tool_calls {
+            let needs = tools::needs_approval(&tc.name, &tc.arguments, &edit_mode);
+            let _ = window.emit(
+                "agent:stream",
+                AgentStreamChunk {
+                    session_id: session_id.clone(),
+                    payload: StreamPayload::ToolCallStart {
+                        tool_id: tc.id.clone(),
+                        tool_name: tc.name.clone(),
+                        arguments: tc.arguments.clone(),
+                        needs_approval: needs,
+                    },
+                },
+            );
+
+            let approved = if needs {
+                match wait_for_approval(
+                    &approvals,
+                    &window,
+                    &session_id,
+                    tc,
+                    &mut abort_rx,
+                )
+                .await
+                {
+                    Ok(v) => v,
+                    Err(e) => return Err(e),
+                }
+            } else {
+                true
             };
 
-            let text = String::from_utf8_lossy(&chunk);
-            buffer.push_str(&text);
-
-            // Process complete SSE lines
-            while let Some(line_end) = buffer.find('\n') {
-                let line = buffer[..line_end].trim().to_string();
-                buffer = buffer[line_end + 1..].to_string();
-
-                if line.is_empty() {
-                    continue;
+            let (model_result, full_before, full_after) = if approved {
+                let exec = tokio::select! {
+                    r = tools::execute_tool(&tc.name, &tc.arguments, &workspace_root) => r,
+                    _ = abort_rx.recv() => return Err("已中止".into()),
+                };
+                match exec {
+                    Ok(output) => (output.model_result, output.full_before, output.full_after),
+                    Err(e) => (json!({ "error": e }), None, None),
                 }
-                if line == "data: [DONE]" {
-                    let _ = win.emit(
-                        "agent:stream",
-                        AgentStreamChunk {
-                            session_id: sid.clone(),
-                            payload: StreamPayload::Done { usage: None },
-                        },
-                    );
-                    return;
-                }
-                if let Some(data) = line.strip_prefix("data: ") {
-                    if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
-                        if let Some(choices) = parsed["choices"].as_array() {
-                            for choice in choices {
-                                if let Some(delta) = choice["delta"]["content"].as_str() {
-                                    if !delta.is_empty() {
-                                        let _ = win.emit(
-                                            "agent:stream",
-                                            AgentStreamChunk {
-                                                session_id: sid.clone(),
-                                                payload: StreamPayload::TextDelta {
-                                                    delta: delta.to_string(),
-                                                },
+            } else {
+                (
+                    json!({ "denied": true, "message": "用户拒绝了该操作" }),
+                    None,
+                    None,
+                )
+            };
+
+            // 修改前后全文只随事件发给前端（diff 展示 / 撤销），不进模型上下文。
+            let mut display_result = model_result.clone();
+            if let Some(before) = &full_before {
+                display_result["before_full"] = json!(before);
+            }
+            if let Some(after) = &full_after {
+                display_result["after_full"] = json!(after);
+            }
+            let _ = window.emit(
+                "agent:stream",
+                AgentStreamChunk {
+                    session_id: session_id.clone(),
+                    payload: StreamPayload::ToolCallEnd {
+                        tool_id: tc.id.clone(),
+                        result: display_result,
+                    },
+                },
+            );
+
+            messages.push(json!({
+                "role": "tool",
+                "tool_call_id": tc.id,
+                "content": model_result.to_string(),
+            }));
+        }
+    }
+
+    let _ = window.emit(
+        "agent:stream",
+        AgentStreamChunk {
+            session_id,
+            payload: StreamPayload::Done {
+                usage: usage_accum,
+            },
+        },
+    );
+    Ok(())
+}
+
+// ─── Approval wait ─────────────────────────────────────
+
+async fn wait_for_approval(
+    approvals: &Arc<Mutex<crate::state::AgentApprovals>>,
+    window: &tauri::Window,
+    session_id: &str,
+    tc: &CollectedToolCall,
+    abort_rx: &mut mpsc::Receiver<()>,
+) -> Result<bool, String> {
+    let (tx, rx) = oneshot::channel();
+    {
+        let mut map = approvals.lock().map_err(|e| e.to_string())?;
+        map.pending.entry(session_id.to_string()).or_default().push(ApprovalRequest {
+            tool_call_id: tc.id.clone(),
+            tx,
+        });
+    }
+    let _ = window.emit(
+        "agent:approval",
+        json!({
+            "session_id": session_id,
+            "tool_id": tc.id,
+            "tool_name": tc.name,
+            "arguments": tc.arguments,
+        }),
+    );
+    tokio::select! {
+        r = rx => r.map_err(|_| "审批通道已关闭".into()),
+        _ = abort_rx.recv() => Err("已中止".into()),
+        _ = tokio::time::sleep(std::time::Duration::from_secs(300)) => Err("审批等待超时（5 分钟）".into()),
+    }
+}
+
+// ─── Stream collection ─────────────────────────────────
+
+struct CollectedToolCall {
+    id: String,
+    name: String,
+    arguments: Value,
+}
+
+fn parse_usage(v: &Value) -> Option<UsageInfo> {
+    if v.get("total_tokens").is_none() && v.get("prompt_tokens").is_none() {
+        return None;
+    }
+    Some(UsageInfo {
+        prompt_tokens: v["prompt_tokens"].as_u64().unwrap_or(0),
+        completion_tokens: v["completion_tokens"].as_u64().unwrap_or(0),
+        total_tokens: v["total_tokens"].as_u64().unwrap_or(0),
+    })
+}
+
+/// 读取 SSE 流，实时回传文本增量，并在结束时返回：
+/// 完整的 assistant 消息、已收集的工具调用列表、usage（若服务端返回）。
+async fn collect_stream(
+    resp: reqwest::Response,
+    window: &tauri::Window,
+    session_id: &str,
+    abort_rx: &mut mpsc::Receiver<()>,
+) -> Result<(Value, Vec<CollectedToolCall>, Option<UsageInfo>), String> {
+    let mut stream = resp.bytes_stream();
+    let mut buffer = String::new();
+    let mut assistant_content = String::new();
+    // 按 index 对齐的工具调用片段
+    let mut raw_calls: Vec<RawToolCall> = Vec::new();
+    let mut usage: Option<UsageInfo> = None;
+    let mut done = false;
+
+    loop {
+        let chunk = tokio::select! {
+            r = stream.next() => r,
+            _ = abort_rx.recv() => return Err("已中止".into()),
+        };
+        let Some(chunk_result) = chunk else { break };
+        let chunk = match chunk_result {
+            Ok(c) => c,
+            Err(e) => return Err(format!("流读取错误: {}", e)),
+        };
+
+        let text = String::from_utf8_lossy(&chunk);
+        buffer.push_str(&text);
+
+        while let Some(line_end) = buffer.find('\n') {
+            let line = buffer[..line_end].trim().to_string();
+            buffer = buffer[line_end + 1..].to_string();
+
+            if line.is_empty() {
+                continue;
+            }
+            if line == "data: [DONE]" {
+                done = true;
+                break;
+            }
+            if let Some(data) = line.strip_prefix("data: ") {
+                if let Ok(parsed) = serde_json::from_str::<Value>(data) {
+                    if let Some(u) = parsed.get("usage") {
+                        if let Some(parsed_usage) = parse_usage(u) {
+                            usage = Some(parsed_usage);
+                        }
+                    }
+                    if let Some(choices) = parsed["choices"].as_array() {
+                        for choice in choices {
+                            if let Some(delta) = choice["delta"]["content"].as_str() {
+                                if !delta.is_empty() {
+                                    assistant_content.push_str(delta);
+                                    let _ = window.emit(
+                                        "agent:stream",
+                                        AgentStreamChunk {
+                                            session_id: session_id.to_string(),
+                                            payload: StreamPayload::TextDelta {
+                                                delta: delta.to_string(),
                                             },
-                                        );
+                                        },
+                                    );
+                                }
+                            }
+                            if let Some(tcs) = choice["delta"]["tool_calls"].as_array() {
+                                for tc in tcs {
+                                    let index = tc["index"].as_u64().unwrap_or(0) as usize;
+                                    while raw_calls.len() <= index {
+                                        raw_calls.push(RawToolCall::default());
+                                    }
+                                    if let Some(id) = tc["id"].as_str() {
+                                        raw_calls[index].id = Some(id.to_string());
+                                    }
+                                    if let Some(name) = tc["function"]["name"].as_str() {
+                                        raw_calls[index].name = Some(name.to_string());
+                                    }
+                                    if let Some(args) = tc["function"]["arguments"].as_str() {
+                                        raw_calls[index].arguments.push_str(args);
                                     }
                                 }
                             }
@@ -298,29 +549,51 @@ async fn run_agent(
                 }
             }
         }
-
-        let _ = win.emit(
-            "agent:stream",
-            AgentStreamChunk {
-                session_id: sid.clone(),
-                payload: StreamPayload::Done { usage: None },
-            },
-        );
-    });
-
-    let abort_handle = handle.abort_handle();
-    let abort_sid = session_id.clone();
-    tokio::select! {
-        _ = abort_rx => {
-            let _ = window.emit("agent:stream", AgentStreamChunk {
-                session_id: abort_sid,
-                payload: StreamPayload::Error { message: "已中止".into() },
-            });
-            abort_handle.abort();
-            Ok(())
-        }
-        result = async { handle.await.map_err(|e| format!("流处理错误: {}", e)) } => {
-            result
+        if done {
+            break;
         }
     }
+
+    // 组装 assistant 消息（含完整 tool_calls）
+    let completed: Vec<CollectedToolCall> = raw_calls
+        .into_iter()
+        .filter(|tc| tc.id.is_some() || tc.name.is_some())
+        .map(|tc| CollectedToolCall {
+            id: tc.id.unwrap_or_default(),
+            name: tc.name.unwrap_or_default(),
+            arguments: serde_json::from_str(&tc.arguments).unwrap_or(Value::Null),
+        })
+        .collect();
+
+    let mut assistant = json!({ "role": "assistant", "content": assistant_content });
+    if !completed.is_empty() {
+        assistant["tool_calls"] = Value::Array(
+            completed
+                .iter()
+                .map(|tc| {
+                    json!({
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.name,
+                            "arguments": tc.arguments.to_string(),
+                        }
+                    })
+                })
+                .collect(),
+        );
+        if assistant_content.is_empty() {
+            assistant["content"] = Value::Null;
+        }
+    }
+
+    Ok((assistant, completed, usage))
 }
+
+#[derive(Default)]
+struct RawToolCall {
+    id: Option<String>,
+    name: Option<String>,
+    arguments: String,
+}
+
