@@ -942,6 +942,7 @@ pub async fn list_slash_commands(
     // skills from ~/.wth/skills and workspace/.wth/skills
     let workspace = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
     let user_home = xai_grok_config::wth_home();
+    let settings = state.settings.read().map_err(|e| e.to_string())?.clone();
     let skill_roots = vec![
         (user_home.join("skills"), "用户"),
         (workspace.join(".wth").join("skills"), "工作区"),
@@ -967,7 +968,93 @@ pub async fn list_slash_commands(
         }
     }
 
+    // 插件技能：~/.wth/plugins/{插件}/skills/{技能}/SKILL.md（插件启用时生效）
+    for plugin in enabled_plugin_roots(&settings, &workspace) {
+        let skills_dir = plugin.join("skills");
+        let Ok(entries) = fs::read_dir(&skills_dir) else { continue };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let Ok(meta) = entry.metadata() else { continue };
+            if !meta.is_dir() { continue; }
+            let marker = path.join("SKILL.md");
+            if !marker.exists() { continue; }
+            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("skill").to_string();
+            let desc = markdown_preview(&marker).unwrap_or_else(|| "插件技能".into());
+            commands.push(SlashCommandInfo {
+                name,
+                description: desc,
+                source: "skill".into(),
+                scope: "插件".into(),
+                path: Some(path.to_string_lossy().to_string()),
+            });
+        }
+    }
+
     Ok(commands)
+}
+
+/// 从本地目录导入插件（复制到 ~/.wth/plugins/{名称}）。
+#[tauri::command]
+pub async fn plugin_import(source_dir: String) -> Result<String, String> {
+    let src = PathBuf::from(&source_dir);
+    if !src.is_dir() {
+        return Err("源目录不存在".into());
+    }
+    let name = src
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("plugin")
+        .to_string();
+    let plugins_dir = xai_grok_config::wth_home().join("plugins");
+    fs::create_dir_all(&plugins_dir).map_err(|e| e.to_string())?;
+    let dest = plugins_dir.join(&name);
+    if dest.exists() {
+        return Err(format!("插件「{name}」已存在，请先删除后再导入"));
+    }
+    copy_dir_recursive(&src, &dest).map_err(|e| format!("导入失败：{e}"))?;
+    Ok(format!("插件「{name}」导入成功"))
+}
+
+fn copy_dir_recursive(src: &Path, dest: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(dest)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let path = entry.path();
+        let target = dest.join(entry.file_name());
+        if path.is_dir() {
+            copy_dir_recursive(&path, &target)?;
+        } else {
+            fs::copy(&path, &target)?;
+        }
+    }
+    Ok(())
+}
+
+/// 返回已启用的插件目录（用户 + 工作区），禁用插件不参与能力加载。
+pub(crate) fn enabled_plugin_roots(
+    settings: &DesktopSettings,
+    workspace_root: &Path,
+) -> Vec<PathBuf> {
+    let user_home = xai_grok_config::wth_home();
+    let roots = vec![
+        user_home.join("plugins"),
+        workspace_root.join(".wth").join("plugins"),
+    ];
+    let mut out = Vec::new();
+    for root in roots {
+        let Ok(entries) = fs::read_dir(&root) else { continue };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            let toggle_key = format!("plugins::{}", path.to_string_lossy());
+            if settings.feature_toggles.get(&toggle_key).copied().unwrap_or(true) {
+                out.push(path);
+            }
+        }
+    }
+    out
 }
 
 #[tauri::command]
@@ -978,10 +1065,14 @@ pub async fn resolve_skill(
     let workspace = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
     let user_home = xai_grok_config::wth_home();
 
-    let candidates = vec![
+    let settings = state.settings.read().map_err(|e| e.to_string())?.clone();
+    let mut candidates = vec![
         user_home.join("skills").join(&name).join("SKILL.md"),
         workspace.join(".wth").join("skills").join(&name).join("SKILL.md"),
     ];
+    for plugin in enabled_plugin_roots(&settings, &workspace) {
+        candidates.push(plugin.join("skills").join(&name).join("SKILL.md"));
+    }
 
     for path in candidates {
         if path.exists() {

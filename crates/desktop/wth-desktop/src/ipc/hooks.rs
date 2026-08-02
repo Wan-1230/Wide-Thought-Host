@@ -26,10 +26,14 @@ pub async fn run_hooks(
     workspace_root: &Path,
 ) -> Vec<String> {
     let user_home = xai_grok_config::wth_home();
-    let roots = [
+    let mut roots = vec![
         user_home.join("hooks"),
         workspace_root.join(".wth").join("hooks"),
     ];
+    // 插件 hooks：插件启用时其 hooks/ 目录一并参与触发
+    for plugin in crate::ipc::capabilities::enabled_plugin_roots(settings, workspace_root) {
+        roots.push(plugin.join("hooks"));
+    }
     let mut triggered = Vec::new();
 
     for root in roots {

@@ -54,6 +54,7 @@ import {
   memoryList,
   memoryWrite,
   diagnosticsGet,
+  pluginImport,
   memoryDelete,
   type CapabilityItem,
   type CapabilitySource,
@@ -72,6 +73,7 @@ import {
   type DiagnosticItem,
 } from "@/lib/ipc";
 import { SegmentedControl } from "@/components/common/SegmentedControl";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
 // ─── Types ───────────────────────────────────────────
 
@@ -1057,7 +1059,23 @@ function PagePlugins({ settings, onSave, onNotice }: { settings: DesktopSettings
       <div className="flex items-center justify-between mb-4">
         <div className="text-xs" style={{ color: "var(--text-muted)" }}>{view?.items.length ?? 0} 个插件</div>
         <div className="flex gap-2">
-          <button className="small-btn" onClick={() => onNotice("本地导入功能待集成")}><FolderOpen size={12} /> 从本地导入</button>
+          <button
+            className="small-btn"
+            onClick={async () => {
+              const selected = await openDialog({ directory: true, multiple: false, title: "选择插件目录" });
+              if (typeof selected !== "string") return;
+              try {
+                const msg = await pluginImport(selected);
+                onNotice(msg);
+                setLoading(true);
+                capabilityView("plugins").then(setView).catch((e) => onNotice(String(e))).finally(() => setLoading(false));
+              } catch (e) {
+                onNotice(String(e));
+              }
+            }}
+          >
+            <FolderOpen size={12} /> 从本地导入
+          </button>
           <button className="small-btn" onClick={() => onNotice("插件市场即将上线")}><Puzzle size={12} /> 从市场安装</button>
         </div>
       </div>

@@ -444,6 +444,8 @@ export interface DiagnosticItem {
 
 export const diagnosticsGet = () => invoke<DiagnosticItem[]>("diagnostics_get");
 
+export const pluginImport = (sourceDir: string) => invoke<string>("plugin_import", { sourceDir });
+
 export const memoryList = () => invoke<MemoryEntry[]>("memory_list");
 export const memoryWrite = (title: string, content: string, tags?: string[], scope?: "user" | "workspace") =>
   invoke<MemoryEntry>("memory_write", { title, content, tags, scope });
