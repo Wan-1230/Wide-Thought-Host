@@ -128,6 +128,7 @@ pub async fn agent_send(
         .read()
         .map_err(|e| e.to_string())?
         .clone();
+    let mcp_manager = state.inner().mcp.clone();
     let window_clone = window.clone();
     let sid = session_id.clone();
 
@@ -161,6 +162,7 @@ pub async fn agent_send(
             approvals,
             settings_ref,
             settings_path,
+            mcp_manager,
         )
         .await;
         if let Ok(mut agents) = agent_state.lock() {
@@ -248,6 +250,7 @@ async fn run_agent(
     approvals: Arc<Mutex<crate::state::AgentApprovals>>,
     settings_ref: Arc<RwLock<crate::settings::DesktopSettings>>,
     settings_path: std::path::PathBuf,
+    mcp_manager: Arc<tokio::sync::Mutex<crate::mcp::McpManager>>,
 ) -> Result<(), String> {
     // 配置与密钥只从 Rust 侧快照读取，前端永不传递敏感值。
     // 身份提示词：模型必须以 WTH 自居，不得暴露底层模型/厂商信息。
@@ -294,6 +297,11 @@ async fn run_agent(
     };
     // 工具执行所需的设置快照（搜索引擎选择等）
     let settings_snapshot = settings_ref.read().map_err(|e| e.to_string())?.clone();
+    // 启动启用的 MCP 服务器并拉取工具定义（失败自动降级）
+    let mcp_tools = {
+        let mut mcp = mcp_manager.lock().await;
+        mcp.start_enabled(&settings_snapshot, &workspace_root).await
+    };
     // 预算拦截：累计消耗已达到上限时拒绝继续请求
     if let Some(budget) = budget_usd {
         let spent = settings_ref
@@ -335,11 +343,13 @@ async fn run_agent(
                 }
             }
         }
+        let mut all_tools = tools::build_tools();
+        all_tools.extend(mcp_tools.clone());
         let mut body = json!({
             "model": model,
             "messages": messages,
             "stream": true,
-            "tools": tools::build_tools(),
+            "tools": all_tools,
             "tool_choice": "auto",
         });
         // P0-4：reasoning_effort 参数透传（非默认值时带上，避免干扰不支持的端点）
@@ -422,9 +432,21 @@ async fn run_agent(
             };
 
             let (model_result, full_before, full_after) = if approved {
-                let exec = tokio::select! {
-                    r = tools::execute_tool(&tc.name, &tc.arguments, &workspace_root, &settings_snapshot) => r,
-                    _ = abort_rx.recv() => return Err("已中止".into()),
+                let exec = if tc.name.starts_with("mcp__") {
+                    tokio::select! {
+                        r = async {
+                            let mut mcp = mcp_manager.lock().await;
+                            mcp.call(&tc.name, &tc.arguments)
+                                .await
+                                .map(tools::ToolOutput::plain)
+                        } => r,
+                        _ = abort_rx.recv() => return Err("已中止".into()),
+                    }
+                } else {
+                    tokio::select! {
+                        r = tools::execute_tool(&tc.name, &tc.arguments, &workspace_root, &settings_snapshot) => r,
+                        _ = abort_rx.recv() => return Err("已中止".into()),
+                    }
                 };
                 match exec {
                     Ok(output) => (output.model_result, output.full_before, output.full_after),

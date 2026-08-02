@@ -10,6 +10,7 @@
 #![windows_subsystem = "windows"]
 
 mod credentials;
+mod mcp;
 mod auth;
 mod headroom;
 mod ipc;
@@ -247,6 +248,12 @@ pub fn run() {
         ) {
             let state = app_handle.state::<AppState>();
             ipc::terminal::kill_all(&state);
+            // 关闭所有 MCP 服务器连接
+            let mcp = state.mcp.clone();
+            tauri::async_runtime::block_on(async move {
+                let mut guard = mcp.lock().await;
+                guard.shutdown_all();
+            });
         }
     });
 }

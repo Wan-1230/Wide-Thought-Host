@@ -220,7 +220,7 @@ pub struct ToolOutput {
 }
 
 impl ToolOutput {
-    fn plain(result: Value) -> Self {
+    pub fn plain(result: Value) -> Self {
         Self {
             model_result: result,
             full_before: None,

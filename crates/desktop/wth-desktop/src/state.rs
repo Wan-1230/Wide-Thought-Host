@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 
 use crate::ipc::session::SessionInfo;
+use crate::mcp::McpManager;
 use crate::ipc::tools::ApprovalRequest;
 use crate::headroom::HeadroomManager;
 
@@ -60,6 +61,7 @@ pub struct AppState {
     pub github_auth: Arc<Mutex<Option<crate::auth::PendingDeviceFlow>>>,
     pub headroom: Arc<HeadroomManager>,
     pub approvals: Arc<Mutex<AgentApprovals>>,
+    pub mcp: Arc<tokio::sync::Mutex<McpManager>>,
 }
 
 impl Default for AppState {
@@ -77,6 +79,7 @@ impl Default for AppState {
             github_auth: Default::default(),
             headroom: Arc::new(HeadroomManager::new()),
             approvals: Default::default(),
+            mcp: Arc::new(tokio::sync::Mutex::new(McpManager::default())),
         }
     }
 }

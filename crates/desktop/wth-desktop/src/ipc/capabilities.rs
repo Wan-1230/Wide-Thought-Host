@@ -754,9 +754,31 @@ pub async fn mcp_remove_server(id: String, _state: State<'_, AppState>) -> Resul
     fs::write(&config_path, new_content).map_err(|e| e.to_string())
 }
 
+/// 真实连通性测试：启动服务器 → 握手 → 拉取工具列表 → 关闭。
 #[tauri::command]
-pub async fn mcp_test_server(id: String, _state: State<'_, AppState>) -> Result<String, String> {
-    Ok(format!("服务器 {id} 连接测试完成（模拟）"))
+pub async fn mcp_test_server(id: String, state: State<'_, AppState>) -> Result<String, String> {
+    let settings = state.settings.read().map_err(|e| e.to_string())?.clone();
+    let workspace_root = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    let entries = crate::mcp::read_mcp_servers(&settings, &workspace_root);
+    let entry = entries
+        .into_iter()
+        .find(|e| e.id == id)
+        .ok_or_else(|| "未找到该服务器配置".to_string())?;
+    let client = crate::mcp::McpClient::connect(
+        entry.id.clone(),
+        entry.name.clone(),
+        &entry.command,
+        &entry.args,
+    )
+    .await?;
+    let count = client.tools.len();
+    let names: Vec<String> = client.tools.iter().take(10).map(|t| t.name.clone()).collect();
+    let mut c = client;
+    c.kill();
+    if count == 0 {
+        return Ok("连接成功，但服务器未暴露任何工具".into());
+    }
+    Ok(format!("连接成功，发现 {count} 个工具：{}", names.join(", ")))
 }
 
 // ─── Hook CRUD ───────────────────────────────────────
