@@ -30,6 +30,7 @@ import {
   Paperclip,
   GitBranch,
   Search,
+  Users,
   X,
 } from "lucide-react";
 import { THINKING_MESSAGE, useChatStore } from "@/stores/chat";
@@ -426,6 +427,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
     setStreaming,
     upsertSession,
     setActiveSession,
+    registerParallelRun,
   } = useChatStore();
 
   const [input, setInput] = useState("");
@@ -438,6 +440,9 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
   const [subagents, setSubagents] = useState<SubagentConfig[]>([]);
   const [delegatingTo, setDelegatingTo] = useState<SubagentConfig | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [showParallel, setShowParallel] = useState(false);
+  const [parallelTask, setParallelTask] = useState("");
+  const [parallelSelection, setParallelSelection] = useState<Set<string>>(new Set());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -574,6 +579,43 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
       }
     }
     setAttachments((prev) => [...prev, ...fresh].slice(0, 5));
+  };
+
+  /** 并行委派：同一任务同时运行多个子智能体，结果由 App 汇总。 */
+  const runParallel = async () => {
+    if (!activeSessionId || !parallelTask.trim()) return;
+    const selected = subagents.filter((s) => s.enabled && parallelSelection.has(s.id));
+    if (selected.length === 0) return;
+    const task = parallelTask.trim();
+    addMessage(activeSessionId, {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: `[并行委派] ${task}`,
+      timestamp: new Date().toISOString(),
+    });
+    registerParallelRun(activeSessionId, selected.map((s) => s.name));
+    for (const s of selected) {
+      addMessage(activeSessionId, {
+        id: crypto.randomUUID(),
+        role: "system",
+        content: `已并行委派给「${s.name}」（子会话）`,
+        timestamp: new Date().toISOString(),
+      });
+      try {
+        await subagentRun(s.id, task, activeSessionId);
+      } catch (err) {
+        addMessage(activeSessionId, {
+          id: crypto.randomUUID(),
+          role: "system",
+          content: `委派「${s.name}」失败：${err}`,
+          timestamp: new Date().toISOString(),
+        });
+        useChatStore.getState().completeParallelRun(activeSessionId, crypto.randomUUID(), false, s.name);
+      }
+    }
+    setShowParallel(false);
+    setParallelTask("");
+    setParallelSelection(new Set());
   };
 
   const selectPopupItem = (item: PopupItem) => {
@@ -955,6 +997,61 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
             </div>
           )}
 
+          {showParallel && (
+            <div className="mb-2 rounded-xl border p-3 space-y-2" style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)" }}>
+              <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
+                <Users size={13} style={{ color: "var(--accent-purple)" }} />
+                并行委派多智能体
+              </div>
+              <textarea
+                className="w-full rounded-lg border px-3 py-2 text-xs resize-none"
+                style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)", color: "var(--text-primary)" }}
+                placeholder="输入任务，将同时交给所选子智能体执行…"
+                rows={2}
+                value={parallelTask}
+                onChange={(e) => setParallelTask(e.target.value)}
+              />
+              <div className="flex flex-wrap gap-1.5">
+                {subagents.filter((s) => s.enabled).map((s) => {
+                  const active = parallelSelection.has(s.id);
+                  return (
+                    <button
+                      key={s.id}
+                      className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] transition-colors"
+                      style={{
+                        background: active ? "var(--accent-purple)" : "var(--surface-2)",
+                        color: active ? "#fff" : "var(--text-primary)",
+                      }}
+                      onClick={() =>
+                        setParallelSelection((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(s.id)) next.delete(s.id);
+                          else next.add(s.id);
+                          return next;
+                        })
+                      }
+                    >
+                      {s.name}
+                    </button>
+                  );
+                })}
+                {subagents.filter((s) => s.enabled).length === 0 && (
+                  <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>没有已启用的子智能体，请先在设置中启用。</span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  className="small-btn font-semibold"
+                  disabled={!parallelTask.trim() || parallelSelection.size === 0}
+                  onClick={() => void runParallel()}
+                >
+                  并行运行（{parallelSelection.size}）
+                </button>
+                <button className="small-btn" onClick={() => setShowParallel(false)}>取消</button>
+              </div>
+            </div>
+          )}
+
           {attachments.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-1.5">
               {attachments.map((a, idx) => (
@@ -988,6 +1085,15 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDropFiles}
           >
+            <button
+              onClick={() => setShowParallel((v) => !v)}
+              title="并行委派多智能体"
+              className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center
+                transition-colors hover:bg-[color:var(--surface-2)]"
+              style={{ color: showParallel ? "var(--accent-purple)" : "var(--text-muted)" }}
+            >
+              <Users size={14} />
+            </button>
             <button
               onClick={handlePickAttachments}
               title="添加附件（图片 / 文本）"

@@ -184,7 +184,8 @@ export default function App() {
 
     const unlistenSubagent = onSubagentResult((evt) => {
       const sid = evt.parent_session_id;
-      if (evt.status === "done") {
+      const ok = evt.status === "done";
+      if (ok) {
         addMessage(sid, {
           id: crypto.randomUUID(),
           role: "system",
@@ -198,6 +199,19 @@ export default function App() {
           content: `子智能体「${evt.subagent_name}」执行失败：${evt.error || "未知错误"}`,
           timestamp: new Date().toISOString(),
         });
+      }
+      // 并行批次汇总：全部完成时在主会话插入汇总
+      useChatStore.getState().completeParallelRun(sid, evt.sub_session_id, ok, evt.subagent_name);
+      const batch = useChatStore.getState().parallel[sid];
+      if (batch && batch.done >= batch.total) {
+        const okCount = Object.values(batch.statuses).filter((s) => s === "done").length;
+        addMessage(sid, {
+          id: crypto.randomUUID(),
+          role: "system",
+          content: `多智能体并行任务完成：${okCount}/${batch.total} 成功（${batch.names.join("、")}）`,
+          timestamp: new Date().toISOString(),
+        });
+        useChatStore.getState().clearParallelRun(sid);
       }
       // 刷新会话列表，使新创建的子会话可见
       sessionList().then(setSessions).catch(console.error);

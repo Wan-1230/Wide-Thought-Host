@@ -29,6 +29,8 @@ interface ChatStore {
   messages: Record<string, ChatMessage[]>;
   streaming: Record<string, boolean>;
   usage: Record<string, UsageInfo>;
+  /** 并行子智能体运行跟踪（session_id → 批次状态），用于结果汇总 */
+  parallel: Record<string, { total: number; done: number; names: string[]; statuses: Record<string, "done" | "error"> }>;
 
   setSessions: (sessions: SessionInfo[]) => void;
   setActiveSession: (id: string) => void;
@@ -43,6 +45,9 @@ interface ChatStore {
   finalizeAssistantMessage: (sessionId: string, fallback: string) => void;
   setStreaming: (sessionId: string, active: boolean) => void;
   addUsage: (sessionId: string, usage: UsageInfo) => void;
+  registerParallelRun: (sessionId: string, names: string[]) => void;
+  completeParallelRun: (sessionId: string, subSessionId: string, ok: boolean, name: string) => void;
+  clearParallelRun: (sessionId: string) => void;
   addToolCall: (sessionId: string, call: ToolCall) => void;
   updateToolCall: (sessionId: string, toolId: string, patch: Partial<ToolCall>) => void;
   updateToolCallResult: (sessionId: string, toolId: string, result: unknown) => void;
@@ -54,6 +59,38 @@ export const useChatStore = create<ChatStore>((set) => ({
   messages: {},
   streaming: {},
   usage: {},
+  parallel: {},
+
+  registerParallelRun: (sessionId, names) =>
+    set((state) => ({
+      parallel: {
+        ...state.parallel,
+        [sessionId]: { total: names.length, done: 0, names, statuses: {} },
+      },
+    })),
+
+  completeParallelRun: (sessionId, subSessionId, ok, name) =>
+    set((state) => {
+      const p = state.parallel[sessionId];
+      if (!p) return state;
+      return {
+        parallel: {
+          ...state.parallel,
+          [sessionId]: {
+            ...p,
+            done: p.done + 1,
+            statuses: { ...p.statuses, [subSessionId]: ok ? "done" : "error" },
+          },
+        },
+      };
+    }),
+
+  clearParallelRun: (sessionId) =>
+    set((state) => {
+      const { [sessionId]: removed, ...parallel } = state.parallel;
+      void removed;
+      return { parallel };
+    }),
 
   setSessions: (sessions) =>
     set({
