@@ -118,6 +118,7 @@ impl Default for DesktopSettings {
                 base_url: "https://api.agnes-ai.cn/v1".into(),
                 model: "agnes-2.5-flash".into(),
                 enabled: true,
+                builtin: true,
             }],
             feature_toggles: HashMap::new(),
             legacy_migration_complete: false,
@@ -150,6 +151,9 @@ pub struct ProviderConfig {
     pub base_url: String,
     pub model: String,
     pub enabled: bool,
+    /// 内置模型标记：由应用自带（如默认模型），不在设置界面展示。
+    #[serde(default)]
+    pub builtin: bool,
 }
 
 impl Default for ProviderConfig {
@@ -161,6 +165,7 @@ impl Default for ProviderConfig {
             base_url: String::new(),
             model: String::new(),
             enabled: true,
+            builtin: false,
         }
     }
 }

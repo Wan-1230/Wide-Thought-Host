@@ -92,7 +92,8 @@ pub fn run() {
                 let state = app.state::<AppState>();
                 let mut loaded_settings = desktop_settings;
 
-                // 确保内置默认模型的 API Key 存在于凭据管理器中（不暴露给用户）
+                // 内置默认模型（Agnes AI）的 API Key 由应用自带并写入凭据管理器，
+                // 不在设置界面展示该模型，但保留为开箱即用的默认后端。
                 let builtin_key = "sk-49YlKg3HCKEPZpu2aI2XlSPhRGZdDYaEIOxXf6a3hfCISRwF";
                 if credentials::read_secret("provider", "agnes-default").ok().flatten().is_none() {
                     let _ = credentials::write_secret("provider", "agnes-default", builtin_key);

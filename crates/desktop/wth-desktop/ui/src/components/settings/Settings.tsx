@@ -267,7 +267,7 @@ export function SettingsModal({ open, onClose, initialPage }: SettingsModalProps
 function getPageDesc(page: PageId): string {
   const map: Record<PageId, string> = {
     general: "控制桌面行为、语言与终端。",
-    models: "管理模型提供商与 API 密钥。",
+    models: "管理模型与 API 密钥。",
     appearance: "主题、字体与显示密度。",
     mcp: "管理 MCP 服务器与外部工具。",
     skills: "浏览和启用本地技能。",
@@ -432,7 +432,7 @@ function PageGeneral({ settings, onSave }: { settings: DesktopSettings; onSave: 
             type="number"
             min="0"
             step="0.5"
-            placeholder="不限"
+            placeholder="例如：10"
             value={settings.budget_usd ?? ""}
             onChange={(e) => {
               const v = e.target.value.trim();
@@ -607,7 +607,7 @@ function PageAppearance({ settings, onSave }: { settings: DesktopSettings; onSav
             <input
               className="control w-64"
               value={settings.custom_font_family || ""}
-              placeholder="输入字体族名称"
+              placeholder='例如："Microsoft YaHei", "PingFang SC"'
               onChange={(e) => onSave({ ...settings, custom_font_family: e.target.value || null })}
             />
           </SettingRow>
@@ -633,6 +633,19 @@ function PageAppearance({ settings, onSave }: { settings: DesktopSettings; onSav
 
 // ─── Models Page ─────────────────────────────────────
 
+// 带标签与提示的字段容器：让新手用户知道每个输入框该填什么。
+function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+  return (
+    <label className="block">
+      <span className="flex items-center justify-between text-xs font-medium mb-1" style={{ color: "var(--text-primary)" }}>
+        <span>{label}</span>
+        {hint && <span className="text-[10px] font-normal" style={{ color: "var(--text-dim)" }}>{hint}</span>}
+      </span>
+      {children}
+    </label>
+  );
+}
+
 function PageModels({
   providers,
   onRefresh,
@@ -642,23 +655,25 @@ function PageModels({
   onRefresh: () => Promise<void>;
   onNotice: (s: string) => void;
 }) {
+  // 内置模型（如默认模型）由应用自带，不在列表中展示
+  const visibleProviders = providers.filter((p) => !p.builtin);
   const NEW_PROVIDER_ID = "__new__";
-  const [selectedId, setSelectedId] = useState<string | null>(providers[0]?.id ?? null);
+  const [selectedId, setSelectedId] = useState<string | null>(visibleProviders[0]?.id ?? null);
   const [draft, setDraft] = useState<ProviderConfig>(blankProviderConfig);
   const [apiKey, setApiKey] = useState("");
 
   useEffect(() => {
-    if (providers.length === 0) {
+    if (visibleProviders.length === 0) {
       setSelectedId(null);
       setDraft(blankProviderConfig);
       setApiKey("");
       return;
     }
     if (selectedId === NEW_PROVIDER_ID) return;
-    if (!selectedId || !providers.some((p) => p.id === selectedId)) {
-      setSelectedId(providers[0].id);
+    if (!selectedId || !visibleProviders.some((p) => p.id === selectedId)) {
+      setSelectedId(visibleProviders[0].id);
     }
-  }, [providers, selectedId]);
+  }, [visibleProviders, selectedId]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -666,13 +681,13 @@ function PageModels({
       setApiKey("");
       return;
     }
-    const current = providers.find((p) => p.id === selectedId);
+    const current = visibleProviders.find((p) => p.id === selectedId);
     if (!current) return;
     setDraft(current);
     setApiKey("");
-  }, [providers, selectedId]);
+  }, [visibleProviders, selectedId]);
 
-  const selected = selectedId ? providers.find((p) => p.id === selectedId) ?? null : null;
+  const selected = selectedId ? visibleProviders.find((p) => p.id === selectedId) ?? null : null;
 
   const save = async () => {
     try {
@@ -681,7 +696,7 @@ function PageModels({
       await onRefresh();
       setSelectedId(saved.id);
       setApiKey("");
-      onNotice("模型提供商已保存");
+      onNotice("模型已保存");
     } catch (e) {
       onNotice(String(e));
     }
@@ -697,18 +712,20 @@ function PageModels({
     <div className="grid grid-cols-[240px_minmax(0,1fr)] gap-4">
       <div className="rounded-xl border p-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
         <div className="flex items-center justify-between px-1 pb-2">
-          <div className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>供应商列表</div>
+          <div className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>我的模型</div>
           <button className="small-btn" onClick={startNew}>
             <Plus size={12} /> 新增
           </button>
         </div>
         <div className="space-y-1.5 max-h-[400px] overflow-y-auto pr-1">
-          {providers.length === 0 ? (
-            <div className="text-xs px-2 py-4 text-center" style={{ color: "var(--text-dim)" }}>
-              还没有配置供应商
+          {visibleProviders.length === 0 ? (
+            <div className="text-xs px-2 py-4 text-center leading-relaxed" style={{ color: "var(--text-dim)" }}>
+              {providers.some((p) => p.builtin) ? "正在使用内置默认模型" : "还没有配置模型"}
+              <br />
+              点击右上角「新增」添加你自己的模型
             </div>
           ) : (
-            providers.map((provider) => (
+            visibleProviders.map((provider) => (
               <button
                 key={provider.id}
                 onClick={() => setSelectedId(provider.id)}
@@ -733,7 +750,7 @@ function PageModels({
 
       <div className="rounded-xl border p-4" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
         <div className="flex items-center justify-between gap-3 mb-4">
-          <div className="text-sm font-medium">{selected ? "编辑供应商" : "新增供应商"}</div>
+          <div className="text-sm font-medium">{selected ? "编辑模型" : "添加模型"}</div>
           {selected && (
             <div className="flex items-center gap-2">
               <button className="small-btn" onClick={async () => { try { onNotice(await providerTest(selected.id)); } catch (e) { onNotice(String(e)); } }}>
@@ -744,33 +761,34 @@ function PageModels({
                   设为默认
                 </button>
               )}
-              {selected.id !== "agnes-default" && (
-                <button className="icon-btn" title="删除" onClick={async () => { await providerDelete(selected.id); setSelectedId(null); await onRefresh(); }}>
-                  <Trash2 size={13} />
-                </button>
-              )}
+              <button className="icon-btn" title="删除" onClick={async () => { await providerDelete(selected.id); setSelectedId(null); await onRefresh(); }}>
+                <Trash2 size={13} />
+              </button>
             </div>
           )}
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <input className="control" placeholder="显示名称" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
-          <input className="control" placeholder="模型名" value={draft.model} onChange={(e) => setDraft({ ...draft, model: e.target.value })} />
-          <input className="control" placeholder="类型 (openai-compatible)" value={draft.kind} onChange={(e) => setDraft({ ...draft, kind: e.target.value })} />
-          <label className="flex items-center gap-2 text-xs">
-            <Toggle checked={draft.enabled} onChange={(enabled) => setDraft({ ...draft, enabled })} />
-            启用
-          </label>
-          <input className="control col-span-2" placeholder="https://api.example.com/v1" value={draft.base_url} onChange={(e) => setDraft({ ...draft, base_url: e.target.value })} />
-          {selected?.id !== "agnes-default" && (
-            <input className="control col-span-2" type="password" placeholder="API Key（仅写入，不回显）" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
-          )}
-          {selected?.id === "agnes-default" && (
-            <div className="col-span-2 text-[11px] px-3 py-2 rounded-lg" style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}>
-              ✓ API Key 已安全存储于系统凭据管理器，无需手动配置
+        <div className="space-y-4">
+          <Field label="显示名称" hint="用于在列表中识别，可随意命名">
+            <input className="control w-full" placeholder="例如：我的本地模型 / 公司网关" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+          </Field>
+          <Field label="模型名" hint="必须是 API 支持的确切名称">
+            <input className="control w-full" placeholder="例如：gpt-4o、deepseek-chat、qwen-max" value={draft.model} onChange={(e) => setDraft({ ...draft, model: e.target.value })} />
+          </Field>
+          <Field label="API 地址" hint="OpenAI 兼容接口，通常以 /v1 结尾">
+            <input className="control w-full" placeholder="例如：https://api.openai.com/v1" value={draft.base_url} onChange={(e) => setDraft({ ...draft, base_url: e.target.value })} />
+          </Field>
+          <Field label="API Key" hint="仅保存在本机，不会回显">
+            <input className="control w-full" type="password" placeholder="粘贴你的 API Key（修改时留空表示不更换）" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+          </Field>
+          <div className="flex items-center justify-between rounded-lg border px-3 py-2.5" style={{ borderColor: "var(--surface-3)" }}>
+            <div>
+              <div className="text-xs font-medium">启用该模型</div>
+              <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>关闭后无法使用此模型，但不会删除配置</div>
             </div>
-          )}
-          <button className="primary-btn col-span-2" disabled={!draft.name || !draft.model || !draft.base_url} onClick={save}>
-            <Save size={13} /> {selected ? "保存修改" : "添加提供商"}
+            <Toggle checked={draft.enabled} onChange={(enabled) => setDraft({ ...draft, enabled })} />
+          </div>
+          <button className="primary-btn w-full" disabled={!draft.name || !draft.model || !draft.base_url} onClick={save}>
+            <Save size={13} /> {selected ? "保存修改" : "添加模型"}
           </button>
         </div>
       </div>
@@ -822,10 +840,18 @@ function PageMcp({ onNotice }: { onNotice: (s: string) => void }) {
       {showAdd && (
         <div className="mb-4 rounded-xl border p-4 space-y-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
           <div className="text-xs font-medium">新增 MCP 服务器</div>
-          <input className="control w-full" placeholder="服务器名称" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          <input className="control w-full" placeholder="命令（如 npx）" value={form.command} onChange={(e) => setForm({ ...form, command: e.target.value })} />
-          <input className="control w-full" placeholder="参数（空格分隔，如 -y @modelcontextprotocol/server-xxx）" value={form.args} onChange={(e) => setForm({ ...form, args: e.target.value })} />
-          <input className="control w-full" placeholder="URL（可选，HTTP 传输）" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} />
+          <Field label="服务器名称" hint="用于在列表中识别">
+            <input className="control w-full" placeholder="例如：代码搜索服务器" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          </Field>
+          <Field label="启动命令" hint="通过 stdio 启动服务器的可执行文件">
+            <input className="control w-full" placeholder="例如：npx、node、python" value={form.command} onChange={(e) => setForm({ ...form, command: e.target.value })} />
+          </Field>
+          <Field label="启动参数" hint="空格分隔的命令行参数">
+            <input className="control w-full" placeholder="例如：-y @modelcontextprotocol/server-xxx" value={form.args} onChange={(e) => setForm({ ...form, args: e.target.value })} />
+          </Field>
+          <Field label="服务器 URL" hint="可选，使用 HTTP 传输时填写">
+            <input className="control w-full" placeholder="例如：https://mcp.example.com/sse" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} />
+          </Field>
           <div className="flex gap-2">
             <button className="primary-btn" onClick={addServer}>确认添加</button>
             <button className="small-btn" onClick={() => setShowAdd(false)}>取消</button>
@@ -1082,11 +1108,17 @@ function PageHooks({ onNotice }: { onNotice: (s: string) => void }) {
       {showAdd && (
         <div className="mb-4 rounded-xl border p-4 space-y-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
           <div className="text-xs font-medium">新增 Hook</div>
-          <input className="control w-full" placeholder="名称" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          <select className="control w-full" value={form.trigger} onChange={(e) => setForm({ ...form, trigger: e.target.value })}>
-            {Object.entries(TRIGGER_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
-          <input className="control w-full" placeholder="执行命令" value={form.command} onChange={(e) => setForm({ ...form, command: e.target.value })} />
+          <Field label="Hook 名称" hint="用于在列表中识别">
+            <input className="control w-full" placeholder="例如：格式化代码" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          </Field>
+          <Field label="触发时机" hint="选择事件发生后执行">
+            <select className="control w-full" value={form.trigger} onChange={(e) => setForm({ ...form, trigger: e.target.value })}>
+              {Object.entries(TRIGGER_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </Field>
+          <Field label="执行命令" hint="触发时运行的命令">
+            <input className="control w-full" placeholder="例如：npx prettier --write" value={form.command} onChange={(e) => setForm({ ...form, command: e.target.value })} />
+          </Field>
           <div className="flex gap-2">
             <button className="primary-btn" onClick={addHook}>确认添加</button>
             <button className="small-btn" onClick={() => setShowAdd(false)}>取消</button>
@@ -1162,11 +1194,21 @@ function PageSubagents({ onNotice }: { onNotice: (s: string) => void }) {
       {showAdd && (
         <div className="mb-4 rounded-xl border p-4 space-y-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
           <div className="text-xs font-medium">新建子智能体</div>
-          <input className="control w-full" placeholder="名称" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          <input className="control w-full" placeholder="用途描述" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-          <textarea className="control w-full h-20 resize-none" placeholder="系统提示词" value={form.system_prompt} onChange={(e) => setForm({ ...form, system_prompt: e.target.value })} />
-          <input className="control w-full" placeholder="绑定模型（如 gpt-4.1）" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} />
-          <input className="control w-full" placeholder="可用工具（逗号分隔，如 shell,git,lsp）" value={form.tools} onChange={(e) => setForm({ ...form, tools: e.target.value })} />
+          <Field label="子智能体名称" hint="用于在列表中识别">
+            <input className="control w-full" placeholder="例如：代码审查员" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          </Field>
+          <Field label="用途描述" hint="说明它擅长做什么，帮助模型理解职责">
+            <input className="control w-full" placeholder="例如：专门负责审查代码质量与潜在缺陷" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+          </Field>
+          <Field label="系统提示词" hint="定义角色与行为，留空使用默认">
+            <textarea className="control w-full h-20 resize-none" placeholder="例如：你是一名资深代码审查员，重点关注安全性…" value={form.system_prompt} onChange={(e) => setForm({ ...form, system_prompt: e.target.value })} />
+          </Field>
+          <Field label="绑定模型" hint="留空使用默认模型">
+            <input className="control w-full" placeholder="例如：gpt-4o、deepseek-chat" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} />
+          </Field>
+          <Field label="可用工具" hint="逗号分隔，留空表示不限制">
+            <input className="control w-full" placeholder="例如：shell, git, lsp" value={form.tools} onChange={(e) => setForm({ ...form, tools: e.target.value })} />
+          </Field>
           <div className="flex gap-2">
             <button className="primary-btn" onClick={addAgent}>确认创建</button>
             <button className="small-btn" onClick={() => setShowAdd(false)}>取消</button>

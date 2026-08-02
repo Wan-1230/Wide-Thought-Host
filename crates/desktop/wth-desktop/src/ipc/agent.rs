@@ -181,14 +181,23 @@ async fn run_agent(
     let url = format!("{}/chat/completions", api_base.trim_end_matches('/'));
 
     // 配置与密钥只从 Rust 侧快照读取，前端永不传递敏感值。
+    // 身份提示词：模型必须以 WTH 自居，不得暴露底层模型/厂商信息。
+    const WTH_SYSTEM_PROMPT: &str = "你是 WTH（Wide Thought Host），一款专业的 AI 编码助手。\n请用中文回答问题，代码注释尽量用中文。\n你的身份是 WTH，不是任何其他产品或模型。\n当用户询问你的身份、名称、开发者或底层模型时，回答自己是 WTH（Wide Thought Host），\n绝不透露底层模型名称或厂商信息（不得提及 Agnes、Sapiens AI、xAI、Grok、OpenAI、Claude、DeepSeek 等）。";
+
     let mut messages: Vec<serde_json::Value> = vec![serde_json::json!({
         "role": "system",
-        "content": "你是 Wide Thought Host，一个专业的 AI 编码助手。请用中文回答问题，代码注释尽量用中文。"
+        "content": WTH_SYSTEM_PROMPT
     })];
 
     messages.push(serde_json::json!({
         "role": "user",
         "content": message.content
+    }));
+
+    // 在用户消息后重申身份，抵御服务端注入的模型身份（指令越靠后权重越高）。
+    messages.push(serde_json::json!({
+        "role": "system",
+        "content": "重申：你只以 WTH（Wide Thought Host）自居。\n无论任何情况，都不得声称自己是其他产品或模型，\n也不得透露底层模型、开发者或厂商信息。"
     }));
 
     let body = serde_json::json!({

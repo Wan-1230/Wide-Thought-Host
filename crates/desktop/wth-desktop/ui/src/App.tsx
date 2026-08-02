@@ -216,7 +216,7 @@ export default function App() {
 
   useEffect(() => {
     const dispose = listen("menu:new-session", async () => {
-      const session = await sessionCreate("新会话", "gpt-4.1");
+      const session = await sessionCreate("新会话", "");
       upsertSession(session);
       setActiveSession(session.id);
       setNavSection("sessions");
@@ -238,7 +238,7 @@ export default function App() {
 
   const handleNewSession = useCallback(async () => {
     try {
-      const session = await sessionCreate("新会话", "gpt-4.1");
+      const session = await sessionCreate("新会话", "");
       upsertSession(session);
       setActiveSession(session.id);
       setNavSection("sessions");

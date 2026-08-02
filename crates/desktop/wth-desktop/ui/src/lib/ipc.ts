@@ -118,6 +118,8 @@ export interface ProviderConfig {
   base_url: string;
   model: string;
   enabled: boolean;
+  /** 内置模型标记：由应用自带，不在设置界面展示 */
+  builtin?: boolean;
 }
 
 export interface ProviderSummary extends ProviderConfig {

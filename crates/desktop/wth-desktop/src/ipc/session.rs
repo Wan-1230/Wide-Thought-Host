@@ -95,13 +95,29 @@ pub async fn session_create(
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
+    // 模型名：显式传入则使用；为空时回退到默认 provider 的模型；
+    // 未配置任何 provider 时为空字符串（界面显示"默认模型"）。
+    let model = if args.model.trim().is_empty() {
+        let settings = state.settings.read().map_err(|e| e.to_string())?;
+        settings
+            .default_provider_id
+            .as_ref()
+            .and_then(|pid| settings.providers.iter().find(|p| &p.id == pid))
+            // 内置默认模型在界面显示"默认"，不展示具体模型名
+            .filter(|p| !p.builtin)
+            .map(|p| p.model.clone())
+            .unwrap_or_default()
+    } else {
+        args.model
+    };
+
     let info = SessionInfo {
         id,
         title: args.title,
         created_at: now.clone(),
         updated_at: now,
         message_count: 0,
-        model: args.model,
+        model,
         pinned: false,
     };
 
