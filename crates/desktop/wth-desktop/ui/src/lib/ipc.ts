@@ -11,6 +11,8 @@ export interface Attachment {
   path?: string;
   content?: string;
   mime_type: string;
+  /** 图片类附件的 base64 data URL（多模态） */
+  data_url?: string;
 }
 
 export interface AgentMessage {

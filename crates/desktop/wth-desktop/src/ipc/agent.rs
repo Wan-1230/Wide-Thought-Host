@@ -33,6 +33,9 @@ pub struct Attachment {
     pub path: Option<String>,
     pub content: Option<String>,
     pub mime_type: String,
+    /// 图片类附件的 base64 data URL（多模态）
+    #[serde(default)]
+    pub data_url: Option<String>,
 }
 
 // ─── Streaming payload ─────────────────────────────────
@@ -318,29 +321,40 @@ pub(crate) async fn run_agent(
             }));
         }
     }
-    messages.push(json!({
-        "role": "user",
-        "content": message.content
-    }));
+    // 附件：文本拼接入用户消息；图片转多模态内容块
+    let mut user_text = message.content;
+    let mut image_blocks: Vec<Value> = Vec::new();
+    let mut text_extra = String::new();
+    let mut image_count = 0usize;
+    for attachment in &message.attachments {
+        if let Some(data_url) = &attachment.data_url {
+            image_count += 1;
+            image_blocks.push(json!({
+                "type": "image_url",
+                "image_url": { "url": data_url }
+            }));
+        } else if let Some(content) = &attachment.content {
+            text_extra.push_str(&format!("\n\n[附件：{}]\n{}", attachment.name, content));
+        }
+    }
+    if !text_extra.is_empty() {
+        user_text.push_str(&text_extra);
+    }
+    if image_blocks.is_empty() {
+        messages.push(json!({ "role": "user", "content": user_text }));
+    } else {
+        let mut content_array = vec![json!({ "type": "text", "text": user_text })];
+        content_array.extend(image_blocks);
+        messages.push(json!({ "role": "user", "content": content_array }));
+        if image_count > 0 {
+            tracing::info!("发送 {image_count} 张图片附件（多模态）；若模型不支持视觉将报错提示");
+        }
+    }
     messages.push(json!({
         "role": "system",
         "content": "重申：你只以 WTH（Wide Thought Host）自居。\n无论任何情况，都不得声称自己是其他产品或模型，\n也不得透露底层模型、开发者或厂商信息。"
     }));
 
-    // 文本附件：以追加文本形式并入首条用户消息（多模态图片支持见 P1-6）
-    if !message.attachments.is_empty() {
-        let mut extra = String::new();
-        for attachment in &message.attachments {
-            if let Some(content) = &attachment.content {
-                extra.push_str(&format!("\n\n[附件：{}]\n{}", attachment.name, content));
-            }
-        }
-        if !extra.is_empty() {
-            let last = messages.last_mut().ok_or("消息构造失败")?;
-            let text = last["content"].as_str().unwrap_or("").to_string();
-            last["content"] = json!(format!("{text}{extra}"));
-        }
-    }
 
     // Hooks：用户消息已构造完成（失败不影响主流程）
     {
@@ -351,7 +365,7 @@ pub(crate) async fn run_agent(
                 "trigger": "message_sent",
                 "session_id": session_id.clone(),
                 "timestamp": chrono::Utc::now().to_rfc3339(),
-                "message": message.content,
+                "message": user_text.clone(),
             }),
             &s,
             &workspace_root,

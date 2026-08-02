@@ -27,6 +27,7 @@ import {
   FileText,
   Slash,
   AtSign,
+  Paperclip,
   X,
 } from "lucide-react";
 import { THINKING_MESSAGE, useChatStore } from "@/stores/chat";
@@ -36,6 +37,77 @@ import type { ChatMessage, ToolCall } from "@/stores/chat";
 import type { FileEntry, SlashCommandInfo, SubagentConfig } from "@/lib/ipc";
 import wthBanner from "@/assets/wth-banner.png";
 import { ContextMenu, contextMenuPointFromEvent, type ContextMenuPoint } from "@/components/common/ContextMenu";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { readFile, readTextFile } from "@tauri-apps/plugin-fs";
+import type { Attachment } from "@/lib/ipc";
+
+// ─── 附件工具 ─────────────────────────────────────────
+
+const IMAGE_EXT = ["png", "jpg", "jpeg", "webp", "gif"];
+const TEXT_EXT = [
+  "md", "txt", "json", "toml", "yaml", "yml", "ini", "csv",
+  "rs", "ts", "tsx", "js", "jsx", "py", "go", "c", "cpp", "h", "hpp",
+  "java", "kt", "swift", "html", "css", "scss", "vue", "svelte",
+  "sh", "bat", "ps1", "sql", "xml",
+];
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+function mimeFromName(name: string, fallback: string): string {
+  const ext = name.split(".").pop()?.toLowerCase() || "";
+  const map: Record<string, string> = {
+    png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg",
+    webp: "image/webp", gif: "image/gif", bmp: "image/bmp",
+    md: "text/markdown", txt: "text/plain", json: "application/json",
+  };
+  return map[ext] || fallback || "text/plain";
+}
+
+/** 构建附件：图片转 base64 data URL，文本读取内容，其他仅携带路径。 */
+async function buildAttachment(
+  name: string,
+  path: string | null,
+  file?: File,
+): Promise<Attachment> {
+  const ext = name.split(".").pop()?.toLowerCase() || "";
+  const mime_type = mimeFromName(name, file?.type || "text/plain");
+  if (IMAGE_EXT.includes(ext)) {
+    let bytes: Uint8Array;
+    if (file) {
+      bytes = new Uint8Array(await file.arrayBuffer());
+    } else if (path) {
+      bytes = await readFile(path);
+    } else {
+      return { name, mime_type };
+    }
+    if (bytes.length > 10 * 1024 * 1024) {
+      throw new Error(`图片 ${name} 超过 10MB 限制`);
+    }
+    return { name, path: path ?? undefined, mime_type, data_url: `data:${mime_type};base64,${bytesToBase64(bytes)}` };
+  }
+  if (TEXT_EXT.includes(ext) || !file) {
+    let text: string;
+    if (file) {
+      text = await file.text();
+    } else if (path) {
+      text = await readTextFile(path);
+    } else {
+      return { name, mime_type };
+    }
+    if (text.length > 1_000_000) {
+      text = text.slice(0, 1_000_000) + "\n…（附件过大已截断）";
+    }
+    return { name, path: path ?? undefined, mime_type, content: text };
+  }
+  return { name, path: path ?? undefined, mime_type };
+}
 
 /// 渲染单条 tool call 卡片（折叠式）。支持“等待确认 → 允许/拒绝 → 执行结果”状态。
 function ToolCallCard({ call }: { call: ToolCall }) {
@@ -358,6 +430,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
   const [slashCommands, setSlashCommands] = useState<SlashCommandInfo[]>([]);
   const [subagents, setSubagents] = useState<SubagentConfig[]>([]);
   const [delegatingTo, setDelegatingTo] = useState<SubagentConfig | null>(null);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -432,6 +505,52 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
         setPopupIndex(0);
       }
     }
+  };
+
+  const handlePickAttachments = async () => {
+    try {
+      const selected = await openDialog({ multiple: true, directory: false, title: "选择附件" });
+      const paths = typeof selected === "string" ? [selected] : Array.isArray(selected) ? selected : [];
+      const fresh: Attachment[] = [];
+      for (const p of paths) {
+        if (attachments.length + fresh.length >= 5) break;
+        const name = p.split(/[\\/]/).pop() || p;
+        try {
+          fresh.push(await buildAttachment(name, p));
+        } catch (err) {
+          addMessage(activeSessionId!, {
+            id: crypto.randomUUID(),
+            role: "system",
+            content: `附件处理失败：${err}`,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+      setAttachments((prev) => [...prev, ...fresh].slice(0, 5));
+    } catch (err) {
+      console.error("选择附件失败：", err);
+    }
+  };
+
+  const handleDropFiles = async (e: React.DragEvent) => {
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length === 0) return;
+    const fresh: Attachment[] = [];
+    for (const f of files) {
+      if (attachments.length + fresh.length >= 5) break;
+      try {
+        fresh.push(await buildAttachment(f.name, null, f));
+      } catch (err) {
+        addMessage(activeSessionId!, {
+          id: crypto.randomUUID(),
+          role: "system",
+          content: `附件处理失败：${err}`,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+    setAttachments((prev) => [...prev, ...fresh].slice(0, 5));
   };
 
   const selectPopupItem = (item: { label: string; value: string; kind: "file" | "subagent" | "command" }) => {
@@ -516,7 +635,9 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
     addMessage(activeSessionId, {
       id: crypto.randomUUID(),
       role: "user",
-      content,
+      content: attachments.length
+        ? `${content}\n\n[附件：${attachments.map((a) => a.name).join("、")}]`
+        : content,
       timestamp: new Date().toISOString(),
     });
 
@@ -536,7 +657,9 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
         session_id: activeSessionId,
         content,
         system_instruction: systemInstruction,
+        attachments,
       });
+      setAttachments([]);
     } catch (err) {
       console.error("发送失败：", err);
       finalizeAssistantMessage(activeSessionId, "（发送失败）");
@@ -741,6 +864,29 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
             </div>
           )}
 
+          {attachments.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {attachments.map((a, idx) => (
+                <span
+                  key={a.name + idx}
+                  className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px]"
+                  style={{ background: "var(--surface-2)", color: "var(--text-primary)" }}
+                >
+                  <Paperclip size={10} style={{ color: "var(--text-muted)" }} />
+                  <span className="max-w-[160px] truncate">{a.name}</span>
+                  {a.data_url ? <span className="text-[9px]" style={{ color: "var(--accent-blue)" }}>图片</span> : null}
+                  <button
+                    className="hover:opacity-70"
+                    title="移除附件"
+                    onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                  >
+                    <X size={10} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
           <div
             className="flex items-center gap-2 rounded-3xl pl-4 pr-2 py-2
               transition-shadow duration-150"
@@ -748,7 +894,18 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
               background: "var(--surface-1)",
               border: "1px solid var(--surface-3)",
             }}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handleDropFiles}
           >
+            <button
+              onClick={handlePickAttachments}
+              title="添加附件（图片 / 文本）"
+              className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center
+                transition-colors hover:bg-[color:var(--surface-2)]"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <Paperclip size={14} />
+            </button>
             <textarea
               ref={textareaRef}
               value={input}
