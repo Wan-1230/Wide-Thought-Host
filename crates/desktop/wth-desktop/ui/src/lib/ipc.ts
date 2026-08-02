@@ -446,6 +446,16 @@ export const diagnosticsGet = () => invoke<DiagnosticItem[]>("diagnostics_get");
 
 export const pluginImport = (sourceDir: string) => invoke<string>("plugin_import", { sourceDir });
 
+export interface UpdateCheckInfo {
+  current_version: string;
+  latest_version: string;
+  has_update: boolean;
+  release_url: string;
+  notes: string;
+}
+
+export const updateCheck = () => invoke<UpdateCheckInfo>("update_check");
+
 export const memoryList = () => invoke<MemoryEntry[]>("memory_list");
 export const memoryWrite = (title: string, content: string, tags?: string[], scope?: "user" | "workspace") =>
   invoke<MemoryEntry>("memory_write", { title, content, tags, scope });

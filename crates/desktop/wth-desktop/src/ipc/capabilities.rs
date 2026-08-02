@@ -5,6 +5,7 @@
 
 use crate::{settings::DesktopSettings, state::AppState};
 use serde::Serialize;
+use serde_json::Value;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -991,6 +992,87 @@ pub async fn list_slash_commands(
     }
 
     Ok(commands)
+}
+
+// ─── Update check ────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UpdateCheckDto {
+    pub current_version: String,
+    pub latest_version: String,
+    pub has_update: bool,
+    pub release_url: String,
+    pub notes: String,
+}
+
+fn version_gt(latest: &str, current: &str) -> bool {
+    let parse = |v: &str| -> Vec<u64> {
+        v.split('.')
+            .filter_map(|part| {
+                let digits: String = part.chars().take_while(|c| c.is_ascii_digit()).collect();
+                digits.parse::<u64>().ok()
+            })
+            .collect()
+    };
+    let l = parse(latest);
+    let c = parse(current);
+    for i in 0..l.len().max(c.len()) {
+        let lv = l.get(i).copied().unwrap_or(0);
+        let cv = c.get(i).copied().unwrap_or(0);
+        if lv > cv {
+            return true;
+        }
+        if lv < cv {
+            return false;
+        }
+    }
+    false
+}
+
+/// 手动检查更新：对比 GitHub Releases 最新 tag 与本地版本。
+#[tauri::command]
+pub async fn update_check() -> Result<UpdateCheckDto, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let resp = client
+        .get("https://api.github.com/repos/Wan-1230/Wide-Thought-Host/releases/latest")
+        .header("User-Agent", "WTH-Desktop")
+        .send()
+        .await
+        .map_err(|e| format!("网络请求失败：{e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("GitHub API 返回状态码 {}", resp.status()));
+    }
+    let value: Value = resp.json().await.map_err(|e| format!("解析响应失败：{e}"))?;
+    let latest = value
+        .get("tag_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim_start_matches('v')
+        .to_string();
+    let release_url = value
+        .get("html_url")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let notes = value
+        .get("body")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .chars()
+        .take(2000)
+        .collect();
+    let current = env!("CARGO_PKG_VERSION").to_string();
+    let has_update = version_gt(&latest, &current);
+    Ok(UpdateCheckDto {
+        current_version: current,
+        latest_version: latest,
+        has_update,
+        release_url,
+        notes,
+    })
 }
 
 /// 从本地目录导入插件（复制到 ~/.wth/plugins/{名称}）。

@@ -55,6 +55,7 @@ import {
   memoryWrite,
   diagnosticsGet,
   pluginImport,
+  updateCheck,
   memoryDelete,
   type CapabilityItem,
   type CapabilitySource,
@@ -71,9 +72,11 @@ import {
   type SubagentConfig,
   type MemoryEntry,
   type DiagnosticItem,
+  type UpdateCheckInfo,
 } from "@/lib/ipc";
 import { SegmentedControl } from "@/components/common/SegmentedControl";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { open as openUrl } from "@tauri-apps/plugin-shell";
 
 // ─── Types ───────────────────────────────────────────
 
@@ -343,7 +346,7 @@ function SettingsBody({
     return <PageAppearance settings={settings} onSave={onSave} />;
   }
   if (page === "about") {
-    return <PageAbout />;
+    return <PageAbout onNotice={onNotice} />;
   }
   if (page === "diagnostics") {
     return <PageDiagnostics onNotice={onNotice} />;
@@ -1670,7 +1673,24 @@ function PageDiagnostics({ onNotice }: { onNotice: (s: string) => void }) {
 
 // ─── About Page ──────────────────────────────────────
 
-function PageAbout() {
+function PageAbout({ onNotice }: { onNotice: (s: string) => void }) {
+  const [checking, setChecking] = useState(false);
+  const [result, setResult] = useState<UpdateCheckInfo | null>(null);
+
+  const runCheck = async () => {
+    setChecking(true);
+    setResult(null);
+    try {
+      const info = await updateCheck();
+      setResult(info);
+      if (!info.has_update) onNotice(`已是最新版本 v${info.current_version}`);
+    } catch (e) {
+      onNotice(`检查更新失败：${e}`);
+    } finally {
+      setChecking(false);
+    }
+  };
+
   return (
     <div className="rounded-xl border p-6 space-y-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
       <div className="text-2xl font-bold">
@@ -1680,12 +1700,30 @@ function PageAbout() {
         基于 Tauri 2、React 和 WTH Agent Core。开源、隐私优先的桌面 AI 编码代理。
       </p>
       <div className="flex gap-2 flex-wrap">
-        <a className="small-btn" href="https://github.com" target="_blank" rel="noreferrer">
+        <a className="small-btn" href="https://github.com/Wan-1230/Wide-Thought-Host" target="_blank" rel="noreferrer">
           <Github size={12} /> 项目主页
         </a>
-        <button className="small-btn"><Code2 size={12} /> Apache-2.0</button>
-        <button className="small-btn"><CircleHelp size={12} /> 隐私说明</button>
+        <button className="small-btn" onClick={runCheck} disabled={checking}>
+          {checking ? "检查中…" : "检查更新"}
+        </button>
       </div>
+      {result && result.has_update && (
+        <div className="rounded-xl border p-3 space-y-2" style={{ borderColor: "var(--accent-yellow)", background: "var(--surface-1)" }}>
+          <div className="text-xs font-semibold">
+            发现新版本 v{result.latest_version}（当前 v{result.current_version}）
+          </div>
+          {result.notes && (
+            <div className="text-[10px] whitespace-pre-wrap max-h-40 overflow-y-auto" style={{ color: "var(--text-muted)" }}>
+              {result.notes}
+            </div>
+          )}
+          {result.release_url && (
+            <button className="small-btn font-semibold" onClick={() => openUrl(result.release_url)}>
+              打开下载页
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
