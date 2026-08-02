@@ -32,6 +32,15 @@ export interface StreamChunk {
   message?: string;
 }
 
+/** 子智能体委派结果事件（agent:subagent_result）。 */
+export interface SubagentResultEvent {
+  parent_session_id: string;
+  sub_session_id: string;
+  subagent_name: string;
+  status: 'done' | 'error';
+  error?: string;
+}
+
 /** 待用户确认的工具调用事件（agent:approval）。 */
 export interface ApprovalEvent {
   session_id: string;
@@ -216,6 +225,18 @@ export async function agentAbort(sessionId: string): Promise<void> {
 
 export function onAgentStream(cb: (chunk: StreamChunk) => void): Promise<UnlistenFn> {
   return listen<StreamChunk>("agent:stream", (event) => cb(event.payload));
+}
+
+export function onSubagentResult(cb: (evt: SubagentResultEvent) => void): Promise<UnlistenFn> {
+  return listen<SubagentResultEvent>("agent:subagent_result", (event) => cb(event.payload));
+}
+
+export async function subagentRun(
+  subagentId: string,
+  task: string,
+  parentSessionId: string,
+): Promise<string> {
+  return invoke("subagent_run", { subagentId, task, parentSessionId });
 }
 
 export function onAgentApproval(cb: (evt: ApprovalEvent) => void): Promise<UnlistenFn> {

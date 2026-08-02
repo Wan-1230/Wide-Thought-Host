@@ -57,7 +57,7 @@ pub fn load_sessions(path: &std::path::Path) -> Vec<SessionInfo> {
 }
 
 /// Persist the in-memory session list to disk.
-fn save_sessions(path: &std::path::Path, sessions: &[SessionInfo]) {
+pub(crate) fn save_sessions(path: &std::path::Path, sessions: &[SessionInfo]) {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }

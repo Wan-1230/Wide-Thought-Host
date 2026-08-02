@@ -217,6 +217,7 @@ pub fn run() {
             ipc::subagents::subagent_add,
             ipc::subagents::subagent_remove,
             ipc::subagents::subagent_toggle,
+            ipc::subagents::subagent_run,
             // Headroom proxy
             ipc::headroom::headroom_status,
             ipc::headroom::headroom_is_installed,

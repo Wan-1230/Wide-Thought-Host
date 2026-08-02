@@ -50,6 +50,7 @@ import {
   githubAuthStatus,
   onAgentApproval,
   onAgentStream,
+  onSubagentResult,
   sessionCreate,
   sessionDelete,
   sessionList,
@@ -160,6 +161,27 @@ export default function App() {
       });
     });
 
+    const unlistenSubagent = onSubagentResult((evt) => {
+      const sid = evt.parent_session_id;
+      if (evt.status === "done") {
+        addMessage(sid, {
+          id: crypto.randomUUID(),
+          role: "system",
+          content: `子智能体「${evt.subagent_name}」已完成，可切换到子会话查看完整过程`,
+          timestamp: new Date().toISOString(),
+        });
+      } else {
+        addMessage(sid, {
+          id: crypto.randomUUID(),
+          role: "system",
+          content: `子智能体「${evt.subagent_name}」执行失败：${evt.error || "未知错误"}`,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      // 刷新会话列表，使新创建的子会话可见
+      sessionList().then(setSessions).catch(console.error);
+    });
+
     const unlisten = onAgentStream((chunk: StreamChunk) => {
       const sid = chunk.session_id;
       switch (chunk.type) {
@@ -199,6 +221,7 @@ export default function App() {
     return () => {
       unlisten.then((fn) => fn());
       unlistenApproval.then((fn) => fn());
+      unlistenSubagent.then((fn) => fn());
     };
   }, [
     addMessage,

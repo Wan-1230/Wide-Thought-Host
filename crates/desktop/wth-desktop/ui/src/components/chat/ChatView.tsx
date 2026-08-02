@@ -27,12 +27,13 @@ import {
   FileText,
   Slash,
   AtSign,
+  X,
 } from "lucide-react";
 import { THINKING_MESSAGE, useChatStore } from "@/stores/chat";
 import { useWorkbenchStore } from "@/stores/workbench";
-import { agentSend, agentAbort, agentApproveTool, agentDenyTool, fileList, listSlashCommands, resolveSkill } from "@/lib/ipc";
+import { agentSend, agentAbort, agentApproveTool, agentDenyTool, fileList, listSlashCommands, resolveSkill, subagentList, subagentRun } from "@/lib/ipc";
 import type { ChatMessage, ToolCall } from "@/stores/chat";
-import type { FileEntry, SlashCommandInfo } from "@/lib/ipc";
+import type { FileEntry, SlashCommandInfo, SubagentConfig } from "@/lib/ipc";
 import wthBanner from "@/assets/wth-banner.png";
 import { ContextMenu, contextMenuPointFromEvent, type ContextMenuPoint } from "@/components/common/ContextMenu";
 
@@ -351,10 +352,12 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
 
   const [input, setInput] = useState("");
   const [showPopup, setShowPopup] = useState<"none" | "file" | "command">("none");
-  const [popupItems, setPopupItems] = useState<{ label: string; value: string }[]>([]);
+  const [popupItems, setPopupItems] = useState<{ label: string; value: string; kind: "file" | "subagent" | "command" }[]>([]);
   const [popupIndex, setPopupIndex] = useState(0);
   const [msgMenu, setMsgMenu] = useState<{ point: ContextMenuPoint; content: string } | null>(null);
   const [slashCommands, setSlashCommands] = useState<SlashCommandInfo[]>([]);
+  const [subagents, setSubagents] = useState<SubagentConfig[]>([]);
+  const [delegatingTo, setDelegatingTo] = useState<SubagentConfig | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -382,6 +385,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
   // 动态加载斜杠命令（内置 + 技能）
   useEffect(() => {
     listSlashCommands().then(setSlashCommands).catch(() => {});
+    subagentList().then(setSubagents).catch(() => {});
   }, []);
 
   const handleInputChange = async (value: string) => {
@@ -393,7 +397,11 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
       setPopupIndex(0);
       try {
         const files = await fileList(".", false);
-        setPopupItems(files.slice(0, 10).map((f: FileEntry) => ({ label: f.name, value: f.name })));
+        const fileItems = files.slice(0, 8).map((f: FileEntry) => ({ label: f.name, value: f.name, kind: "file" as const }));
+        const subItems = subagents
+          .filter((s) => s.enabled)
+          .map((s) => ({ label: s.name, value: s.id, kind: "subagent" as const }));
+        setPopupItems([...fileItems, ...subItems]);
       } catch {
         setPopupItems([]);
       }
@@ -403,6 +411,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
       setPopupItems(slashCommands.map((c) => ({
         label: `/${c.name}${c.source === "skill" ? ` [${c.scope}]` : ""} — ${c.description.slice(0, 40)}`,
         value: `/${c.name}`,
+        kind: "command" as const,
       })));
     } else if (showPopup !== "none") {
       // Filter popup items
@@ -416,6 +425,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
           const candidates = slashCommands.map((c) => ({
             label: `/${c.name}${c.source === "skill" ? ` [${c.scope}]` : ""} — ${c.description.slice(0, 40)}`,
             value: `/${c.name}`,
+            kind: "command" as const,
           }));
           setPopupItems(candidates.filter((c) => c.label.toLowerCase().includes(query)));
         }
@@ -424,10 +434,16 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
     }
   };
 
-  const selectPopupItem = (item: { label: string; value: string }) => {
-    if (showPopup === "file") {
+  const selectPopupItem = (item: { label: string; value: string; kind: "file" | "subagent" | "command" }) => {
+    if (item.kind === "file") {
       const lastAt = input.lastIndexOf("@");
       setInput(input.slice(0, lastAt) + `@${item.value} `);
+    } else if (item.kind === "subagent") {
+      const sub = subagents.find((s) => s.id === item.value);
+      if (sub) {
+        setDelegatingTo(sub);
+        setInput("");
+      }
     } else {
       setInput(item.value + " ");
     }
@@ -439,6 +455,35 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
     if (!activeSessionId) return;
     let content = input.trim();
     if (!content || isStreaming) return;
+
+    // 子智能体委派模式：后台子会话执行，主会话仅插入委派记录
+    if (delegatingTo) {
+      addMessage(activeSessionId, {
+        id: crypto.randomUUID(),
+        role: "user",
+        content: `[委派给 ${delegatingTo.name}] ${content}`,
+        timestamp: new Date().toISOString(),
+      });
+      try {
+        await subagentRun(delegatingTo.id, content, activeSessionId);
+        addMessage(activeSessionId, {
+          id: crypto.randomUUID(),
+          role: "system",
+          content: `已委派给「${delegatingTo.name}」（子会话，任务：${content}）`,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (err) {
+        addMessage(activeSessionId, {
+          id: crypto.randomUUID(),
+          role: "system",
+          content: `委派失败：${err}`,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      setDelegatingTo(null);
+      setInput("");
+      return;
+    }
 
     // 技能斜杠命令：加载 SKILL.md 并注入内容
     if (content.startsWith("/")) {
@@ -643,22 +688,47 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
               style={{ background: "var(--surface-1)", borderColor: "var(--surface-3)" }}
             >
               <div className="px-3 py-1.5 text-[10px] font-medium" style={{ color: "var(--text-dim)" }}>
-                {showPopup === "file" ? "选择文件" : "快捷指令"}
+                {showPopup === "file" ? "选择文件 / 委派子智能体" : "快捷指令"}
               </div>
               <div className="max-h-40 overflow-y-auto pb-1">
                 {popupItems.map((item, idx) => (
                   <button
-                    key={item.value}
+                    key={item.value + item.kind}
                     className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs transition-colors"
                     style={{ background: idx === popupIndex ? "var(--surface-2)" : "transparent", color: "var(--text-primary)" }}
                     onClick={() => selectPopupItem(item)}
                     onMouseEnter={() => setPopupIndex(idx)}
                   >
-                    {showPopup === "file" ? <FileText size={12} style={{ color: "var(--text-muted)" }} /> : <Slash size={12} style={{ color: "var(--accent-blue)" }} />}
+                    {item.kind === "file" ? (
+                      <FileText size={12} style={{ color: "var(--text-muted)" }} />
+                    ) : item.kind === "subagent" ? (
+                      <Bot size={12} style={{ color: "var(--accent-purple)" }} />
+                    ) : (
+                      <Slash size={12} style={{ color: "var(--accent-blue)" }} />
+                    )}
                     <span className="truncate">{item.label}</span>
+                    {item.kind === "subagent" && (
+                      <span className="ml-auto shrink-0 text-[10px] rounded px-1.5 py-0.5" style={{ background: "var(--surface-2)", color: "var(--text-dim)" }}>
+                        子智能体
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
+            </div>
+          )}
+
+          {delegatingTo && (
+            <div className="mb-2 flex items-center gap-2 rounded-xl px-3 py-2 text-xs" style={{ background: "var(--surface-2)", color: "var(--text-primary)" }}>
+              <Bot size={13} style={{ color: "var(--accent-purple)" }} />
+              <span className="truncate">正在委派给「{delegatingTo.name}」— 输入任务后发送</span>
+              <button
+                className="ml-auto flex items-center gap-1 text-[10px] rounded-md px-2 py-1 hover:bg-[color:var(--surface-3)]"
+                style={{ color: "var(--text-dim)" }}
+                onClick={() => setDelegatingTo(null)}
+              >
+                <X size={11} /> 取消委派
+              </button>
             </div>
           )}
 
@@ -676,7 +746,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
               onChange={(e) => handleInputChange(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={isStreaming}
-              placeholder={isStreaming ? "正在生成…" : "输入消息… @ 提及文件 / 指令"}
+              placeholder={isStreaming ? "正在生成…" : delegatingTo ? `委派给 ${delegatingTo.name}：输入任务…` : "输入消息… @ 提及文件 / 指令"}
               rows={1}
               className="flex-1 resize-none bg-transparent border-none px-0 py-2 text-sm leading-relaxed
                 placeholder:text-[13px] focus:outline-none
@@ -711,7 +781,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
             className="text-center text-[10px] mt-1.5"
             style={{ color: "var(--text-dim)" }}
           >
-            Enter 发送 · Shift+Enter 换行 · @ 提及文件 · / 指令
+            Enter 发送 · Shift+Enter 换行 · @ 提及文件/子智能体 · / 指令
           </div>
         </div>
       </div>

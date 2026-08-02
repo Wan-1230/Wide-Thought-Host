@@ -72,6 +72,19 @@ pub struct UsageInfo {
     pub total_tokens: u64,
 }
 
+/// Agent 运行覆盖项（子智能体委派使用）。
+#[derive(Debug, Clone, Default)]
+pub struct AgentRunOverrides {
+    /// 追加在 WTH 身份提示词之后的子智能体系统提示词
+    pub system_prompt: Option<String>,
+    /// 覆盖模型（空 = 跟随默认模型）
+    pub model: Option<String>,
+    /// 允许的工具名白名单（空 = 全部；MCP 工具始终放行）
+    pub allowed_tools: Option<Vec<String>>,
+    /// 后台运行：需要确认的工具自动拒绝（不回退执行）
+    pub headless: bool,
+}
+
 // ─── Commands ──────────────────────────────────────────
 
 #[tauri::command]
@@ -163,6 +176,7 @@ pub async fn agent_send(
             settings_ref,
             settings_path,
             mcp_manager,
+            AgentRunOverrides::default(),
         )
         .await;
         if let Ok(mut agents) = agent_state.lock() {
@@ -235,7 +249,7 @@ fn send_approval(
 
 // ─── Core: tool loop ───────────────────────────────────
 
-async fn run_agent(
+pub(crate) async fn run_agent(
     session_id: String,
     message: AgentMessage,
     api_base: String,
@@ -251,15 +265,22 @@ async fn run_agent(
     settings_ref: Arc<RwLock<crate::settings::DesktopSettings>>,
     settings_path: std::path::PathBuf,
     mcp_manager: Arc<tokio::sync::Mutex<crate::mcp::McpManager>>,
+    overrides: AgentRunOverrides,
 ) -> Result<(), String> {
     // 配置与密钥只从 Rust 侧快照读取，前端永不传递敏感值。
     // 身份提示词：模型必须以 WTH 自居，不得暴露底层模型/厂商信息。
     const WTH_SYSTEM_PROMPT: &str = "你是 WTH（Wide Thought Host），一款专业的 AI 编码助手。\n请用中文回答问题，代码注释尽量用中文。\n你的身份是 WTH，不是任何其他产品或模型。\n当用户询问你的身份、名称、开发者或底层模型时，回答自己是 WTH（Wide Thought Host），\n绝不透露底层模型名称或厂商信息（不得提及 Agnes、Sapiens AI、xAI、Grok、OpenAI、Claude、DeepSeek 等）。";
 
+    let mut wth_prompt = WTH_SYSTEM_PROMPT.to_string();
+    if let Some(extra) = &overrides.system_prompt {
+        wth_prompt.push_str(&format!("\n\n【当前角色】{extra}"));
+    }
+    let model = overrides.model.clone().unwrap_or(model);
+
     let mut messages: Vec<Value> = vec![
         json!({
             "role": "system",
-            "content": WTH_SYSTEM_PROMPT
+            "content": wth_prompt
         }),
         json!({
             "role": "user",
@@ -344,6 +365,12 @@ async fn run_agent(
             }
         }
         let mut all_tools = tools::build_tools();
+        if let Some(allowed) = &overrides.allowed_tools {
+            all_tools.retain(|t| {
+                let name = t["function"]["name"].as_str().unwrap_or("").to_string();
+                allowed.contains(&name) || name.starts_with("mcp__")
+            });
+        }
         all_tools.extend(mcp_tools.clone());
         let mut body = json!({
             "model": model,
@@ -415,7 +442,11 @@ async fn run_agent(
             );
 
             let approved = if needs {
-                match wait_for_approval(
+                if overrides.headless {
+                    // 后台运行无法交互确认，自动拒绝
+                    false
+                } else {
+                    match wait_for_approval(
                     &approvals,
                     &window,
                     &session_id,
@@ -424,12 +455,36 @@ async fn run_agent(
                 )
                 .await
                 {
-                    Ok(v) => v,
-                    Err(e) => return Err(e),
+                        Ok(v) => v,
+                        Err(e) => return Err(e),
+                    }
                 }
             } else {
                 true
             };
+
+            // 白名单运行时校验：模型不得调用允许范围外的工具
+            if let Some(allowed) = &overrides.allowed_tools {
+                if !allowed.contains(&tc.name) && !tc.name.starts_with("mcp__") {
+                    let blocked = json!({ "error": "该工具不在当前子智能体的允许范围内，已拒绝" });
+                    let _ = window.emit(
+                        "agent:stream",
+                        AgentStreamChunk {
+                            session_id: session_id.clone(),
+                            payload: StreamPayload::ToolCallEnd {
+                                tool_id: tc.id.clone(),
+                                result: blocked.clone(),
+                            },
+                        },
+                    );
+                    messages.push(json!({
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": blocked.to_string(),
+                    }));
+                    continue;
+                }
+            }
 
             let (model_result, full_before, full_after) = if approved {
                 let exec = if tc.name.starts_with("mcp__") {
