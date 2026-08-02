@@ -1,6 +1,7 @@
 pub mod agent;
 pub mod capabilities;
 pub mod filesystem;
+pub mod hooks;
 pub mod headroom;
 pub mod session;
 pub mod subagents;

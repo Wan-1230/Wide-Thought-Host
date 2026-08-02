@@ -4,6 +4,7 @@
 //! “模型声明工具 → 按权限模式确认 → 执行工具 → 回填结果”的多轮循环，
 //! 直到模型产出最终回答或达到最大迭代轮数。
 
+use crate::ipc::hooks;
 use crate::ipc::tools::{self, ApprovalRequest};
 use crate::state::{AgentHandle, AppState};
 use futures::StreamExt;
@@ -241,6 +242,22 @@ fn send_approval(
         if let Some(pos) = list.iter().position(|r| r.tool_call_id == tool_call_id) {
             let req = list.remove(pos);
             let _ = req.tx.send(approved);
+            // Hooks：工具审批决议（fire-and-forget，失败不影响审批流程）
+            if let (Ok(settings), Ok(workspace)) = (state.settings.read(), state.workspace_root.read()) {
+                let trigger = if approved { "tool_approved" } else { "tool_denied" };
+                hooks::spawn_hooks(
+                    trigger,
+                    json!({
+                        "trigger": trigger,
+                        "session_id": session_id,
+                        "tool_call_id": tool_call_id,
+                        "approved": approved,
+                        "timestamp": chrono::Utc::now().to_rfc3339(),
+                    }),
+                    &settings,
+                    &workspace,
+                );
+            }
             return Ok(());
         }
     }
@@ -305,6 +322,23 @@ pub(crate) async fn run_agent(
             let text = last["content"].as_str().unwrap_or("").to_string();
             last["content"] = json!(format!("{text}{extra}"));
         }
+    }
+
+    // Hooks：用户消息已构造完成（失败不影响主流程）
+    {
+        let s = settings_ref.read().map_err(|e| e.to_string())?.clone();
+        hooks::run_hooks(
+            "message_sent",
+            json!({
+                "trigger": "message_sent",
+                "session_id": session_id.clone(),
+                "timestamp": chrono::Utc::now().to_rfc3339(),
+                "message": message.content,
+            }),
+            &s,
+            &workspace_root,
+        )
+        .await;
     }
 
     // 上下文压缩与预算配置快照
@@ -566,6 +600,23 @@ pub(crate) async fn run_agent(
         let persisted = s.clone();
         drop(s);
         let _ = crate::settings::save_settings(&settings_path, &persisted);
+    }
+
+    // Hooks：响应完成（Done 事件前；失败不影响主流程）
+    {
+        let s = settings_ref.read().map_err(|e| e.to_string())?.clone();
+        hooks::run_hooks(
+            "agent_response_done",
+            json!({
+                "trigger": "agent_response_done",
+                "session_id": session_id.clone(),
+                "timestamp": chrono::Utc::now().to_rfc3339(),
+                "status": "done",
+            }),
+            &s,
+            &workspace_root,
+        )
+        .await;
     }
 
     let _ = window.emit(
