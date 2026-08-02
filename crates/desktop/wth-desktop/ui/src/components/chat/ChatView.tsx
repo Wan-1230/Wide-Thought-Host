@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { THINKING_MESSAGE, useChatStore } from "@/stores/chat";
 import { useWorkbenchStore } from "@/stores/workbench";
-import { agentSend, agentAbort, agentApproveTool, agentDenyTool, fileList, listSlashCommands, resolveSkill, subagentList, subagentRun } from "@/lib/ipc";
+import { agentSend, agentAbort, agentApproveTool, agentDenyTool, fileList, listSlashCommands, resolveSkill, subagentList, subagentRun, memoryWrite } from "@/lib/ipc";
 import type { ChatMessage, ToolCall } from "@/stores/chat";
 import type { FileEntry, SlashCommandInfo, SubagentConfig } from "@/lib/ipc";
 import wthBanner from "@/assets/wth-banner.png";
@@ -354,7 +354,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
   const [showPopup, setShowPopup] = useState<"none" | "file" | "command">("none");
   const [popupItems, setPopupItems] = useState<{ label: string; value: string; kind: "file" | "subagent" | "command" }[]>([]);
   const [popupIndex, setPopupIndex] = useState(0);
-  const [msgMenu, setMsgMenu] = useState<{ point: ContextMenuPoint; content: string } | null>(null);
+  const [msgMenu, setMsgMenu] = useState<{ point: ContextMenuPoint; content: string; role: ChatMessage["role"] } | null>(null);
   const [slashCommands, setSlashCommands] = useState<SlashCommandInfo[]>([]);
   const [subagents, setSubagents] = useState<SubagentConfig[]>([]);
   const [delegatingTo, setDelegatingTo] = useState<SubagentConfig | null>(null);
@@ -668,7 +668,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
                   msg={msg}
                   onContextMenu={(e) => {
                     e.preventDefault();
-                    setMsgMenu({ point: contextMenuPointFromEvent(e), content: msg.content || "" });
+                    setMsgMenu({ point: contextMenuPointFromEvent(e), content: msg.content || "", role: msg.role });
                   }}
                 />
                 {showCursor && <StreamingCursor />}

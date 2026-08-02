@@ -1005,9 +1005,8 @@ pub struct MemoryEntryDto {
     pub path: String,
 }
 
-#[tauri::command]
-pub async fn memory_list(state: State<'_, AppState>) -> Result<Vec<MemoryEntryDto>, String> {
-    let workspace_root = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+/// 扫描用户与工作区记忆目录，返回全部条目（供列表与注入共用）。
+fn scan_memory_entries(workspace_root: &Path) -> Vec<MemoryEntryDto> {
     let user_home = xai_grok_config::wth_home();
     let mut entries = Vec::new();
 
@@ -1058,7 +1057,140 @@ pub async fn memory_list(state: State<'_, AppState>) -> Result<Vec<MemoryEntryDt
             });
         }
     }
-    Ok(entries)
+    entries
+}
+
+#[tauri::command]
+pub async fn memory_list(state: State<'_, AppState>) -> Result<Vec<MemoryEntryDto>, String> {
+    let workspace_root = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    Ok(scan_memory_entries(&workspace_root))
+}
+
+/// 记忆写入：按 scope 落盘到用户或工作区记忆目录，返回新条目。
+#[tauri::command]
+pub async fn memory_write(
+    state: State<'_, AppState>,
+    title: String,
+    content: String,
+    tags: Option<Vec<String>>,
+    scope: Option<String>,
+) -> Result<MemoryEntryDto, String> {
+    let title = title.trim().to_string();
+    let content = content.trim().to_string();
+    if title.is_empty() || content.is_empty() {
+        return Err("标题和内容不能为空".into());
+    }
+    let workspace_root = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    let scope_name = scope.unwrap_or_else(|| "user".to_string());
+    let root = if scope_name == "workspace" {
+        workspace_root.join(".wth").join("memory")
+    } else {
+        xai_grok_config::wth_home().join("memory")
+    };
+    fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+
+    let base = slugify(&title);
+    let mut path = root.join(format!("{base}.md"));
+    let mut n = 1;
+    while path.exists() {
+        path = root.join(format!("{base}-{n}.md"));
+        n += 1;
+    }
+    let mut text = format!("# {title}\n\n{content}\n");
+    if let Some(tags) = &tags {
+        if !tags.is_empty() {
+            text.push_str(&format!("\n<!-- wth-memory-tags: {} -->\n", tags.join(", ")));
+        }
+    }
+    fs::write(&path, text).map_err(|e| e.to_string())?;
+
+    let meta = fs::metadata(&path).map_err(|e| e.to_string())?;
+    let created_at = meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| format!("{}", d.as_secs()))
+        .unwrap_or_default();
+    Ok(MemoryEntryDto {
+        id: path.to_string_lossy().to_string(),
+        title,
+        tags: tags.unwrap_or_default(),
+        created_at,
+        summary: content.chars().take(100).collect(),
+        content,
+        scope: if scope_name == "workspace" { "工作区".into() } else { "用户".into() },
+        path: path.to_string_lossy().to_string(),
+    })
+}
+
+/// 轻量相关性打分：标题/内容与查询词及工作区名的重合次数。
+fn memory_relevance(entry: &MemoryEntryDto, query: &str, workspace_name: &str) -> usize {
+    let haystacks = [
+        entry.title.to_lowercase(),
+        entry.content.to_lowercase(),
+        entry.path.to_lowercase(),
+    ];
+    let mut score = 0usize;
+    for token in query.to_lowercase().split_whitespace() {
+        let token = token.trim_matches(|c: char| !c.is_alphanumeric());
+        if token.is_empty() {
+            continue;
+        }
+        for hay in &haystacks {
+            if hay.contains(token) {
+                score += 1;
+            }
+        }
+    }
+    if !workspace_name.is_empty() {
+        for hay in &haystacks {
+            if hay.contains(workspace_name) {
+                score += 1;
+            }
+        }
+    }
+    score
+}
+
+/// 注入用：按相关性取前 limit 条记忆条目（供 agent 组装请求前调用）。
+pub(crate) fn load_relevant_memories(
+    workspace_root: &Path,
+    query: &str,
+    limit: usize,
+) -> Vec<MemoryEntryDto> {
+    let mut entries = scan_memory_entries(workspace_root);
+    let workspace_name = workspace_root
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    entries.sort_by(|a, b| {
+        memory_relevance(b, query, &workspace_name)
+            .cmp(&memory_relevance(a, query, &workspace_name))
+            .then_with(|| b.created_at.cmp(&a.created_at))
+    });
+    entries.truncate(limit);
+    entries
+}
+
+/// 生成安全的文件名 slug（Windows 非法字符替换，去重由调用方处理）。
+fn slugify(input: &str) -> String {
+    let mut out = String::new();
+    for ch in input.chars() {
+        if ch.is_alphanumeric() || ch == '-' || ch == '_' || ch == '.' {
+            out.push(ch);
+        } else if ch.is_whitespace() {
+            out.push('-');
+        } else {
+            out.push('-');
+        }
+    }
+    let out = out.trim_matches('-').to_string();
+    if out.is_empty() {
+        "memory".into()
+    } else {
+        out.chars().take(60).collect()
+    }
 }
 
 #[tauri::command]

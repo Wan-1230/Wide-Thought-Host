@@ -209,6 +209,7 @@ pub fn run() {
             ipc::capabilities::hook_toggle,
             // Memory CRUD
             ipc::capabilities::memory_list,
+            ipc::capabilities::memory_write,
             ipc::capabilities::memory_delete,
             ipc::capabilities::list_slash_commands,
             ipc::capabilities::resolve_skill,

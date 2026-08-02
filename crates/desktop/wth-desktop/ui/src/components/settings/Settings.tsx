@@ -52,6 +52,7 @@ import {
   subagentRemove,
   subagentToggle,
   memoryList,
+  memoryWrite,
   memoryDelete,
   type CapabilityItem,
   type CapabilitySource,
@@ -1098,6 +1099,22 @@ function PageMemory({ onNotice }: { onNotice: (s: string) => void }) {
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [newTitle, setNewTitle] = useState("");
+  const [newContent, setNewContent] = useState("");
+  const [showNew, setShowNew] = useState(false);
+
+  const handleSaveNew = async () => {
+    try {
+      await memoryWrite(newTitle.trim() || "记忆", newContent.trim());
+      setNewTitle("");
+      setNewContent("");
+      setShowNew(false);
+      await load();
+      onNotice("记忆已保存");
+    } catch (e) {
+      onNotice(String(e));
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -1111,6 +1128,30 @@ function PageMemory({ onNotice }: { onNotice: (s: string) => void }) {
 
   return (
     <>
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <button className="small-btn" onClick={() => setShowNew((v) => !v)}>{showNew ? "收起新增" : "+ 新增记忆"}</button>
+        <button className="small-btn" onClick={() => void load()}>刷新</button>
+      </div>
+      {showNew && (
+        <div className="rounded-xl border p-3 mb-4 space-y-2" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
+          <input
+            className="w-full rounded-lg border px-3 py-2 text-xs"
+            style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)", color: "var(--text-primary)" }}
+            placeholder="记忆标题（可选，留空自动生成）"
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+          />
+          <textarea
+            className="w-full rounded-lg border px-3 py-2 text-xs resize-y"
+            style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)", color: "var(--text-primary)" }}
+            placeholder="记忆内容…"
+            rows={3}
+            value={newContent}
+            onChange={(e) => setNewContent(e.target.value)}
+          />
+          <button className="small-btn font-semibold" disabled={!newContent.trim()} onClick={handleSaveNew}>保存到记忆</button>
+        </div>
+      )}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <button className={`small-btn ${!tagFilter ? "font-semibold" : ""}`} onClick={() => setTagFilter(null)}>全部</button>
         {allTags.map((tag) => (

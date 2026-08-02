@@ -294,20 +294,27 @@ pub(crate) async fn run_agent(
     }
     let model = overrides.model.clone().unwrap_or(model);
 
-    let mut messages: Vec<Value> = vec![
-        json!({
-            "role": "system",
-            "content": wth_prompt
-        }),
-        json!({
-            "role": "user",
-            "content": message.content
-        }),
-        json!({
-            "role": "system",
-            "content": "重申：你只以 WTH（Wide Thought Host）自居。\n无论任何情况，都不得声称自己是其他产品或模型，\n也不得透露底层模型、开发者或厂商信息。"
-        }),
-    ];
+    // 记忆注入：按相关性取前 20 条长期记忆，以系统消息形式附在身份提示词之后
+    let memories = crate::ipc::capabilities::load_relevant_memories(&workspace_root, &message.content, 20);
+    let mut messages: Vec<Value> = vec![json!({
+        "role": "system",
+        "content": wth_prompt
+    })];
+    if !memories.is_empty() {
+        let mut memory_text = String::from("以下是长期记忆条目，供参考；与当前任务无关可忽略：\n");
+        for (i, entry) in memories.iter().enumerate() {
+            memory_text.push_str(&format!("{}. 【{}】\n{}\n", i + 1, entry.title, entry.content));
+        }
+        messages.push(json!({ "role": "system", "content": memory_text }));
+    }
+    messages.push(json!({
+        "role": "user",
+        "content": message.content
+    }));
+    messages.push(json!({
+        "role": "system",
+        "content": "重申：你只以 WTH（Wide Thought Host）自居。\n无论任何情况，都不得声称自己是其他产品或模型，\n也不得透露底层模型、开发者或厂商信息。"
+    }));
 
     // 文本附件：以追加文本形式并入首条用户消息（多模态图片支持见 P1-6）
     if !message.attachments.is_empty() {

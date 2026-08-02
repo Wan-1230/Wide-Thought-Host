@@ -424,6 +424,8 @@ export interface MemoryEntry {
 }
 
 export const memoryList = () => invoke<MemoryEntry[]>("memory_list");
+export const memoryWrite = (title: string, content: string, tags?: string[], scope?: "user" | "workspace") =>
+  invoke<MemoryEntry>("memory_write", { title, content, tags, scope });
 export const memoryDelete = (id: string) => invoke<void>("memory_delete", { id });
 
 // ─── Headroom ────────────────────────────────────────
