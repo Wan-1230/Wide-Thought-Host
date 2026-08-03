@@ -278,6 +278,11 @@ pub fn run() {
             ipc::headroom::headroom_start,
             ipc::headroom::headroom_stop,
             ipc::headroom::headroom_install,
+            // G2: 数据备份 / 恢复 / 配置导入导出
+            ipc::backup::backup_create,
+            ipc::backup::backup_restore,
+            ipc::backup::config_export,
+            ipc::backup::config_import,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

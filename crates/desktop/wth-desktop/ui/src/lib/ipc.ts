@@ -500,3 +500,21 @@ export interface SlashCommandInfo {
 
 export const listSlashCommands = () => invoke<SlashCommandInfo[]>("list_slash_commands");
 export const resolveSkill = (name: string) => invoke<string>("resolve_skill", { name });
+
+// ─── G2: 数据备份 / 恢复 / 配置导入导出 ─────────────
+
+export interface BackupResult {
+  path: string;
+  file_count: number;
+  bytes: number;
+  created_at: string;
+}
+
+export const backupCreate = (targetPath: string) =>
+  invoke<BackupResult>("backup_create", { targetPath });
+export const backupRestore = (sourcePath: string) =>
+  invoke<string>("backup_restore", { sourcePath });
+export const configExport = (targetPath: string) =>
+  invoke<string>("config_export", { targetPath });
+export const configImport = (sourcePath: string) =>
+  invoke<string>("config_import", { sourcePath });

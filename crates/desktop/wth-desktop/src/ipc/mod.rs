@@ -1,4 +1,5 @@
 pub mod agent;
+pub mod backup;
 pub mod capabilities;
 pub mod filesystem;
 pub mod hooks;

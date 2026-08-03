@@ -56,6 +56,10 @@ import {
   diagnosticsGet,
   pluginImport,
   updateCheck,
+  backupCreate,
+  backupRestore,
+  configExport,
+  configImport,
   memoryDelete,
   type CapabilityItem,
   type CapabilitySource,
@@ -75,7 +79,7 @@ import {
   type UpdateCheckInfo,
 } from "@/lib/ipc";
 import { SegmentedControl } from "@/components/common/SegmentedControl";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { open as openUrl } from "@tauri-apps/plugin-shell";
 
 // ─── Types ───────────────────────────────────────────
@@ -577,6 +581,98 @@ function PageGeneral({
       <section className="section">
         <div className="stitle">Token 优化</div>
         <HeadroomSection settings={settings} onSave={onSave} />
+      </section>
+
+      <section className="section">
+        <div className="stitle">数据与备份</div>
+        <p className="text-[11px] mb-2" style={{ color: "var(--text-muted)" }}>
+          一键备份全部本地数据（会话、设置、记忆、子智能体、Hooks、插件开关）。配置导出不含 API Key，可跨机器导入。
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            className="small-btn"
+            title="将会话、设置、技能等打包为 .wthbackup 文件"
+            onClick={async () => {
+              const stamp = new Date().toISOString().slice(0, 10);
+              const target = await saveDialog({
+                title: "导出备份",
+                defaultPath: `wth-backup-${stamp}.wthbackup`,
+                filters: [{ name: "WTH 备份", extensions: ["wthbackup"] }],
+              });
+              if (!target) return;
+              try {
+                const res = await backupCreate(target);
+                onNotice(`备份完成：${res.file_count} 个文件，${(res.bytes / 1024).toFixed(1)} KB`);
+              } catch (e) {
+                onNotice(`备份失败：${e}`);
+              }
+            }}
+          >
+            导出备份
+          </button>
+          <button
+            className="small-btn"
+            title="从 .wthbackup 文件恢复数据（恢复前自动备份当前数据）"
+            onClick={async () => {
+              const source = await openDialog({
+                title: "选择备份文件",
+                multiple: false,
+                filters: [{ name: "WTH 备份", extensions: ["wthbackup"] }],
+              });
+              if (!source) return;
+              if (!window.confirm("恢复将覆盖当前数据（恢复前会自动备份当前数据）。确定继续吗？")) return;
+              try {
+                const msg = await backupRestore(String(source));
+                onNotice(msg);
+              } catch (e) {
+                onNotice(`恢复失败：${e}`);
+              }
+            }}
+          >
+            恢复备份
+          </button>
+          <button
+            className="small-btn"
+            title="导出不含 API Key 的配置 JSON，可跨机器导入"
+            onClick={async () => {
+              const stamp = new Date().toISOString().slice(0, 10);
+              const target = await saveDialog({
+                title: "导出配置",
+                defaultPath: `wth-config-${stamp}.json`,
+                filters: [{ name: "JSON", extensions: ["json"] }],
+              });
+              if (!target) return;
+              try {
+                const msg = await configExport(target);
+                onNotice(msg);
+              } catch (e) {
+                onNotice(`导出失败：${e}`);
+              }
+            }}
+          >
+            导出配置
+          </button>
+          <button
+            className="small-btn"
+            title="导入配置 JSON（凭据需重新填写）"
+            onClick={async () => {
+              const source = await openDialog({
+                title: "选择配置文件",
+                multiple: false,
+                filters: [{ name: "JSON", extensions: ["json"] }],
+              });
+              if (!source) return;
+              try {
+                const msg = await configImport(String(source));
+                onNotice(msg);
+              } catch (e) {
+                onNotice(`导入失败：${e}`);
+              }
+            }}
+          >
+            导入配置
+          </button>
+        </div>
       </section>
     </>
   );

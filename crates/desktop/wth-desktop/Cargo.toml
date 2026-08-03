@@ -58,6 +58,7 @@ portable-pty = { workspace = true }
 toml = { workspace = true }
 url = { workspace = true }
 walkdir = { workspace = true }
+zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { workspace = true }
