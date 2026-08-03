@@ -720,6 +720,17 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
     }
   };
 
+  // G5: 接收首次引导页的示例问题并直接发送
+  useEffect(() => {
+    const onSendExample = (e: Event) => {
+      const question = (e as CustomEvent<string>).detail;
+      if (!question || typeof question !== "string" || !question.trim()) return;
+      void runAgentRequest(question.trim(), buildHistory(sessionMessages), [], undefined);
+    };
+    window.addEventListener("wth:send-example", onSendExample);
+    return () => window.removeEventListener("wth:send-example", onSendExample);
+  }, [activeSessionId, sessionMessages, runAgentRequest]);
+
   const handleSend = async () => {
     if (!activeSessionId) return;
     let content = input.trim();

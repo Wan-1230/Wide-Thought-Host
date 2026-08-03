@@ -154,6 +154,7 @@ export interface DesktopSettings {
   subagents?: SubagentConfig[];
   /** 快捷键映射（action → 按键组合） */
   shortcuts?: Record<string, string>;
+  onboarding_completed: boolean;
 }
 
 export interface GitHubProfile { login: string; name?: string | null; avatar_url?: string | null; }

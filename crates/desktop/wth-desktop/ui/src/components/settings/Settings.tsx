@@ -153,6 +153,7 @@ const emptySettings: DesktopSettings = {
     week_cost_usd: 0,
     last_updated: null,
   },
+  onboarding_completed: false,
 };
 
 const blankProviderConfig: ProviderConfig = {
@@ -170,9 +171,10 @@ interface SettingsModalProps {
   open: boolean;
   onClose: () => void;
   initialPage?: PageId;
+  onSettingsSaved?: (settings: DesktopSettings) => void;
 }
 
-export function SettingsModal({ open, onClose, initialPage }: SettingsModalProps) {
+export function SettingsModal({ open, onClose, initialPage, onSettingsSaved }: SettingsModalProps) {
   const [page, setPage] = useState<PageId>(initialPage ?? "general");
   const [settings, setSettings] = useState<DesktopSettings>(emptySettings);
   const [providers, setProviders] = useState<ProviderSummary[]>([]);
@@ -218,6 +220,7 @@ export function SettingsModal({ open, onClose, initialPage }: SettingsModalProps
       const saved = await settingsUpdate(next);
       setSettings(saved);
       applyTheme(saved);
+      onSettingsSaved?.(saved);
       setNotice("设置已保存");
       setTimeout(() => setNotice(""), 2000);
     } catch (error) {
@@ -431,6 +434,14 @@ function PageGeneral({
             value={String(settings.show_system_events)}
             onChange={(v) => onSave({ ...settings, show_system_events: v === "true" })}
           />
+        </SettingRow>
+        <SettingRow label="首次使用引导" hint="重新显示三步引导：选择工作区、确认模型、示例提问">
+          <button
+            className="small-btn"
+            onClick={() => onSave({ ...settings, onboarding_completed: false })}
+          >
+            重新运行引导
+          </button>
         </SettingRow>
       </section>
 

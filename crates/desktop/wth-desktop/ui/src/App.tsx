@@ -38,6 +38,7 @@ import { EditorPanel } from "./components/editor/EditorPanel";
 import { DiffModal } from "./components/editor/DiffModal";
 import { CommandPalette } from "./components/common/CommandPalette";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
+import { OnboardingModal } from "./components/common/OnboardingModal";
 import { ContextMenu, contextMenuPointFromEvent, type ContextMenuItem, type ContextMenuPoint } from "./components/common/ContextMenu";
 import { useChatStore } from "./stores/chat";
 import { useWorkbenchStore } from "./stores/workbench";
@@ -56,6 +57,7 @@ import {
   sessionLoadMessages,
   sessionSaveMessages,
   sessionSearch,
+  settingsUpdate,
   sessionList,
   sessionRename,
   fileRead,
@@ -118,6 +120,7 @@ export default function App() {
   const [showTerminalPanel, setShowTerminalPanel] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const terminalResize = useResizable({ initialWidth: 420, minWidth: 300, maxWidth: 800, direction: "left" });
   const editorResize = useResizable({ initialHeight: 320, minHeight: 160, maxHeight: 620, direction: "up" });
   const [theme, setTheme] = useState<"dark" | "light">("light");
@@ -176,6 +179,7 @@ export default function App() {
     settingsGet().then((value) => {
       setTheme(value.theme);
       setAppSettings(value);
+      if (!value.onboarding_completed) setShowOnboarding(true);
     }).catch(console.error);
     refreshWorkspace().catch(console.error);
     refreshGitHub().catch(console.error);
@@ -861,7 +865,45 @@ export default function App() {
         />
       )}
 
-      <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} />
+      <SettingsModal
+        open={showSettings}
+        onClose={() => setShowSettings(false)}
+        onSettingsSaved={(saved) => {
+          setAppSettings(saved);
+          if (!saved.onboarding_completed) setShowOnboarding(true);
+        }}
+      />
+
+      {showOnboarding && (
+        <OnboardingModal
+          onClose={() => setShowOnboarding(false)}
+          onDone={async () => {
+            try {
+              const next = await settingsGet();
+              const saved = await settingsUpdate({ ...next, onboarding_completed: true });
+              setAppSettings(saved);
+              setShowOnboarding(false);
+            } catch {
+              setShowOnboarding(false);
+            }
+          }}
+          onOpenSettings={() => setShowSettings(true)}
+          onExampleQuestion={async (question: string) => {
+            if (!question.trim()) return;
+            try {
+              const session = await sessionCreate("新会话", "");
+              upsertSession(session);
+              setActiveSession(session.id);
+              setNavSection("sessions");
+              window.setTimeout(() => {
+                window.dispatchEvent(new CustomEvent("wth:send-example", { detail: question }));
+              }, 300);
+            } catch (error) {
+              console.error("创建会话失败：", error);
+            }
+          }}
+        />
+      )}
 
       <CommandPalette
         open={showCommandPalette}

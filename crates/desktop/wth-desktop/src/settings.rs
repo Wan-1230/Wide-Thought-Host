@@ -177,6 +177,8 @@ pub struct DesktopSettings {
     pub usage_stats: UsageStats,
     /// 快捷键映射（action → 按键组合），缺省项回退默认
     pub shortcuts: HashMap<String, String>,
+    /// 首次启动引导是否已完成（G5）
+    pub onboarding_completed: bool,
 }
 
 impl Default for DesktopSettings {
@@ -220,6 +222,7 @@ impl Default for DesktopSettings {
             price_per_million_tokens: 2.0,
             usage_stats: UsageStats::default(),
             shortcuts: default_shortcuts(),
+            onboarding_completed: false,
         }
     }
 }
@@ -710,6 +713,12 @@ mod tests {
         for action in ["toggle_window", "command_palette", "new_session", "send_message"] {
             assert!(shortcuts.contains_key(action), "缺少快捷键 {action}");
         }
+    }
+
+    #[test]
+    fn onboarding_defaults_to_false() {
+        let settings = DesktopSettings::default();
+        assert!(!settings.onboarding_completed);
     }
 
     #[test]
