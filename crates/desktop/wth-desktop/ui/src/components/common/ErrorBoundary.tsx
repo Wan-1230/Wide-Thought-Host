@@ -51,14 +51,25 @@ export class ErrorBoundary extends Component<Props, State> {
               {this.state.error?.message || "未知错误"}
             </p>
           </div>
-          <button
-            onClick={this.handleReset}
-            className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-colors"
-            style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}
-          >
-            <RefreshCw size={13} />
-            重试
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={this.handleReset}
+              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-colors"
+              style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}
+            >
+              <RefreshCw size={13} />
+              重试
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-colors"
+              style={{ background: "var(--surface-2)", color: "var(--text-primary)" }}
+              title="重新加载应用，会话内容会自动从本地恢复"
+            >
+              <RefreshCw size={13} />
+              重新加载应用
+            </button>
+          </div>
         </div>
       );
     }

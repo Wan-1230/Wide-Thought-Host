@@ -53,6 +53,8 @@ import {
   onSubagentResult,
   sessionCreate,
   sessionDelete,
+  sessionLoadMessages,
+  sessionSaveMessages,
   sessionList,
   sessionRename,
   fileRead,
@@ -96,6 +98,7 @@ export default function App() {
     streaming,
     setSessions,
     setActiveSession,
+    setMessages,
     upsertSession,
     removeSession,
     renameSession,
@@ -282,6 +285,33 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [github?.state]);
 
+
+  // G3: 激活会话时从磁盘恢复消息内容
+  useEffect(() => {
+    if (!activeSessionId) return;
+    let cancelled = false;
+    sessionLoadMessages(activeSessionId)
+      .then((msgs) => {
+        if (!cancelled && Array.isArray(msgs)) {
+          setMessages(activeSessionId, msgs as import("./stores/chat").ChatMessage[]);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSessionId, setMessages]);
+
+  // G3: 消息变化防抖 2s 自动保存，异常退出后仍可恢复
+  useEffect(() => {
+    if (!activeSessionId) return;
+    const msgs = messages[activeSessionId];
+    if (!msgs || msgs.length === 0) return;
+    const timer = window.setTimeout(() => {
+      sessionSaveMessages(activeSessionId, msgs).catch(() => {});
+    }, 2000);
+    return () => window.clearTimeout(timer);
+  }, [messages, activeSessionId]);
 
   useEffect(() => {
     const dispose = listen("menu:new-session", async () => {

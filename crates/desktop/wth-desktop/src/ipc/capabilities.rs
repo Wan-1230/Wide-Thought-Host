@@ -1720,3 +1720,9 @@ mod tests {
         assert!(files.iter().all(|f| PathBuf::from(&f.path).is_relative()));
     }
 }
+/// G3: 返回实时日志缓冲（最近 200 条，按时间升序）。日志已脱敏，不含密钥。
+#[tauri::command]
+pub async fn log_list(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    let logs = state.log_buffer.lock().map_err(|e| e.to_string())?;
+    Ok(logs.iter().cloned().collect())
+}

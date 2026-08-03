@@ -60,6 +60,7 @@ import {
   backupRestore,
   configExport,
   configImport,
+  logList,
   memoryDelete,
   type CapabilityItem,
   type CapabilitySource,
@@ -1005,6 +1006,7 @@ function PageMcp({ onNotice }: { onNotice: (s: string) => void }) {
   };
   useEffect(() => { void load(); }, []);
 
+
   const addServer = async () => {
     if (!form.name.trim()) { onNotice("名称不能为空"); return; }
     try {
@@ -1242,6 +1244,7 @@ function PageMemory({ onNotice }: { onNotice: (s: string) => void }) {
   };
   useEffect(() => { void load(); }, []);
 
+
   const allTags = useMemo(() => [...new Set(entries.flatMap((e) => e.tags))], [entries]);
   const filtered = tagFilter ? entries.filter((e) => e.tags.includes(tagFilter)) : entries;
 
@@ -1337,6 +1340,7 @@ function PageHooks({ onNotice }: { onNotice: (s: string) => void }) {
   };
   useEffect(() => { void load(); }, []);
 
+
   const addHook = async () => {
     if (!form.name.trim() || !form.command.trim()) { onNotice("名称和命令不能为空"); return; }
     try {
@@ -1415,6 +1419,7 @@ function PageSubagents({ onNotice }: { onNotice: (s: string) => void }) {
     finally { setLoading(false); }
   };
   useEffect(() => { void load(); }, []);
+
 
   const addAgent = async () => {
     if (!form.name.trim()) { onNotice("名称不能为空"); return; }
@@ -1703,6 +1708,8 @@ function PageDiagnostics({ onNotice }: { onNotice: (s: string) => void }) {
   const [items, setItems] = useState<DiagnosticItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [logs, setLogs] = useState<string[]>([]);
+  const [logFilter, setLogFilter] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -1715,6 +1722,7 @@ function PageDiagnostics({ onNotice }: { onNotice: (s: string) => void }) {
     }
   };
   useEffect(() => { void load(); }, []);
+
 
   const statusColor = (status: string) =>
     status === "ok" ? "var(--accent-green)" : status === "warn" ? "var(--accent-yellow)" : "var(--accent-red)";
@@ -1763,6 +1771,69 @@ function PageDiagnostics({ onNotice }: { onNotice: (s: string) => void }) {
       <button className="primary-btn mt-4" onClick={() => void load()} disabled={loading}>
         重新运行诊断
       </button>
+
+      <div className="mt-6">
+        <div className="stitle">实时日志</div>
+        <p className="text-[11px] mb-2" style={{ color: "var(--text-muted)" }}>
+          最近 200 条运行日志（已脱敏，不含密钥），每 2 秒自动刷新。
+        </p>
+        <div className="flex items-center gap-2 mb-2">
+          <input
+            className="control flex-1"
+            placeholder="输入关键词过滤日志…"
+            value={logFilter}
+            onChange={(e) => setLogFilter(e.target.value)}
+          />
+          <button
+            className="small-btn"
+            onClick={() => {
+              const text = logs.join("\n");
+              void navigator.clipboard.writeText(text);
+              onNotice(`已复制 ${logs.length} 条日志`);
+            }}
+          >
+            复制日志
+          </button>
+          <button
+            className="small-btn"
+            onClick={() => {
+              logList().then(setLogs).catch(() => {});
+            }}
+          >
+            刷新
+          </button>
+        </div>
+        <div
+          className="rounded-lg p-3 font-mono text-[10px] leading-relaxed overflow-auto max-h-64 whitespace-pre-wrap"
+          style={{ background: "var(--surface-1)", color: "var(--text-muted)" }}
+        >
+          {logs.length === 0 ? (
+            <span>暂无运行日志</span>
+          ) : (
+            logs
+              .filter((line) => {
+                const q = logFilter.trim().toLowerCase();
+                if (!q) return true;
+                return line.toLowerCase().includes(q);
+              })
+              .slice(-200)
+              .map((line, i) => {
+                const color = line.includes(" ERROR ") || line.includes(" error ")
+                  ? "var(--accent-red)"
+                  : line.includes(" WARN ") || line.includes(" warn ")
+                    ? "var(--accent-yellow)"
+                    : line.includes(" DEBUG ")
+                      ? "var(--accent-blue)"
+                      : "var(--text-muted)";
+                return (
+                  <div key={i} style={{ color }}>
+                    {line}
+                  </div>
+                );
+              })
+          )}
+        </div>
+      </div>
     </>
   );
 }

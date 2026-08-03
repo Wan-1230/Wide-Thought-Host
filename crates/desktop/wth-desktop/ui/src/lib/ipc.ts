@@ -518,3 +518,10 @@ export const configExport = (targetPath: string) =>
   invoke<string>("config_export", { targetPath });
 export const configImport = (sourcePath: string) =>
   invoke<string>("config_import", { sourcePath });
+// ─── G3: 消息持久化 / 实时日志 ───────────────────────
+
+export const sessionSaveMessages = (id: string, messages: unknown[]) =>
+  invoke<void>("session_save_messages", { id, messages });
+export const sessionLoadMessages = (id: string) =>
+  invoke<unknown[]>("session_load_messages", { id });
+export const logList = () => invoke<string[]>("log_list");

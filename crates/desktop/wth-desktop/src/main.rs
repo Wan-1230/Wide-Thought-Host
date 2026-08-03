@@ -226,6 +226,10 @@ pub fn run() {
             ipc::session::session_set_pinned,
             ipc::session::session_export,
             ipc::session::session_get,
+            ipc::session::session_save_messages,
+            ipc::session::session_load_messages,
+            // G3: 实时日志
+            ipc::capabilities::log_list,
             settings::settings_get,
             settings::settings_update,
             settings::set_service_api_key,

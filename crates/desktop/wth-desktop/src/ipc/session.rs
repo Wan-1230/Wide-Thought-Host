@@ -49,9 +49,18 @@ fn default_model() -> String {
 }
 
 /// Load sessions from disk. Returns empty vec if the file doesn't exist.
+/// 数据损坏时自动归档为 .bak 并回退空态（崩溃兜底，G3）。
 pub fn load_sessions(path: &std::path::Path) -> Vec<SessionInfo> {
     match std::fs::read_to_string(path) {
-        Ok(json) => serde_json::from_str(&json).unwrap_or_default(),
+        Ok(json) => match serde_json::from_str(&json) {
+            Ok(sessions) => sessions,
+            Err(_) => {
+                let bak = path.with_extension("json.bak");
+                let _ = std::fs::copy(path, &bak);
+                tracing::warn!("sessions.json 解析失败，已归档到 {:?} 并回退空态", bak);
+                vec![]
+            }
+        },
         Err(_) => vec![],
     }
 }
@@ -277,5 +286,55 @@ mod tests {
         save_sessions(&path, &[s.clone()]);
         let loaded = load_sessions(&path);
         assert_eq!(loaded[0].title, s.title);
+    }
+}
+/// 持久化会话消息内容（前端防抖 2s 调用），并同步 message_count。
+/// 消息存储于 `<app_data>/session-messages/{id}.json`，支持异常退出后恢复。
+#[tauri::command]
+pub async fn session_save_messages(
+    id: String,
+    messages: Vec<serde_json::Value>,
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<(), String> {
+    let app_data = state
+        .settings_path
+        .read()
+        .map_err(|e| e.to_string())?
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+    let dir = app_data.join("session-messages");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("创建消息目录失败：{e}"))?;
+    let path = dir.join(format!("{id}.json"));
+    let json = serde_json::to_string(&messages).map_err(|e| format!("序列化消息失败：{e}"))?;
+    std::fs::write(&path, json).map_err(|e| format!("保存消息失败：{e}"))?;
+
+    // 同步更新会话元数据中的消息数
+    let mut sessions = state.sessions.lock().map_err(|e| e.to_string())?;
+    if let Some(s) = sessions.iter_mut().find(|s| s.id == id) {
+        s.message_count = messages.len() as u64;
+        let path = state.sessions_path.lock().map_err(|e| e.to_string())?.clone();
+        save_sessions(&path, &sessions);
+    }
+    Ok(())
+}
+
+/// 读取会话消息内容（启动/切换会话时恢复）。
+#[tauri::command]
+pub async fn session_load_messages(
+    id: String,
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<Vec<serde_json::Value>, String> {
+    let app_data = state
+        .settings_path
+        .read()
+        .map_err(|e| e.to_string())?
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+    let path = app_data.join("session-messages").join(format!("{id}.json"));
+    match std::fs::read_to_string(&path) {
+        Ok(json) => serde_json::from_str(&json).map_err(|e| format!("读取消息失败：{e}")),
+        Err(_) => Ok(vec![]),
     }
 }
