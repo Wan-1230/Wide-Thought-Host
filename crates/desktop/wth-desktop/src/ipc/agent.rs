@@ -303,7 +303,7 @@ pub(crate) async fn run_agent(
     settings_path: std::path::PathBuf,
     mcp_manager: Arc<tokio::sync::Mutex<crate::mcp::McpManager>>,
     overrides: AgentRunOverrides,
-) -> Result<(), String> {
+) -> Result<String, String> {
     // 配置与密钥只从 Rust 侧快照读取，前端永不传递敏感值。
     // 身份提示词：模型必须以 WTH 自居，不得暴露底层模型/厂商信息。
     const WTH_SYSTEM_PROMPT: &str = "你是 WTH（Wide Thought Host），一款专业的 AI 编码助手。\n请用中文回答问题，代码注释尽量用中文。\n你的身份是 WTH，不是任何其他产品或模型。\n当用户询问你的身份、名称、开发者或底层模型时，回答自己是 WTH（Wide Thought Host），\n绝不透露底层模型名称或厂商信息（不得提及 Agnes、Sapiens AI、xAI、Grok、OpenAI、Claude、DeepSeek 等）。";
@@ -681,7 +681,15 @@ pub(crate) async fn run_agent(
             },
         },
     );
-    Ok(())
+    // 提取最终回复文本（供工作流编排等场景使用）
+    let final_text = messages
+        .iter()
+        .rev()
+        .find(|m| m.get("role").and_then(|r| r.as_str()) == Some("assistant"))
+        .and_then(|m| m.get("content").and_then(|v| v.as_str()))
+        .unwrap_or_default()
+        .to_string();
+    Ok(final_text)
 }
 
 // ─── Context compression & usage helpers ───────────────

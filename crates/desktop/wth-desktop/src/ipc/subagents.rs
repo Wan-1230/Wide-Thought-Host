@@ -210,7 +210,7 @@ pub async fn subagent_run(
         }
         // 委派结果事件：主会话展示完成状态
         let payload = match result {
-            Ok(()) => serde_json::json!({
+            Ok(_) => serde_json::json!({
                 "parent_session_id": parent,
                 "sub_session_id": sid,
                 "subagent_name": sub_name,

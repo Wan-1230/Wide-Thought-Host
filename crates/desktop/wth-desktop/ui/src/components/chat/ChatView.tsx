@@ -41,6 +41,7 @@ import type { ChatMessage, ToolCall } from "@/stores/chat";
 import type { FileEntry, HistoryMessage, PromptTemplate, SlashCommandInfo, SubagentConfig, WorkspaceSearchHit } from "@/lib/ipc";
 import wthBanner from "@/assets/wth-banner.png";
 import { ContextMenu, contextMenuPointFromEvent, type ContextMenuPoint } from "@/components/common/ContextMenu";
+import { WorkflowModal } from "@/components/common/WorkflowModal";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { readFile, readTextFile } from "@tauri-apps/plugin-fs";
 import type { Attachment } from "@/lib/ipc";
@@ -444,6 +445,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
   const [showTemplateMenu, setShowTemplateMenu] = useState(false);
   const [workspaceName, setWorkspaceName] = useState("");
+  const [showWorkflow, setShowWorkflow] = useState(false);
   const [showParallel, setShowParallel] = useState(false);
   const [parallelTask, setParallelTask] = useState("");
   const [parallelSelection, setParallelSelection] = useState<Set<string>>(new Set());
@@ -1053,6 +1055,11 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
             </div>
           )}
 
+          <WorkflowModal
+            open={showWorkflow}
+            onClose={() => setShowWorkflow(false)}
+            onNotice={(msg) => window.dispatchEvent(new CustomEvent("wth:toast", { detail: msg }))}
+          />
           {showParallel && (
             <div className="mb-2 rounded-xl border p-3 space-y-2" style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)" }}>
               <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
@@ -1141,6 +1148,15 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDropFiles}
           >
+            <button
+              onClick={() => setShowWorkflow(true)}
+              title="多 Agent 工作流编排"
+              className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center
+                transition-colors hover:bg-[color:var(--surface-2)]"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <GitBranch size={14} />
+            </button>
             <button
               onClick={() => setShowParallel((v) => !v)}
               title="并行委派多智能体"

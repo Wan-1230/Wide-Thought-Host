@@ -527,6 +527,63 @@ export const sessionSaveMessages = (id: string, messages: unknown[]) =>
 export const sessionLoadMessages = (id: string) =>
   invoke<unknown[]>("session_load_messages", { id });
 export const logList = () => invoke<string[]>("log_list");
+// ─── G7: 多 Agent 工作流 ─────────────────────────────────
+
+export interface WorkflowNode {
+  id: string;
+  subagent_id: string;
+  name: string;
+  input_template: string;
+  depends_on: string[];
+  condition: string;
+}
+
+export interface WorkflowConfig {
+  id: string;
+  name: string;
+  description: string;
+  nodes: WorkflowNode[];
+}
+
+export interface WorkflowRunResult {
+  node_id: string;
+  node_name: string;
+  status: string;
+  output: string;
+  sub_session_id: string;
+  error?: string | null;
+}
+
+export interface WorkflowDoneEvent {
+  run_id: string;
+  config_id: string;
+  config_name: string;
+  status: string;
+  results: WorkflowRunResult[];
+}
+
+export interface WorkflowProgressEvent {
+  run_id: string;
+  config_id: string;
+  node_id: string;
+  node_name: string;
+  status: string;
+  error: string;
+}
+
+export const workflowList = () => invoke<WorkflowConfig[]>("workflow_list");
+export const workflowSave = (config: WorkflowConfig) =>
+  invoke<WorkflowConfig>("workflow_save", { config });
+export const workflowDelete = (id: string) => invoke<void>("workflow_delete", { id });
+export const workflowRun = (configId: string, input: string) =>
+  invoke<string>("workflow_run", { configId, input });
+export const workflowValidate = (configId: string) =>
+  invoke<string[]>("workflow_validate", { configId });
+export const onWorkflowProgress = (cb: (evt: WorkflowProgressEvent) => void) =>
+  listen<WorkflowProgressEvent>("workflow:progress", (e) => cb(e.payload));
+export const onWorkflowDone = (cb: (evt: WorkflowDoneEvent) => void) =>
+  listen<WorkflowDoneEvent>("workflow:done", (e) => cb(e.payload));
+
 // ─── G10: 提示词模板与团队配置 ─────────────────────────
 
 export interface PromptTemplate {

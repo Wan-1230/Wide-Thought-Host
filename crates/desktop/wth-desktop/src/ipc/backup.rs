@@ -98,10 +98,10 @@ fn safe_join(root: &Path, rel: &str) -> Option<PathBuf> {
         return None;
     }
     let dest = root.join(&normalized);
-    // 确保目标仍在 root 之内
+    // 确保目标仍在 root 之内（目录不存在时回退到原始路径比较）
     let canonical_root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
     let parent = dest.parent()?;
-    let canonical_parent = parent.canonicalize().unwrap_or_default();
+    let canonical_parent = parent.canonicalize().unwrap_or_else(|_| parent.to_path_buf());
     if canonical_parent.starts_with(&canonical_root) || canonical_parent == canonical_root {
         Some(dest)
     } else {

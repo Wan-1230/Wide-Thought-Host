@@ -278,6 +278,12 @@ pub fn run() {
             ipc::subagents::subagent_remove,
             ipc::subagents::subagent_toggle,
             ipc::subagents::subagent_run,
+            // G7: 多 Agent 任务编排
+            ipc::workflow::workflow_list,
+            ipc::workflow::workflow_save,
+            ipc::workflow::workflow_delete,
+            ipc::workflow::workflow_run,
+            ipc::workflow::workflow_validate,
             // Headroom proxy
             ipc::headroom::headroom_status,
             ipc::headroom::headroom_is_installed,

@@ -178,6 +178,98 @@ pub fn default_prompt_templates() -> Vec<PromptTemplate> {
     ]
 }
 
+/// 工作流节点：子智能体 + 输入模板 + 依赖 + 条件（G7）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct WorkflowNode {
+    pub id: String,
+    pub subagent_id: String,
+    pub name: String,
+    /// 输入模板，支持 {{input}}（工作流输入）与 {{prev_output}}（上一节点输出）
+    pub input_template: String,
+    /// 依赖节点 id 列表
+    pub depends_on: Vec<String>,
+    /// 执行条件：空 = 依赖全部成功后执行；"on_failure" = 依赖失败后执行
+    pub condition: String,
+}
+
+impl Default for WorkflowNode {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            subagent_id: String::new(),
+            name: String::new(),
+            input_template: String::new(),
+            depends_on: Vec::new(),
+            condition: String::new(),
+        }
+    }
+}
+
+/// 工作流定义（DAG）：节点列表 + 依赖关系（G7）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct WorkflowConfig {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub nodes: Vec<WorkflowNode>,
+}
+
+impl Default for WorkflowConfig {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            name: String::new(),
+            description: String::new(),
+            nodes: Vec::new(),
+        }
+    }
+}
+
+/// 内置"审查流水线"工作流模板：代码审查 → 安全审查 → 文档审查 → 汇总。
+pub fn default_workflows() -> Vec<WorkflowConfig> {
+    vec![WorkflowConfig {
+        id: "builtin-review-pipeline".into(),
+        name: "审查流水线".into(),
+        description: "代码审查 → 安全审查 → 文档审查，并行执行后汇总结论".into(),
+        nodes: vec![
+            WorkflowNode {
+                id: "review".into(),
+                subagent_id: "builtin-code-review".into(),
+                name: "代码审查".into(),
+                input_template: "请审查以下需求与代码：\n{{input}}".into(),
+                depends_on: vec![],
+                condition: String::new(),
+            },
+            WorkflowNode {
+                id: "security".into(),
+                subagent_id: "builtin-security-audit".into(),
+                name: "安全审查".into(),
+                input_template: "请对以下需求进行安全审计：\n{{input}}".into(),
+                depends_on: vec![],
+                condition: String::new(),
+            },
+            WorkflowNode {
+                id: "docs".into(),
+                subagent_id: "builtin-doc-writer".into(),
+                name: "文档审查".into(),
+                input_template: "请评估以下需求对应的文档完整性：\n{{input}}".into(),
+                depends_on: vec![],
+                condition: String::new(),
+            },
+            WorkflowNode {
+                id: "summary".into(),
+                subagent_id: "builtin-code-review".into(),
+                name: "结果汇总".into(),
+                input_template: "请汇总以下三个维度的审查结论，输出统一的行动清单：\n\n【代码审查】\n{{prev_output:review}}\n\n【安全审查】\n{{prev_output:security}}\n\n【文档审查】\n{{prev_output:docs}}".into(),
+                depends_on: vec!["review".into(), "security".into(), "docs".into()],
+                condition: String::new(),
+            },
+        ],
+    }]
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SubagentConfig {
@@ -246,6 +338,8 @@ pub struct DesktopSettings {
     pub onboarding_completed: bool,
     /// 提示词模板库（G10）
     pub prompt_templates: Vec<PromptTemplate>,
+    /// 工作流定义（G7）
+    pub workflows: Vec<WorkflowConfig>,
 }
 
 impl Default for DesktopSettings {
@@ -291,6 +385,7 @@ impl Default for DesktopSettings {
             shortcuts: default_shortcuts(),
             onboarding_completed: false,
             prompt_templates: default_prompt_templates(),
+            workflows: default_workflows(),
         }
     }
 }
@@ -781,6 +876,17 @@ mod tests {
         for action in ["toggle_window", "command_palette", "new_session", "send_message"] {
             assert!(shortcuts.contains_key(action), "缺少快捷键 {action}");
         }
+    }
+
+    #[test]
+    fn default_workflows_contain_review_pipeline() {
+        let workflows = super::default_workflows();
+        assert!(!workflows.is_empty());
+        let pipeline = workflows.iter().find(|w| w.id == "builtin-review-pipeline").unwrap();
+        assert!(pipeline.nodes.len() >= 4);
+        // 汇总节点依赖前三个并行节点
+        let summary = pipeline.nodes.iter().find(|n| n.id == "summary").unwrap();
+        assert_eq!(summary.depends_on.len(), 3);
     }
 
     #[test]
