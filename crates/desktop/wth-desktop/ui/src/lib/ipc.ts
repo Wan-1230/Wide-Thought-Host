@@ -155,6 +155,7 @@ export interface DesktopSettings {
   /** 快捷键映射（action → 按键组合） */
   shortcuts?: Record<string, string>;
   onboarding_completed: boolean;
+  prompt_templates: PromptTemplate[];
 }
 
 export interface GitHubProfile { login: string; name?: string | null; avatar_url?: string | null; }
@@ -526,6 +527,21 @@ export const sessionSaveMessages = (id: string, messages: unknown[]) =>
 export const sessionLoadMessages = (id: string) =>
   invoke<unknown[]>("session_load_messages", { id });
 export const logList = () => invoke<string[]>("log_list");
+// ─── G10: 提示词模板与团队配置 ─────────────────────────
+
+export interface PromptTemplate {
+  id: string;
+  name: string;
+  description: string;
+  content: string;
+  builtin: boolean;
+}
+
+export const teamConfigExport = (targetPath: string) =>
+  invoke<string>("team_config_export", { targetPath });
+export const teamConfigImport = (sourcePath: string) =>
+  invoke<string>("team_config_import", { sourcePath });
+
 // ─── G4: 消息全文检索 ────────────────────────────────
 
 export interface MessageSearchHit {

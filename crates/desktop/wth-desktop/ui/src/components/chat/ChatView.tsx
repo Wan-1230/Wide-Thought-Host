@@ -32,12 +32,13 @@ import {
   Search,
   Users,
   X,
+  BookOpen,
 } from "lucide-react";
 import { THINKING_MESSAGE, useChatStore } from "@/stores/chat";
 import { useWorkbenchStore } from "@/stores/workbench";
-import { agentSend, agentAbort, agentApproveTool, agentDenyTool, fileList, listSlashCommands, resolveSkill, subagentList, subagentRun, memoryWrite, sessionCreate, workspaceSearch } from "@/lib/ipc";
+import { agentSend, agentAbort, agentApproveTool, agentDenyTool, fileList, listSlashCommands, resolveSkill, subagentList, subagentRun, memoryWrite, sessionCreate, workspaceSearch, settingsGet, workspaceGet } from "@/lib/ipc";
 import type { ChatMessage, ToolCall } from "@/stores/chat";
-import type { FileEntry, HistoryMessage, SlashCommandInfo, SubagentConfig, WorkspaceSearchHit } from "@/lib/ipc";
+import type { FileEntry, HistoryMessage, PromptTemplate, SlashCommandInfo, SubagentConfig, WorkspaceSearchHit } from "@/lib/ipc";
 import wthBanner from "@/assets/wth-banner.png";
 import { ContextMenu, contextMenuPointFromEvent, type ContextMenuPoint } from "@/components/common/ContextMenu";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -440,6 +441,9 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
   const [subagents, setSubagents] = useState<SubagentConfig[]>([]);
   const [delegatingTo, setDelegatingTo] = useState<SubagentConfig | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [templates, setTemplates] = useState<PromptTemplate[]>([]);
+  const [showTemplateMenu, setShowTemplateMenu] = useState(false);
+  const [workspaceName, setWorkspaceName] = useState("");
   const [showParallel, setShowParallel] = useState(false);
   const [parallelTask, setParallelTask] = useState("");
   const [parallelSelection, setParallelSelection] = useState<Set<string>>(new Set());
@@ -490,6 +494,16 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
   }, [input]);
 
   // 动态加载斜杠命令（内置 + 技能）
+  // G10: 加载提示词模板与工作区名
+  useEffect(() => {
+    settingsGet()
+      .then((s) => setTemplates(s.prompt_templates || []))
+      .catch(() => {});
+    workspaceGet()
+      .then((w) => setWorkspaceName(w.active ? w.name : ""))
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     listSlashCommands().then(setSlashCommands).catch(() => {});
     subagentList().then(setSubagents).catch(() => {});
@@ -1145,6 +1159,60 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
             >
               <Paperclip size={14} />
             </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowTemplateMenu((v) => !v)}
+                title="插入提示词模板"
+                className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center
+                  transition-colors hover:bg-[color:var(--surface-2)]"
+                style={{ color: showTemplateMenu ? "var(--accent-blue)" : "var(--text-muted)" }}
+              >
+                <BookOpen size={14} />
+              </button>
+              {showTemplateMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowTemplateMenu(false)} />
+                  <div
+                    className="absolute bottom-full left-0 mb-2 w-72 rounded-xl border shadow-xl overflow-hidden z-20"
+                    style={{ background: "var(--surface-1)", borderColor: "var(--surface-3)" }}
+                  >
+                    <div className="px-3 py-1.5 text-[10px] font-medium flex items-center justify-between" style={{ color: "var(--text-dim)" }}>
+                      <span>提示词模板</span>
+                      <span className="font-normal">支持 {'{{workspace}}'} / {'{{file}}'} / {'{{language}}'} 变量</span>
+                    </div>
+                    <div className="max-h-56 overflow-y-auto pb-1">
+                      {templates.length === 0 ? (
+                        <div className="px-3 py-2 text-[11px]" style={{ color: "var(--text-dim)" }}>
+                          暂无模板，可在 设置 → 通用 中管理
+                        </div>
+                      ) : (
+                        templates.map((tpl) => (
+                          <button
+                            key={tpl.id}
+                            className="w-full flex items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-[color:var(--surface-2)]"
+                            onClick={() => {
+                              const content = tpl.content
+                                .replaceAll("{{workspace}}", workspaceName || "当前工作区")
+                                .replaceAll("{{file}}", "待分析的代码/文件")
+                                .replaceAll("{{language}}", "编程语言");
+                              setInput(content);
+                              setShowTemplateMenu(false);
+                              textareaRef.current?.focus();
+                            }}
+                          >
+                            <BookOpen size={12} style={{ color: "var(--accent-blue)", marginTop: 2 }} />
+                            <span>
+                              <span className="block text-xs" style={{ color: "var(--text-primary)" }}>{tpl.name}</span>
+                              <span className="block text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>{tpl.description}</span>
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
             <textarea
               ref={textareaRef}
               value={input}

@@ -113,6 +113,71 @@ pub fn default_subagents() -> Vec<SubagentConfig> {
     ]
 }
 
+/// 提示词模板：内置 5 个常用模板 + 用户自定义，支持 {{变量}} 占位。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PromptTemplate {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub content: String,
+    #[serde(default)]
+    pub builtin: bool,
+}
+
+impl Default for PromptTemplate {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            name: String::new(),
+            description: String::new(),
+            content: String::new(),
+            builtin: false,
+        }
+    }
+}
+
+/// 内置提示词模板（开箱即用，用户可编辑/删除）。
+pub fn default_prompt_templates() -> Vec<PromptTemplate> {
+    vec![
+        PromptTemplate {
+            id: "builtin-code-review".into(),
+            name: "代码审查".into(),
+            description: "审查代码变更，定位缺陷与改进点".into(),
+            content: "请对以下代码进行审查，重点检查：逻辑错误与边界条件、安全问题、错误处理缺失、性能隐患、可维护性问题。按严重程度分级（严重/建议/可选），每条附具体位置与修改建议。\n\n{{file}}".into(),
+            builtin: true,
+        },
+        PromptTemplate {
+            id: "builtin-bug-analysis".into(),
+            name: "Bug 分析".into(),
+            description: "定位并解释 Bug 根因，给出修复方案".into(),
+            content: "请分析以下问题：\n1. 复现步骤与现象\n2. 可能的根因（结合 {{workspace}} 中的相关代码）\n3. 修复方案与验证步骤\n\n{{file}}".into(),
+            builtin: true,
+        },
+        PromptTemplate {
+            id: "builtin-refactor".into(),
+            name: "重构建议".into(),
+            description: "识别重复与复杂度，给出重构方案".into(),
+            content: "请对以下代码提出重构建议：识别重复代码、过高复杂度、糟糕命名与过长函数，遵循最小改动原则给出分步方案，每步可独立验证。\n\n{{file}}".into(),
+            builtin: true,
+        },
+        PromptTemplate {
+            id: "builtin-weekly-report".into(),
+            name: "周报".into(),
+            description: "根据本周变更生成结构化周报".into(),
+            content: "请根据以下信息生成一份简洁的中文周报：本周完成事项、遇到的问题与解决、下周计划。语言简洁，分点列出。\n\n{{workspace}}".into(),
+            builtin: true,
+        },
+        PromptTemplate {
+            id: "builtin-learning-summary".into(),
+            name: "学习总结".into(),
+            description: "总结知识点并给出练习建议".into(),
+            content: "请将以下内容整理成学习总结：核心概念、关键要点、易错点、练习建议。使用结构化 Markdown。\n\n{{file}}".into(),
+            builtin: true,
+        },
+    ]
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SubagentConfig {
@@ -179,6 +244,8 @@ pub struct DesktopSettings {
     pub shortcuts: HashMap<String, String>,
     /// 首次启动引导是否已完成（G5）
     pub onboarding_completed: bool,
+    /// 提示词模板库（G10）
+    pub prompt_templates: Vec<PromptTemplate>,
 }
 
 impl Default for DesktopSettings {
@@ -223,6 +290,7 @@ impl Default for DesktopSettings {
             usage_stats: UsageStats::default(),
             shortcuts: default_shortcuts(),
             onboarding_completed: false,
+            prompt_templates: default_prompt_templates(),
         }
     }
 }
@@ -713,6 +781,14 @@ mod tests {
         for action in ["toggle_window", "command_palette", "new_session", "send_message"] {
             assert!(shortcuts.contains_key(action), "缺少快捷键 {action}");
         }
+    }
+
+    #[test]
+    fn default_prompt_templates_present() {
+        let templates = super::default_prompt_templates();
+        assert!(templates.len() >= 5);
+        assert!(templates.iter().all(|t| t.builtin));
+        assert!(templates.iter().any(|t| t.id == "builtin-code-review"));
     }
 
     #[test]

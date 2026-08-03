@@ -288,6 +288,7 @@ pub async fn config_export(
         "providers": providers,
         "subagents": settings.subagents,
         "shortcuts": settings.shortcuts,
+        "prompt_templates": settings.prompt_templates,
     });
     let path = PathBuf::from(&target_path);
     if let Some(parent) = path.parent() {
@@ -376,9 +377,73 @@ pub async fn config_import(
         }
         settings.shortcuts = map;
     }
+    if let Some(arr) = value.get("prompt_templates").and_then(|v| v.as_array()) {
+        if let Ok(templates) = serde_json::from_value::<Vec<crate::settings::PromptTemplate>>(serde_json::Value::Array(arr.clone())) {
+            settings.prompt_templates = templates;
+        }
+    }
 
     persist_state_settings(&state)?;
     Ok("配置导入成功。已导入的 Provider 若缺少凭据，请在模型与 API 页面重新填写 API Key。".into())
+}
+
+/// G10: 导出团队共享配置（子智能体 + 提示词模板 + 快捷键，不含密钥）。
+#[tauri::command]
+pub async fn team_config_export(
+    target_path: String,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let settings = state.settings.read().map_err(|e| e.to_string())?.clone();
+    let export = json!({
+        "format": "wth-team-config",
+        "version": 1,
+        "exported_at": chrono::Utc::now().to_rfc3339(),
+        "app_version": env!("CARGO_PKG_VERSION"),
+        "subagents": settings.subagents,
+        "prompt_templates": settings.prompt_templates,
+        "shortcuts": settings.shortcuts,
+    });
+    let path = PathBuf::from(&target_path);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("创建目录失败：{e}"))?;
+    }
+    let json = serde_json::to_string_pretty(&export).map_err(|e| format!("序列化失败：{e}"))?;
+    fs::write(&path, json).map_err(|e| format!("导出失败：{e}"))?;
+    Ok(format!("团队配置已导出到 {}", path.to_string_lossy()))
+}
+
+/// G10: 导入团队共享配置（覆盖子智能体与提示词模板，合并快捷键）。
+#[tauri::command]
+pub async fn team_config_import(
+    source_path: String,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let path = PathBuf::from(&source_path);
+    let raw = fs::read_to_string(&path).map_err(|e| format!("读取配置文件失败：{e}"))?;
+    let value: serde_json::Value = serde_json::from_str(&raw).map_err(|e| format!("配置格式无效：{e}"))?;
+    if value.get("format").and_then(|v| v.as_str()) != Some("wth-team-config") {
+        return Err("不是有效的 WTH 团队配置文件".into());
+    }
+    let mut settings = state.settings.read().map_err(|e| e.to_string())?.clone();
+    if let Some(arr) = value.get("subagents").and_then(|v| v.as_array()) {
+        if let Ok(agents) = serde_json::from_value::<Vec<crate::settings::SubagentConfig>>(serde_json::Value::Array(arr.clone())) {
+            settings.subagents = agents;
+        }
+    }
+    if let Some(arr) = value.get("prompt_templates").and_then(|v| v.as_array()) {
+        if let Ok(templates) = serde_json::from_value::<Vec<crate::settings::PromptTemplate>>(serde_json::Value::Array(arr.clone())) {
+            settings.prompt_templates = templates;
+        }
+    }
+    if let Some(obj) = value.get("shortcuts").and_then(|v| v.as_object()) {
+        for (k, v) in obj {
+            if let Some(s) = v.as_str() {
+                settings.shortcuts.insert(k.clone(), s.to_string());
+            }
+        }
+    }
+    persist_state_settings(&state)?;
+    Ok("团队配置导入成功。子智能体、提示词模板与快捷键已更新。".into())
 }
 
 #[cfg(test)]

@@ -60,6 +60,8 @@ import {
   backupRestore,
   configExport,
   configImport,
+  teamConfigExport,
+  teamConfigImport,
   logList,
   memoryDelete,
   type CapabilityItem,
@@ -76,6 +78,7 @@ import {
   type HookConfig,
   type SubagentConfig,
   type MemoryEntry,
+  type PromptTemplate,
   type DiagnosticItem,
   type UpdateCheckInfo,
 } from "@/lib/ipc";
@@ -154,6 +157,7 @@ const emptySettings: DesktopSettings = {
     last_updated: null,
   },
   onboarding_completed: false,
+  prompt_templates: [],
 };
 
 const blankProviderConfig: ProviderConfig = {
@@ -383,7 +387,7 @@ function SettingsBody({
   if (page === "subagents") {
     return <PageSubagents onNotice={onNotice} />;
   }
-  return <PageGeneral settings={settings} onSave={onSave} onNotice={onNotice} />;
+  return <PageGeneral settings={settings} onSave={onSave} onNotice={onNotice} onRefresh={onRefresh} />;
 }
 
 // ─── General Page ────────────────────────────────────
@@ -392,10 +396,12 @@ function PageGeneral({
   settings,
   onSave,
   onNotice,
+  onRefresh,
 }: {
   settings: DesktopSettings;
   onSave: (v: DesktopSettings) => Promise<void>;
   onNotice: (s: string) => void;
+  onRefresh?: () => Promise<void>;
 }) {
   const [tavilyKey, setTavilyKey] = useState("");
   return (
@@ -683,6 +689,134 @@ function PageGeneral({
             }}
           >
             导入配置
+          </button>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="stitle">提示词模板</div>
+        <p className="text-[11px] mb-2" style={{ color: "var(--text-muted)" }}>
+          聊天输入框左侧的模板入口可直接插入。支持变量：{`{{`}workspace{`}}`}（工作区名）、{`{{`}file{`}}`}、{`{{`}language{`}}`}。
+        </p>
+        <div className="space-y-2">
+          {(settings.prompt_templates || []).map((tpl, idx) => (
+            <div key={tpl.id} className="rounded-xl p-3" style={{ background: "var(--surface-1)", border: "1px solid var(--surface-3)" }}>
+              <div className="flex items-center gap-2">
+                <input
+                  className="control flex-1"
+                  value={tpl.name}
+                  placeholder="模板名称"
+                  onChange={(e) => {
+                    const next = [...(settings.prompt_templates || [])];
+                    next[idx] = { ...tpl, name: e.target.value };
+                    onSave({ ...settings, prompt_templates: next });
+                  }}
+                />
+                {!tpl.builtin && (
+                  <button
+                    className="small-btn"
+                    title="删除模板"
+                    onClick={() => {
+                      const next = (settings.prompt_templates || []).filter((t) => t.id !== tpl.id);
+                      onSave({ ...settings, prompt_templates: next });
+                    }}
+                  >
+                    删除
+                  </button>
+                )}
+              </div>
+              <input
+                className="control mt-2"
+                value={tpl.description}
+                placeholder="模板描述（显示在模板列表）"
+                onChange={(e) => {
+                  const next = [...(settings.prompt_templates || [])];
+                  next[idx] = { ...tpl, description: e.target.value };
+                  onSave({ ...settings, prompt_templates: next });
+                }}
+              />
+              <textarea
+                className="control mt-2 font-mono text-[11px] resize-y"
+                rows={3}
+                value={tpl.content}
+                placeholder="模板内容，可包含 {{workspace}} / {{file}} / {{language}} 变量"
+                onChange={(e) => {
+                  const next = [...(settings.prompt_templates || [])];
+                  next[idx] = { ...tpl, content: e.target.value };
+                  onSave({ ...settings, prompt_templates: next });
+                }}
+              />
+            </div>
+          ))}
+          <button
+            className="small-btn"
+            onClick={() => {
+              const next = [
+                ...(settings.prompt_templates || []),
+                {
+                  id: crypto.randomUUID(),
+                  name: "新模板",
+                  description: "",
+                  content: "",
+                  builtin: false,
+                } as PromptTemplate,
+              ];
+              onSave({ ...settings, prompt_templates: next });
+            }}
+          >
+            + 新增模板
+          </button>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="stitle">团队共享</div>
+        <p className="text-[11px] mb-2" style={{ color: "var(--text-muted)" }}>
+          将子智能体、提示词模板与快捷键打包为 .wthconfig 文件分享给团队。不含任何 API Key。
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            className="small-btn"
+            title="导出团队配置（子智能体 + 模板 + 快捷键）"
+            onClick={async () => {
+              const stamp = new Date().toISOString().slice(0, 10);
+              const target = await saveDialog({
+                title: "导出团队配置",
+                defaultPath: `wth-team-config-${stamp}.wthconfig`,
+                filters: [{ name: "WTH 团队配置", extensions: ["wthconfig"] }],
+              });
+              if (!target) return;
+              try {
+                const msg = await teamConfigExport(target);
+                onNotice(msg);
+              } catch (e) {
+                onNotice(`导出失败：${e}`);
+              }
+            }}
+          >
+            导出团队配置
+          </button>
+          <button
+            className="small-btn"
+            title="导入团队配置文件"
+            onClick={async () => {
+              const source = await openDialog({
+                title: "选择团队配置文件",
+                multiple: false,
+                filters: [{ name: "WTH 团队配置", extensions: ["wthconfig"] }],
+              });
+              if (!source) return;
+              if (!window.confirm("导入将覆盖当前的子智能体与提示词模板。确定继续吗？")) return;
+              try {
+                const msg = await teamConfigImport(String(source));
+                onNotice(msg);
+                await onRefresh?.();
+              } catch (e) {
+                onNotice(`导入失败：${e}`);
+              }
+            }}
+          >
+            导入团队配置
           </button>
         </div>
       </section>

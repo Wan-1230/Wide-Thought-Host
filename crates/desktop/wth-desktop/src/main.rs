@@ -289,6 +289,8 @@ pub fn run() {
             ipc::backup::backup_restore,
             ipc::backup::config_export,
             ipc::backup::config_import,
+            ipc::backup::team_config_export,
+            ipc::backup::team_config_import,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
