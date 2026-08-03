@@ -1651,3 +1651,72 @@ pub async fn diagnostics_get(state: State<'_, AppState>) -> Result<Vec<Diagnosti
 
     Ok(items)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{MemoryEntryDto, build_workspace_index, memory_relevance, slugify, version_gt};
+    use std::path::PathBuf;
+
+    #[test]
+    fn version_gt_compares_segments() {
+        assert!(version_gt("0.2.0", "0.1.9"));
+        assert!(version_gt("1.0.0", "0.9.9"));
+        assert!(!version_gt("0.1.0", "0.2.0"));
+        assert!(!version_gt("0.1.0", "0.1.0"));
+        assert!(!version_gt("0.1.0", "0.1.0-beta"));
+        assert!(version_gt("0.10.0", "0.9.0"));
+    }
+
+    #[test]
+    fn slugify_sanitizes_windows_illegal_chars() {
+        assert_eq!(slugify("Hello World"), "Hello-World");
+        assert_eq!(slugify("a:b*c?d"), "a-b-c-d");
+        assert_eq!(slugify("中文记忆"), "中文记忆");
+        assert_eq!(slugify("   "), "memory");
+        assert_eq!(slugify("x").len(), 1);
+    }
+
+    fn memory(title: &str, content: &str, path: &str) -> MemoryEntryDto {
+        MemoryEntryDto {
+            id: String::new(),
+            title: title.into(),
+            tags: vec![],
+            created_at: "2026-01-01T00:00:00Z".into(),
+            summary: String::new(),
+            content: content.into(),
+            scope: "用户".into(),
+            path: path.into(),
+        }
+    }
+
+    #[test]
+    fn memory_relevance_scores_matching_tokens() {
+        let entry = memory("登录超时排查", "用户登录时出现超时问题，需要检查认证服务", "/mem/login.md");
+        let high = memory_relevance(&entry, "登录 超时", "demo");
+        let low = memory_relevance(&entry, "支付 退款", "demo");
+        assert!(high > low);
+        assert!(high >= 2);
+    }
+
+    #[test]
+    fn memory_relevance_boosts_workspace_name() {
+        let entry = memory("重构说明", "本工作区 wth 的架构说明", "/mem/wth.md");
+        let with_ws = memory_relevance(&entry, "重构", "wth");
+        let without_ws = memory_relevance(&entry, "重构", "other");
+        assert!(with_ws >= without_ws);
+    }
+
+    #[test]
+    fn workspace_index_builds_index_of_source_files() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("main.rs"), "fn main() {}").unwrap();
+        std::fs::write(dir.path().join("README.md"), "# Demo").unwrap();
+        std::fs::write(dir.path().join("ignored.tmp"), "skip").unwrap();
+        let files = build_workspace_index(dir.path());
+        let names: Vec<&str> = files.iter().map(|f| f.name.as_str()).collect();
+        assert!(names.contains(&"main.rs"));
+        assert!(names.contains(&"README.md"));
+        assert!(!names.contains(&"ignored.tmp"));
+        assert!(files.iter().all(|f| PathBuf::from(&f.path).is_relative()));
+    }
+}

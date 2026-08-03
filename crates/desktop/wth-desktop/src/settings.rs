@@ -644,7 +644,7 @@ pub async fn workspace_git_branch(state: State<'_, AppState>) -> Result<Option<S
 
 #[cfg(test)]
 mod tests {
-    use super::{DesktopSettings, load_settings, save_settings};
+    use super::{DesktopSettings, default_shortcuts, default_subagents, load_settings, save_settings, validate};
 
     #[test]
     fn settings_round_trip() {
@@ -653,6 +653,70 @@ mod tests {
         let mut settings = DesktopSettings::default();
         settings.theme = "dark".into();
         save_settings(&path, &settings).unwrap();
-        assert_eq!(load_settings(&path).theme, "dark");
+        let loaded = load_settings(&path);
+        assert_eq!(loaded.theme, "dark");
+        assert_eq!(loaded.language, "zh-CN");
+        assert_eq!(loaded.schema_version, 1);
+    }
+
+    #[test]
+    fn load_settings_missing_file_returns_defaults() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("does-not-exist.json");
+        let settings = load_settings(&path);
+        assert_eq!(settings.default_provider_id.as_deref(), Some("agnes-default"));
+        assert!(!settings.providers.is_empty());
+    }
+
+    #[test]
+    fn load_settings_corrupt_json_falls_back_to_default() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, "{ not valid json").unwrap();
+        let settings = load_settings(&path);
+        assert_eq!(settings.theme, "light");
+    }
+
+    #[test]
+    fn save_settings_rejects_invalid_values() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let mut settings = DesktopSettings::default();
+        settings.language = "fr-FR".into();
+        assert!(save_settings(&path, &settings).is_err());
+        settings.language = "zh-CN".into();
+        settings.edit_mode = "bogus".into();
+        assert!(save_settings(&path, &settings).is_err());
+    }
+
+    #[test]
+    fn validate_accepts_default_settings() {
+        let settings = DesktopSettings::default();
+        assert!(validate(&settings).is_ok());
+    }
+
+    #[test]
+    fn default_subagents_contains_core_roles() {
+        let agents = default_subagents();
+        assert!(agents.len() >= 6);
+        assert!(agents.iter().any(|a| a.id == "builtin-code-review"));
+        assert!(agents.iter().any(|a| a.id == "builtin-security-audit"));
+        assert!(agents.iter().all(|a| a.enabled));
+    }
+
+    #[test]
+    fn default_shortcuts_cover_required_actions() {
+        let shortcuts = default_shortcuts();
+        for action in ["toggle_window", "command_palette", "new_session", "send_message"] {
+            assert!(shortcuts.contains_key(action), "缺少快捷键 {action}");
+        }
+    }
+
+    #[test]
+    fn usage_stats_defaults_to_zero() {
+        let settings = DesktopSettings::default();
+        assert_eq!(settings.usage_stats.total_tokens, 0);
+        assert_eq!(settings.usage_stats.total_cost_usd, 0.0);
+        assert!(settings.usage_stats.last_updated.is_none());
     }
 }

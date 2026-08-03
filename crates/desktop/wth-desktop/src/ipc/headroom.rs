@@ -120,3 +120,36 @@ pub fn headroom_stop(state: State<'_, AppState>) -> HeadroomStatusResponse {
 pub async fn headroom_install() -> Result<String, String> {
     crate::headroom::HeadroomManager::auto_install().await
 }
+
+#[cfg(test)]
+mod tests {
+    use super::build_response;
+    use crate::headroom::HeadroomStatus;
+
+    #[test]
+    fn build_response_maps_running_status() {
+        let resp = build_response(HeadroomStatus::Running { port: 8787 }, true, None);
+        assert!(resp.enabled);
+        assert!(resp.running);
+        assert_eq!(resp.port, 8787);
+        assert_eq!(resp.proxy_url.as_deref(), Some("http://localhost:8787"));
+        assert!(resp.error.is_none());
+    }
+
+    #[test]
+    fn build_response_maps_disabled() {
+        let resp = build_response(HeadroomStatus::Disabled, false, None);
+        assert!(!resp.enabled);
+        assert!(!resp.running);
+        assert!(!resp.installed);
+        assert!(resp.proxy_url.is_none());
+    }
+
+    #[test]
+    fn build_response_maps_error_status() {
+        let resp = build_response(HeadroomStatus::Error("启动失败".into()), true, None);
+        assert!(resp.enabled);
+        assert!(!resp.running);
+        assert_eq!(resp.error.as_deref(), Some("启动失败"));
+    }
+}

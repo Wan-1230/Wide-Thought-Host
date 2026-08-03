@@ -210,3 +210,72 @@ pub async fn session_get(
         .cloned()
         .ok_or_else(|| format!("Session {} not found", id))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{SessionInfo, load_sessions, save_sessions, sort_sessions};
+
+    fn sample(id: &str, updated: &str, pinned: bool) -> SessionInfo {
+        SessionInfo {
+            id: id.into(),
+            title: format!("会话 {id}"),
+            created_at: "2026-01-01T00:00:00Z".into(),
+            updated_at: updated.into(),
+            message_count: 3,
+            model: "test-model".into(),
+            pinned,
+        }
+    }
+
+    #[test]
+    fn save_and_load_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sessions.json");
+        let sessions = vec![sample("a", "2026-01-02T00:00:00Z", false)];
+        save_sessions(&path, &sessions);
+        let loaded = load_sessions(&path);
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].id, "a");
+        assert_eq!(loaded[0].message_count, 3);
+    }
+
+    #[test]
+    fn load_missing_file_returns_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let loaded = load_sessions(&dir.path().join("nope.json"));
+        assert!(loaded.is_empty());
+    }
+
+    #[test]
+    fn load_corrupt_json_falls_back_to_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sessions.json");
+        std::fs::write(&path, "[[[broken").unwrap();
+        let loaded = load_sessions(&path);
+        assert!(loaded.is_empty());
+    }
+
+    #[test]
+    fn sort_pinned_first_then_updated_desc() {
+        let mut sessions = vec![
+            sample("old", "2026-01-01T00:00:00Z", false),
+            sample("new", "2026-01-03T00:00:00Z", false),
+            sample("pin", "2026-01-02T00:00:00Z", true),
+        ];
+        sort_sessions(&mut sessions);
+        assert_eq!(sessions[0].id, "pin");
+        assert_eq!(sessions[1].id, "new");
+        assert_eq!(sessions[2].id, "old");
+    }
+
+    #[test]
+    fn special_characters_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sessions.json");
+        let mut s = sample("x", "2026-01-01T00:00:00Z", false);
+        s.title = "特殊字符 & < > \" 测试".into();
+        save_sessions(&path, &[s.clone()]);
+        let loaded = load_sessions(&path);
+        assert_eq!(loaded[0].title, s.title);
+    }
+}
