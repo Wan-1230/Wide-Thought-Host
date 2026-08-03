@@ -39,6 +39,7 @@ import { DiffModal } from "./components/editor/DiffModal";
 import { CommandPalette } from "./components/common/CommandPalette";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { OnboardingModal } from "./components/common/OnboardingModal";
+import { QuickAskModal } from "./components/common/QuickAskModal";
 import { ContextMenu, contextMenuPointFromEvent, type ContextMenuItem, type ContextMenuPoint } from "./components/common/ContextMenu";
 import { useChatStore } from "./stores/chat";
 import { useWorkbenchStore } from "./stores/workbench";
@@ -121,6 +122,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showQuickAsk, setShowQuickAsk] = useState(false);
   const terminalResize = useResizable({ initialWidth: 420, minWidth: 300, maxWidth: 800, direction: "left" });
   const editorResize = useResizable({ initialHeight: 320, minHeight: 160, maxHeight: 620, direction: "up" });
   const [theme, setTheme] = useState<"dark" | "light">("light");
@@ -327,8 +329,20 @@ export default function App() {
       setActiveSession(session.id);
       setNavSection("sessions");
     });
+    const disposeQuickAsk = listen("menu:quick-ask", () => {
+      setShowQuickAsk(true);
+    });
+    const disposeOpenSession = listen("menu:open-session", (event) => {
+      const id = event.payload as string;
+      if (id) {
+        setActiveSession(id);
+        setNavSection("sessions");
+      }
+    });
     return () => {
       dispose.then((fn) => fn());
+      disposeQuickAsk.then((fn) => fn());
+      disposeOpenSession.then((fn) => fn());
     };
   }, [setActiveSession, upsertSession]);
 
@@ -872,6 +886,12 @@ export default function App() {
           setAppSettings(saved);
           if (!saved.onboarding_completed) setShowOnboarding(true);
         }}
+      />
+
+      <QuickAskModal
+        open={showQuickAsk}
+        onClose={() => setShowQuickAsk(false)}
+        onSent={() => setNavSection("sessions")}
       />
 
       {showOnboarding && (

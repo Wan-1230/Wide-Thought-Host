@@ -156,6 +156,7 @@ pub fn run() {
 
             // Build system tray
             let _tray = tray::build_tray(app.handle())?;
+            tray::refresh_recent_sessions(app.handle());
 
             // Auto-start headroom proxy if enabled in settings
             let state = app.state::<AppState>();

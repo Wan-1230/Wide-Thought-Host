@@ -100,6 +100,7 @@ pub async fn session_list(
 pub async fn session_create(
     args: SessionCreateArgs,
     state: tauri::State<'_, crate::state::AppState>,
+    app: tauri::AppHandle,
 ) -> Result<SessionInfo, String> {
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
@@ -138,6 +139,7 @@ pub async fn session_create(
         save_sessions(&path, &sessions);
     }
 
+    crate::tray::refresh_recent_sessions(&app);
     Ok(info)
 }
 
@@ -146,12 +148,14 @@ pub async fn session_create(
 pub async fn session_delete(
     id: String,
     state: tauri::State<'_, crate::state::AppState>,
+    app: tauri::AppHandle,
 ) -> Result<(), String> {
     let mut sessions = state.sessions.lock().map_err(|e| e.to_string())?;
     sessions.retain(|s| s.id != id);
     sort_sessions(&mut sessions);
     let path = state.sessions_path.lock().map_err(|e| e.to_string())?;
     save_sessions(&path, &sessions);
+    crate::tray::refresh_recent_sessions(&app);
     tracing::info!("Session {} deleted", id);
     Ok(())
 }
@@ -161,6 +165,7 @@ pub async fn session_rename(
     id: String,
     title: String,
     state: tauri::State<'_, crate::state::AppState>,
+    app: tauri::AppHandle,
 ) -> Result<SessionInfo, String> {
     let mut sessions = state.sessions.lock().map_err(|e| e.to_string())?;
     let session = sessions
@@ -173,6 +178,7 @@ pub async fn session_rename(
     sort_sessions(&mut sessions);
     let path = state.sessions_path.lock().map_err(|e| e.to_string())?;
     save_sessions(&path, &sessions);
+    crate::tray::refresh_recent_sessions(&app);
     Ok(updated)
 }
 
@@ -181,6 +187,7 @@ pub async fn session_set_pinned(
     id: String,
     pinned: bool,
     state: tauri::State<'_, crate::state::AppState>,
+    app: tauri::AppHandle,
 ) -> Result<SessionInfo, String> {
     let mut sessions = state.sessions.lock().map_err(|e| e.to_string())?;
     let session = sessions
@@ -193,6 +200,7 @@ pub async fn session_set_pinned(
     sort_sessions(&mut sessions);
     let path = state.sessions_path.lock().map_err(|e| e.to_string())?;
     save_sessions(&path, &sessions);
+    crate::tray::refresh_recent_sessions(&app);
     Ok(updated)
 }
 
