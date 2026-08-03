@@ -55,6 +55,7 @@ import {
   sessionDelete,
   sessionLoadMessages,
   sessionSaveMessages,
+  sessionSearch,
   sessionList,
   sessionRename,
   fileRead,
@@ -125,6 +126,8 @@ export default function App() {
   const [workspaceBranch, setWorkspaceBranch] = useState<string | null>(null);
   const [recentWorkspaces, setRecentWorkspaces] = useState<WorkspaceInfo[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchMode, setSearchMode] = useState<"title" | "message">("title");
+  const [messageHits, setMessageHits] = useState<import("./lib/ipc").MessageSearchHit[]>([]);
   const [showPromo, setShowPromo] = useState(true);
   const [github, setGithub] = useState<GitHubAuthStatus | null>(null);
   const [showGithub, setShowGithub] = useState(false);
@@ -379,6 +382,25 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [appSettings, handleNewSession]);
 
+  // G4: 消息模式全文检索（防抖 300ms）
+  useEffect(() => {
+    if (searchMode !== "message") {
+      setMessageHits([]);
+      return;
+    }
+    const q = searchQuery.trim();
+    if (!q) {
+      setMessageHits([]);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      sessionSearch(q, 60)
+        .then(setMessageHits)
+        .catch(() => setMessageHits([]));
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery, searchMode]);
+
   const handleOpenFile = useCallback(async (path: string) => {
     try {
       const content = await fileRead(path);
@@ -547,12 +569,27 @@ export default function App() {
               <Search size={13} style={{ color: "var(--text-muted)" }} />
               <input
                 type="text"
-                placeholder="搜索"
+                placeholder={searchMode === "message" ? "搜索全部消息内容…" : "搜索会话标题…"}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="flex-1 bg-transparent border-none outline-none text-[13px] placeholder:text-[13px]"
                 style={{ color: "var(--text-primary)" }}
               />
+            </div>
+            <div className="mt-1.5 flex items-center gap-1 px-1 py-0.5 rounded-lg" style={{ background: "var(--surface-1)" }}>
+              {(["title", "message"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setSearchMode(mode)}
+                  className="flex-1 text-[11px] px-2 py-0.5 rounded transition-colors"
+                  style={{
+                    background: searchMode === mode ? "var(--surface-2)" : "transparent",
+                    color: searchMode === mode ? "var(--text-primary)" : "var(--text-muted)",
+                  }}
+                >
+                  {mode === "title" ? "标题" : "消息内容"}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -598,7 +635,52 @@ export default function App() {
           )}
 
           <div className="flex-1 min-h-0 overflow-hidden">
-            {navSection === "sessions" ? (
+            {navSection === "sessions" && searchMode === "message" ? (
+              <div className="h-full overflow-y-auto px-2 pb-2">
+                {searchQuery.trim() === "" ? (
+                  <div className="text-center py-6 text-[11px]" style={{ color: "var(--text-dim)" }}>
+                    输入关键词搜索全部会话消息
+                  </div>
+                ) : messageHits.length === 0 ? (
+                  <div className="text-center py-6 text-[11px]" style={{ color: "var(--text-dim)" }}>
+                    没有匹配的消息
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {messageHits.map((hit, i) => (
+                      <button
+                        key={i}
+                        className="w-full text-left p-2 rounded-lg transition-colors hover:bg-surface-2"
+                        style={{ background: "var(--surface-1)" }}
+                        onClick={() => {
+                          setActiveSession(hit.session_id);
+                          setNavSection("sessions");
+                          window.setTimeout(() => {
+                            window.dispatchEvent(
+                              new CustomEvent("wth:scroll-to-message", {
+                                detail: { sessionId: hit.session_id, index: hit.message_index },
+                              }),
+                            );
+                          }, 250);
+                        }}
+                      >
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className="text-[11px] font-medium truncate" style={{ color: "var(--text-primary)" }}>
+                            {hit.session_title}
+                          </span>
+                          <span className="text-[10px] shrink-0" style={{ color: "var(--text-dim)" }}>
+                            {hit.role === "user" ? "用户" : "助手"}
+                          </span>
+                        </div>
+                        <div className="text-[11px] line-clamp-2 leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                          {hit.snippet}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : navSection === "sessions" ? (
               <Sidebar
                 sessions={sessions}
                 activeId={activeSessionId}

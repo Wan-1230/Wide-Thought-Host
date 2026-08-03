@@ -445,6 +445,28 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
   const [parallelSelection, setParallelSelection] = useState<Set<string>>(new Set());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [highlightIndex, setHighlightIndex] = useState<number | null>(null);
+
+  // G4: 监听消息检索跳转事件，滚动并高亮命中消息
+  useEffect(() => {
+    const onScrollTo = (e: Event) => {
+      const detail = (e as CustomEvent<{ sessionId: string; index: number }>).detail;
+      if (!detail) return;
+      if (typeof detail.index !== "number") return;
+      setHighlightIndex(detail.index);
+      window.setTimeout(() => {
+        const container = scrollRef.current;
+        if (!container) return;
+        const el = container.querySelector(`[data-message-index="${detail.index}"]`);
+        if (el) {
+          el.scrollIntoView({ block: "center", behavior: "smooth" });
+        }
+      }, 150);
+      window.setTimeout(() => setHighlightIndex(null), 2500);
+    };
+    window.addEventListener("wth:scroll-to-message", onScrollTo);
+    return () => window.removeEventListener("wth:scroll-to-message", onScrollTo);
+  }, []);
 
   const sessionMessages = activeSessionId
     ? messages[activeSessionId] || []
@@ -926,7 +948,16 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
             const showCursor =
               isLast && msg.role === "assistant" && isStreaming;
             return (
-              <div key={msg.id}>
+              <div
+                key={msg.id}
+                data-message-index={idx}
+                className="rounded-lg transition-colors duration-700"
+                style={
+                  highlightIndex === idx
+                    ? { background: "var(--accent-yellow)", opacity: 0.35 }
+                    : undefined
+                }
+              >
                 <MessageBubble
                   msg={msg}
                   onContextMenu={(e) => {

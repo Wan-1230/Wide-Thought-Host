@@ -525,3 +525,16 @@ export const sessionSaveMessages = (id: string, messages: unknown[]) =>
 export const sessionLoadMessages = (id: string) =>
   invoke<unknown[]>("session_load_messages", { id });
 export const logList = () => invoke<string[]>("log_list");
+// ─── G4: 消息全文检索 ────────────────────────────────
+
+export interface MessageSearchHit {
+  session_id: string;
+  session_title: string;
+  message_index: number;
+  role: string;
+  snippet: string;
+  timestamp: string;
+}
+
+export const sessionSearch = (query: string, limit?: number) =>
+  invoke<MessageSearchHit[]>("session_search", { query, limit });

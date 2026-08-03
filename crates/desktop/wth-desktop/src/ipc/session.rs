@@ -338,3 +338,99 @@ pub async fn session_load_messages(
         Err(_) => Ok(vec![]),
     }
 }
+/// G4: 跨会话消息全文检索。搜索 `<app_data>/session-messages/*.json`，
+/// 返回按命中排序的片段列表（同一会话可多条命中）。
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct MessageSearchHitDto {
+    pub session_id: String,
+    pub session_title: String,
+    pub message_index: usize,
+    pub role: String,
+    pub snippet: String,
+    pub timestamp: String,
+}
+
+#[tauri::command]
+pub async fn session_search(
+    query: String,
+    limit: Option<usize>,
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<Vec<MessageSearchHitDto>, String> {
+    let query = query.trim().to_lowercase();
+    if query.is_empty() {
+        return Ok(Vec::new());
+    }
+    let limit = limit.unwrap_or(50).min(200);
+    let app_data = state
+        .settings_path
+        .read()
+        .map_err(|e| e.to_string())?
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+    let dir = app_data.join("session-messages");
+    let sessions = state.sessions.lock().map_err(|e| e.to_string())?.clone();
+    let titles: std::collections::HashMap<String, String> = sessions
+        .iter()
+        .map(|s| (s.id.clone(), s.title.clone()))
+        .collect();
+    let title_of = move |sid: &str| -> String {
+        titles
+            .get(sid)
+            .cloned()
+            .unwrap_or_else(|| "未命名会话".into())
+    };
+
+    let dir_clone = dir.clone();
+    let hits = tokio::task::spawn_blocking(move || {
+        let mut out: Vec<MessageSearchHitDto> = Vec::new();
+        let Ok(entries) = std::fs::read_dir(&dir_clone) else {
+            return out;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+            let session_id = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
+            if session_id.is_empty() {
+                continue;
+            }
+            let Ok(raw) = std::fs::read_to_string(&path) else { continue };
+            let Ok(messages) = serde_json::from_str::<Vec<serde_json::Value>>(&raw) else {
+                continue;
+            };
+            for (idx, msg) in messages.iter().enumerate() {
+                let role = msg.get("role").and_then(|v| v.as_str()).unwrap_or("");
+                let content = msg.get("content").and_then(|v| v.as_str()).unwrap_or("");
+                if !content.to_lowercase().contains(&query) {
+                    continue;
+                }
+                let timestamp = msg
+                    .get("timestamp")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                out.push(MessageSearchHitDto {
+                    session_id: session_id.clone(),
+                    session_title: title_of(&session_id),
+                    message_index: idx,
+                    role: role.to_string(),
+                    snippet: content.chars().take(160).collect(),
+                    timestamp,
+                });
+                if out.len() >= limit {
+                    return out;
+                }
+            }
+        }
+        out
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(hits)
+}
