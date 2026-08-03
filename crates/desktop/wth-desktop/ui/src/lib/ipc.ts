@@ -156,6 +156,16 @@ export interface DesktopSettings {
   shortcuts?: Record<string, string>;
   onboarding_completed: boolean;
   prompt_templates: PromptTemplate[];
+  workflows?: WorkflowConfig[];
+  network: NetworkConfig;
+}
+
+export interface NetworkConfig {
+  proxy_mode: "off" | "system" | "custom";
+  proxy_url?: string | null;
+  request_timeout_secs: number;
+  retry_enabled: boolean;
+  retry_max: number;
 }
 
 export interface GitHubProfile { login: string; name?: string | null; avatar_url?: string | null; }
@@ -446,7 +456,45 @@ export interface DiagnosticItem {
 
 export const diagnosticsGet = () => invoke<DiagnosticItem[]>("diagnostics_get");
 
+export interface AppInfo {
+  version: string;
+  build_time: string;
+  signed: boolean;
+}
+
+export const appInfo = () => invoke<AppInfo>("app_info");
+
 export const pluginImport = (sourceDir: string) => invoke<string>("plugin_import", { sourceDir });
+
+export interface PluginMarketEntry {
+  name: string;
+  description: string;
+  version: string;
+  author: string;
+  download_url: string;
+  sha256: string;
+  permissions: string[];
+  verified: boolean;
+}
+
+export interface PluginMarketItem {
+  entry: PluginMarketEntry;
+  installed: boolean;
+  installed_version: string | null;
+  has_update: boolean;
+}
+
+export interface PluginMarketList {
+  source: string;
+  entries: PluginMarketItem[];
+  error: string | null;
+}
+
+export const pluginMarketList = (source?: string) =>
+  invoke<PluginMarketList>("plugin_market_list", { source });
+export const pluginMarketInstall = (entry: PluginMarketEntry) =>
+  invoke<string>("plugin_market_install", { entry });
+export const pluginUninstall = (name: string) => invoke<string>("plugin_uninstall", { name });
 
 export interface UpdateCheckInfo {
   current_version: string;
@@ -458,6 +506,22 @@ export interface UpdateCheckInfo {
 
 export const updateCheck = () => invoke<UpdateCheckInfo>("update_check");
 
+export interface UpdateDownloadResult {
+  file_path: string;
+  file_name: string;
+  bytes: number;
+  sha256: string;
+  verified: boolean;
+}
+
+export interface UpdateProgress {
+  received: number;
+  total: number;
+  percent: number;
+}
+
+export const updateDownload = () => invoke<UpdateDownloadResult>("update_download");
+
 export interface WorkspaceSearchHit {
   path: string;
   line: number;
@@ -467,6 +531,19 @@ export interface WorkspaceSearchHit {
 
 export const workspaceSearch = (query: string, limit?: number) =>
   invoke<WorkspaceSearchHit[]>("workspace_search", { query, limit });
+
+export interface WorkspaceIndexStatus {
+  workspace: string;
+  file_count: number;
+  cache_path: string;
+  semantic_engine: string;
+  semantic_model: string | null;
+}
+
+export const workspaceIndexStatus = () => invoke<WorkspaceIndexStatus>("workspace_index_status");
+export const workspaceIndexRebuild = () => invoke<WorkspaceIndexStatus>("workspace_index_rebuild");
+export const workspaceIndexClear = () => invoke<WorkspaceIndexStatus>("workspace_index_clear");
+
 
 export const memoryList = () => invoke<MemoryEntry[]>("memory_list");
 export const memoryWrite = (title: string, content: string, tags?: string[], scope?: "user" | "workspace") =>

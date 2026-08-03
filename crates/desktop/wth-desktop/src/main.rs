@@ -238,9 +238,20 @@ pub fn run() {
             settings::clear_service_api_key,
             ipc::capabilities::capability_view,
             ipc::capabilities::diagnostics_get,
+            ipc::capabilities::app_info,
             ipc::capabilities::plugin_import,
+            // G9: 插件市场
+            ipc::capabilities::plugin_market_list,
+            ipc::capabilities::plugin_market_install,
+            ipc::capabilities::plugin_uninstall,
             ipc::capabilities::update_check,
+            // G11: 应用内更新下载
+            ipc::capabilities::update_download,
             ipc::capabilities::workspace_search,
+            // G8: 工作区索引管理
+            ipc::capabilities::workspace_index_status,
+            ipc::capabilities::workspace_index_rebuild,
+            ipc::capabilities::workspace_index_clear,
             settings::provider_list,
             settings::provider_upsert,
             settings::provider_delete,

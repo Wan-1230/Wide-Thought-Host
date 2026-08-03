@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import type { ReactNode } from "react";
 import {
   Activity,
@@ -55,7 +56,15 @@ import {
   memoryWrite,
   diagnosticsGet,
   pluginImport,
+  pluginMarketList,
+  pluginMarketInstall,
+  pluginUninstall,
   updateCheck,
+  updateDownload,
+  appInfo,
+  workspaceIndexStatus,
+  workspaceIndexRebuild,
+  workspaceIndexClear,
   backupCreate,
   backupRestore,
   configExport,
@@ -66,8 +75,14 @@ import {
   memoryDelete,
   type CapabilityItem,
   type CapabilitySource,
+  type PluginMarketItem,
+  type PluginMarketEntry,
   type CapabilityView,
   type DesktopSettings,
+  type WorkspaceIndexStatus,
+  type UpdateProgress,
+  type UpdateDownloadResult,
+  type AppInfo,
   type ProviderConfig,
   type ProviderSummary,
   type FontScale,
@@ -158,6 +173,14 @@ const emptySettings: DesktopSettings = {
   },
   onboarding_completed: false,
   prompt_templates: [],
+  workflows: [],
+  network: {
+    proxy_mode: "off",
+    proxy_url: null,
+    request_timeout_secs: 15,
+    retry_enabled: true,
+    retry_max: 2,
+  },
 };
 
 const blankProviderConfig: ProviderConfig = {
@@ -404,6 +427,19 @@ function PageGeneral({
   onRefresh?: () => Promise<void>;
 }) {
   const [tavilyKey, setTavilyKey] = useState("");
+  const [indexStatus, setIndexStatus] = useState<WorkspaceIndexStatus | null>(null);
+  const [indexBusy, setIndexBusy] = useState(false);
+  const loadIndex = async () => {
+    try {
+      setIndexStatus(await workspaceIndexStatus());
+    } catch (e) {
+      onNotice(`索引状态读取失败：${e}`);
+    }
+  };
+  useEffect(() => {
+    void loadIndex();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <>
       <section className="section">
@@ -580,6 +616,78 @@ function PageGeneral({
       </section>
 
       <section className="section">
+        <div className="stitle">网络</div>
+        <SettingRow label="代理模式" hint="off=直连；system=跟随系统代理；custom=使用下方自定义地址">
+          <SegmentedControl
+            size="sm"
+            options={[
+              { value: "off", label: "关闭" },
+              { value: "system", label: "系统代理" },
+              { value: "custom", label: "自定义" },
+            ]}
+            value={settings.network.proxy_mode}
+            onChange={(proxy_mode) =>
+              onSave({
+                ...settings,
+                network: { ...settings.network, proxy_mode: proxy_mode as "off" | "system" | "custom" },
+              })
+            }
+          />
+        </SettingRow>
+        {settings.network.proxy_mode === "custom" && (
+          <SettingRow label="代理地址" hint="HTTP/HTTPS 代理，例如 Clash、v2ray 的本地端口">
+            <input
+              className="control w-72"
+              placeholder="例如：http://127.0.0.1:7890"
+              value={settings.network.proxy_url || ""}
+              onChange={(e) =>
+                onSave({
+                  ...settings,
+                  network: { ...settings.network, proxy_url: e.target.value.trim() || null },
+                })
+              }
+            />
+          </SettingRow>
+        )}
+        <SettingRow label="连接超时 (秒)" hint="建立连接阶段的超时时间，流式响应不受此限制；范围 5~120">
+          <input
+            className="control w-28"
+            type="number"
+            min="5"
+            max="120"
+            placeholder="例如：15"
+            value={settings.network.request_timeout_secs}
+            onChange={(e) => {
+              const v = Math.min(120, Math.max(5, Number(e.target.value) || 15));
+              onSave({ ...settings, network: { ...settings.network, request_timeout_secs: v } });
+            }}
+          />
+        </SettingRow>
+        <SettingRow label="自动重试" hint="连接失败或服务端 5xx 时自动重试；4xx（密钥/参数错误）不重试">
+          <Toggle
+            checked={settings.network.retry_enabled}
+            onChange={(retry_enabled) => onSave({ ...settings, network: { ...settings.network, retry_enabled } })}
+          />
+        </SettingRow>
+        {settings.network.retry_enabled && (
+          <SettingRow label="重试次数" hint="最多重试次数，范围 0~3；重试间隔按 1s/2s 递增">
+            <input
+              className="control w-28"
+              type="number"
+              min="0"
+              max="3"
+              placeholder="例如：2"
+              value={settings.network.retry_max}
+              onChange={(e) => {
+                const v = Math.min(3, Math.max(0, Number(e.target.value) || 0));
+                onSave({ ...settings, network: { ...settings.network, retry_max: v } });
+              }}
+            />
+          </SettingRow>
+        )}
+      </section>
+
+      <section className="section">
         <div className="stitle">终端</div>
         <SettingRow label="首选 Shell" hint="选择 Agent 执行命令时使用的终端 Shell">
           <select
@@ -594,6 +702,70 @@ function PageGeneral({
             <option value="bash">WSL / Git Bash</option>
           </select>
         </SettingRow>
+      </section>
+
+      <section className="section">
+        <div className="stitle">工作区索引</div>
+        <p className="text-[11px] mb-2" style={{ color: "var(--text-muted)" }}>
+          对工作区文件建立轻量索引，供 @检索 快速定位代码。检测到本地 Ollama 且已拉取 embedding 模型时自动启用语义检索，否则使用关键词检索。
+        </p>
+        <div className="rounded-xl p-3 text-[11px] mb-2" style={{ background: "var(--surface-1)", border: "1px solid var(--surface-3)" }}>
+          {indexStatus ? (
+            <div className="grid gap-1" style={{ color: "var(--text-muted)" }}>
+              <div>工作区：<span style={{ color: "var(--text-primary)" }}>{indexStatus.workspace || "（未选择）"}</span></div>
+              <div>已索引文件：<span style={{ color: "var(--text-primary)" }}>{indexStatus.file_count}</span> 个</div>
+              <div>检索模式：<span style={{ color: "var(--text-primary)" }}>
+                {indexStatus.semantic_engine === "ollama" ? "语义检索（Ollama）" : "关键词检索"}
+              </span></div>
+              {indexStatus.semantic_model && <div>语义模型：{indexStatus.semantic_model}</div>}
+              <div className="truncate" title={indexStatus.cache_path}>缓存：{indexStatus.cache_path}</div>
+            </div>
+          ) : (
+            <div style={{ color: "var(--text-muted)" }}>正在读取索引状态…</div>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            className="small-btn"
+            disabled={indexBusy}
+            title="重新遍历工作区文件并重建索引缓存"
+            onClick={async () => {
+              setIndexBusy(true);
+              try {
+                setIndexStatus(await workspaceIndexRebuild());
+                onNotice("索引重建完成");
+              } catch (e) {
+                onNotice(`重建失败：${e}`);
+              } finally {
+                setIndexBusy(false);
+              }
+            }}
+          >
+            {indexBusy ? "重建中…" : "重建索引"}
+          </button>
+          <button
+            className="small-btn"
+            disabled={indexBusy}
+            title="删除索引缓存，下次检索时自动重建"
+            onClick={async () => {
+              if (!window.confirm("清除后下次 @检索 会重新建立索引。确定清除吗？")) return;
+              setIndexBusy(true);
+              try {
+                setIndexStatus(await workspaceIndexClear());
+                onNotice("索引已清除");
+              } catch (e) {
+                onNotice(`清除失败：${e}`);
+              } finally {
+                setIndexBusy(false);
+              }
+            }}
+          >
+            清除索引
+          </button>
+          <button className="small-btn" onClick={() => void loadIndex()} disabled={indexBusy}>
+            刷新状态
+          </button>
+        </div>
       </section>
 
       <section className="section">
@@ -1287,24 +1459,88 @@ function PageSkills({ settings, onSave, onNotice }: { settings: DesktopSettings;
 // ─── PagePlugins ─────────────────────────────────────
 
 function PagePlugins({ settings, onSave, onNotice }: { settings: DesktopSettings; onSave: (v: DesktopSettings) => Promise<void>; onNotice: (s: string) => void }) {
+  const [tab, setTab] = useState<"installed" | "market">("installed");
   const [view, setView] = useState<CapabilityView | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [market, setMarket] = useState<PluginMarketItem[]>([]);
+  const [marketLoading, setMarketLoading] = useState(false);
+  const [marketError, setMarketError] = useState<string | null>(null);
+  const [installing, setInstalling] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadInstalled = async () => {
     setLoading(true);
     capabilityView("plugins").then(setView).catch((e) => onNotice(String(e))).finally(() => setLoading(false));
-  }, []);
+  };
+  useEffect(() => { void loadInstalled(); }, []);
+
+  const loadMarket = async () => {
+    setMarketLoading(true);
+    setMarketError(null);
+    try {
+      const res = await pluginMarketList();
+      setMarket(res.entries);
+      if (res.error) setMarketError(res.error);
+    } catch (e) {
+      setMarketError(String(e));
+    } finally {
+      setMarketLoading(false);
+    }
+  };
+  useEffect(() => {
+    if (tab === "market") void loadMarket();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   const toggle = async (item: CapabilityItem, enabled: boolean) => {
     await onSave({ ...settings, feature_toggles: { ...settings.feature_toggles, [item.toggle_key]: enabled } });
   };
 
+  const installFromMarket = async (item: PluginMarketItem) => {
+    const entry: PluginMarketEntry = item.entry;
+    const perms = entry.permissions.join("、") || "无特殊权限";
+    const confirmMsg = item.installed
+      ? `更新插件「${entry.name}」到 v${entry.version}？`
+      : `安装插件「${entry.name}」v${entry.version}？\n作者：${entry.author}（${entry.verified ? "已验证" : "未验证"}）\n权限声明：${perms}\n\n高风险权限请谨慎确认。`;
+    if (!window.confirm(confirmMsg)) return;
+    setInstalling(entry.name);
+    try {
+      const msg = await pluginMarketInstall(entry);
+      onNotice(msg);
+      await loadMarket();
+      await loadInstalled();
+    } catch (e) {
+      onNotice(String(e));
+    } finally {
+      setInstalling(null);
+    }
+  };
+
+  const uninstallPlugin = async (name: string) => {
+    if (!window.confirm(`确定卸载插件「${name}」？其技能与 hooks 将立即失效。`)) return;
+    try {
+      const msg = await pluginUninstall(name);
+      onNotice(msg);
+      await loadInstalled();
+    } catch (e) {
+      onNotice(String(e));
+    }
+  };
+
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <div className="text-xs" style={{ color: "var(--text-muted)" }}>{view?.items.length ?? 0} 个插件</div>
-        <div className="flex gap-2">
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <SegmentedControl
+          size="sm"
+          options={[
+            { value: "installed", label: `已安装 (${view?.items.length ?? 0})` },
+            { value: "market", label: "市场" },
+          ]}
+          value={tab}
+          onChange={(v) => setTab(v as "installed" | "market")}
+        />
+        <span className="grow" />
+        {tab === "installed" ? (
           <button
             className="small-btn"
             onClick={async () => {
@@ -1313,8 +1549,7 @@ function PagePlugins({ settings, onSave, onNotice }: { settings: DesktopSettings
               try {
                 const msg = await pluginImport(selected);
                 onNotice(msg);
-                setLoading(true);
-                capabilityView("plugins").then(setView).catch((e) => onNotice(String(e))).finally(() => setLoading(false));
+                await loadInstalled();
               } catch (e) {
                 onNotice(String(e));
               }
@@ -1322,38 +1557,108 @@ function PagePlugins({ settings, onSave, onNotice }: { settings: DesktopSettings
           >
             <FolderOpen size={12} /> 从本地导入
           </button>
-          <button className="small-btn" onClick={() => onNotice("插件市场即将上线")}><Puzzle size={12} /> 从市场安装</button>
-        </div>
-      </div>
-      <div className="space-y-2">
-        {loading ? (
-          <div className="py-8 text-xs text-center" style={{ color: "var(--text-muted)" }}>加载中…</div>
-        ) : (view?.items ?? []).length === 0 ? (
-          <div className="py-8 text-xs text-center" style={{ color: "var(--text-muted)" }}>未安装插件。</div>
         ) : (
-          (view?.items ?? []).map((item) => (
-            <div key={item.id} className="rounded-xl border p-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
-              <div className="flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-semibold truncate">{item.name}</div>
-                  <div className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>{item.description}</div>
-                  {expandedId === item.id && (
-                    <div className="mt-2 text-[10px] space-y-1" style={{ color: "var(--text-dim)" }}>
-                      <div>路径：{item.path}</div>
-                      <div>权限：文件系统、网络</div>
-                      <div className="flex flex-wrap gap-1 mt-1">{item.tags.map((t) => <Pill key={t}>{t}</Pill>)}</div>
-                    </div>
-                  )}
-                  <button className="mt-1 text-[10px]" style={{ color: "var(--accent-blue)" }} onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}>
-                    {expandedId === item.id ? "收起详情" : "查看详情"}
-                  </button>
-                </div>
-                <Toggle checked={settings.feature_toggles[item.toggle_key] ?? item.enabled} onChange={(v) => void toggle(item, v)} />
-              </div>
-            </div>
-          ))
+          <button className="small-btn" onClick={() => void loadMarket()} disabled={marketLoading}>
+            <RefreshCw size={12} /> 刷新市场
+          </button>
         )}
       </div>
+
+      {tab === "installed" ? (
+        <div className="space-y-2">
+          {loading ? (
+            <div className="py-8 text-xs text-center" style={{ color: "var(--text-muted)" }}>加载中…</div>
+          ) : (view?.items ?? []).length === 0 ? (
+            <div className="py-8 text-xs text-center" style={{ color: "var(--text-muted)" }}>未安装插件。可切换到“市场”标签浏览并安装。</div>
+          ) : (
+            (view?.items ?? []).map((item) => (
+              <div key={item.id} className="rounded-xl border p-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-semibold truncate">{item.name}</div>
+                    <div className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>{item.description}</div>
+                    {expandedId === item.id && (
+                      <div className="mt-2 text-[10px] space-y-1" style={{ color: "var(--text-dim)" }}>
+                        <div>路径：{item.path}</div>
+                        <div className="flex flex-wrap gap-1 mt-1">{item.tags.map((t) => <Pill key={t}>{t}</Pill>)}</div>
+                      </div>
+                    )}
+                    <button className="mt-1 text-[10px]" style={{ color: "var(--accent-blue)" }} onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}>
+                      {expandedId === item.id ? "收起详情" : "查看详情"}
+                    </button>
+                  </div>
+                  <Toggle checked={settings.feature_toggles[item.toggle_key] ?? item.enabled} onChange={(v) => void toggle(item, v)} />
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {marketError && (
+            <div className="rounded-xl p-3 text-[11px]" style={{ background: "var(--accent-red)", color: "#fff" }}>
+              市场加载失败：{marketError}
+            </div>
+          )}
+          {marketLoading ? (
+            <div className="py-8 text-xs text-center" style={{ color: "var(--text-muted)" }}>正在加载插件市场…</div>
+          ) : market.length === 0 ? (
+            <div className="py-8 text-xs text-center" style={{ color: "var(--text-muted)" }}>
+              {marketError ? "请检查网络后重试。" : "市场暂无插件。"}
+            </div>
+          ) : (
+            market.map((item) => (
+              <div key={item.entry.name} className="rounded-xl border p-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold truncate">{item.entry.name}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}>v{item.entry.version}</span>
+                      {item.entry.verified ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--accent-green)", color: "#fff" }}>已验证</span>
+                      ) : (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--accent-yellow)", color: "#000" }}>未验证</span>
+                      )}
+                      {item.has_update && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--accent-blue)", color: "#fff" }}>有更新</span>
+                      )}
+                    </div>
+                    <div className="text-[10px] mt-1" style={{ color: "var(--text-muted)" }}>{item.entry.description}</div>
+                    <div className="text-[10px] mt-1" style={{ color: "var(--text-dim)" }}>
+                      作者：{item.entry.author} · 权限：{item.entry.permissions.join("、") || "无"}
+                      {item.installed && item.installed_version && ` · 本地 v${item.installed_version}`}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    {item.installed ? (
+                      <>
+                        <button
+                          className="small-btn"
+                          disabled={installing === item.entry.name}
+                          onClick={() => void installFromMarket(item)}
+                        >
+                          {installing === item.entry.name ? "安装中…" : item.has_update ? "更新" : "重新安装"}
+                        </button>
+                        <button className="small-btn" style={{ color: "var(--accent-red)" }} onClick={() => void uninstallPlugin(item.entry.name)}>
+                          卸载
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        className="small-btn"
+                        disabled={installing === item.entry.name}
+                        onClick={() => void installFromMarket(item)}
+                      >
+                        {installing === item.entry.name ? "安装中…" : "安装"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </>
   );
 }
@@ -1986,8 +2291,16 @@ function PageDiagnostics({ onNotice }: { onNotice: (s: string) => void }) {
 // ─── About Page ──────────────────────────────────────
 
 function PageAbout({ onNotice }: { onNotice: (s: string) => void }) {
+  const [app, setApp] = useState<AppInfo | null>(null);
   const [checking, setChecking] = useState(false);
   const [result, setResult] = useState<UpdateCheckInfo | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [progress, setProgress] = useState<UpdateProgress | null>(null);
+  const [downloadResult, setDownloadResult] = useState<UpdateDownloadResult | null>(null);
+
+  useEffect(() => {
+    void appInfo().then(setApp).catch(() => {});
+  }, []);
 
   const runCheck = async () => {
     setChecking(true);
@@ -2003,22 +2316,60 @@ function PageAbout({ onNotice }: { onNotice: (s: string) => void }) {
     }
   };
 
+  const runDownload = async () => {
+    setDownloading(true);
+    setProgress(null);
+    setDownloadResult(null);
+    const dispose = await listen<UpdateProgress>("update:progress", (event) => {
+      setProgress(event.payload);
+    });
+    try {
+      const res = await updateDownload();
+      setDownloadResult(res);
+      if (!res.verified) {
+        onNotice("下载完成，但 Release 未声明哈希，未能自动校验，请谨慎安装。");
+      } else {
+        onNotice(`安装包下载完成（${(res.bytes / 1024 / 1024).toFixed(1)} MB），SHA-256 校验通过。`);
+      }
+    } catch (e) {
+      onNotice(`下载失败：${e}`);
+    } finally {
+      dispose();
+      setDownloading(false);
+    }
+  };
+
   return (
     <div className="rounded-xl border p-6 space-y-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
       <div className="text-2xl font-bold">
-        WTH <span className="text-sm font-normal" style={{ color: "var(--text-muted)" }}>v0.1.0</span>
+        WTH <span className="text-sm font-normal" style={{ color: "var(--text-muted)" }}>v{app?.version ?? "…"}</span>
       </div>
       <p className="text-xs" style={{ color: "var(--text-muted)" }}>
         基于 Tauri 2、React 和 WTH Agent Core。开源、隐私优先的桌面 AI 编码代理。
       </p>
+      <div className="flex gap-2 flex-wrap text-[10px]" style={{ color: "var(--text-dim)" }}>
+        <span>构建时间：{app?.build_time || "未知"}</span>
+        <span>
+          签名状态：
+          {app?.signed ? (
+            <span style={{ color: "var(--accent-green)" }}>已签名</span>
+          ) : (
+            <span style={{ color: "var(--accent-yellow)" }}>未签名（SmartScreen 可能提示未知发布者）</span>
+          )}
+        </span>
+      </div>
       <div className="flex gap-2 flex-wrap">
         <a className="small-btn" href="https://github.com/Wan-1230/Wide-Thought-Host" target="_blank" rel="noreferrer">
           <Github size={12} /> 项目主页
+        </a>
+        <a className="small-btn" href="https://github.com/Wan-1230/Wide-Thought-Host/blob/main/docs/user-guide/getting-started.md" target="_blank" rel="noreferrer">
+          <CircleHelp size={12} /> 用户手册
         </a>
         <button className="small-btn" onClick={runCheck} disabled={checking}>
           {checking ? "检查中…" : "检查更新"}
         </button>
       </div>
+
       {result && result.has_update && (
         <div className="rounded-xl border p-3 space-y-2" style={{ borderColor: "var(--accent-yellow)", background: "var(--surface-1)" }}>
           <div className="text-xs font-semibold">
@@ -2029,10 +2380,48 @@ function PageAbout({ onNotice }: { onNotice: (s: string) => void }) {
               {result.notes}
             </div>
           )}
-          {result.release_url && (
-            <button className="small-btn font-semibold" onClick={() => openUrl(result.release_url)}>
-              打开下载页
-            </button>
+          <div className="flex gap-2 flex-wrap">
+            {!downloadResult && (
+              <button className="small-btn font-semibold" onClick={() => void runDownload()} disabled={downloading}>
+                {downloading ? "下载中…" : "下载并安装"}
+              </button>
+            )}
+            {result.release_url && (
+              <button className="small-btn" onClick={() => openUrl(result.release_url)}>
+                打开下载页
+              </button>
+            )}
+          </div>
+          {progress && (
+            <div className="space-y-1">
+              <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                下载中：{(progress.received / 1024 / 1024).toFixed(1)} / {(progress.total / 1024 / 1024).toFixed(1)} MB（{progress.percent}%）
+              </div>
+              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--surface-3)" }}>
+                <div className="h-full transition-all" style={{ width: `${progress.percent}%`, background: "var(--accent-blue)" }} />
+              </div>
+            </div>
+          )}
+          {downloadResult && (
+            <div className="rounded-xl p-3 text-[11px] space-y-1" style={{ background: "var(--surface-2)" }}>
+              <div>安装包已就绪：{downloadResult.file_name}（{(downloadResult.bytes / 1024 / 1024).toFixed(1)} MB）</div>
+              <div style={{ color: "var(--text-muted)" }}>SHA-256：{downloadResult.sha256.slice(0, 24)}… {downloadResult.verified ? "（校验通过）" : "（未校验）"}</div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  className="small-btn font-semibold"
+                  style={{ color: "var(--accent-green)" }}
+                  onClick={() => {
+                    const ok = window.confirm("即将启动安装程序，请先保存工作并关闭 WTH。确定继续吗？");
+                    if (ok) void openUrl(downloadResult.file_path);
+                  }}
+                >
+                  启动安装程序
+                </button>
+                <button className="small-btn" onClick={() => void openPathInExplorer(downloadResult.file_path)}>
+                  打开所在文件夹
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}

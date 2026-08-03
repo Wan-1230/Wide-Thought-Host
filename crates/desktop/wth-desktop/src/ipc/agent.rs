@@ -403,6 +403,9 @@ pub(crate) async fn run_agent(
             s.context_window_tokens,
         )
     };
+    // G12：网络配置快照（代理 / 超时 / 重试）
+    let network = settings_ref.read().map_err(|e| e.to_string())?.network.clone();
+    let http_client = build_http_client(&network)?;
     // 工具执行所需的设置快照（搜索引擎选择等）
     let settings_snapshot = settings_ref.read().map_err(|e| e.to_string())?.clone();
     // 启动启用的 MCP 服务器并拉取工具定义（失败自动降级）
@@ -436,7 +439,7 @@ pub(crate) async fn run_agent(
                 let (kept, history) = split_messages(&messages);
                 if !history.is_empty() {
                     let summary =
-                        summarize_history(&api_base, &api_key, &model, &history, &upstream_headers)
+                        summarize_history(&api_base, &api_key, &model, &history, &upstream_headers, &network)
                             .await?;
                     let kept_count = kept.len();
                     let history_count = history.len();
@@ -472,27 +475,25 @@ pub(crate) async fn run_agent(
         }
 
         let url = format!("{}/chat/completions", api_base.trim_end_matches('/'));
-        let client = reqwest::Client::new();
-        let mut req = client
-            .post(&url)
-            .header("Authorization", format!("Bearer {}", api_key))
-            .header("Content-Type", "application/json");
-        if let Some(headers) = &upstream_headers {
-            for (k, v) in headers {
-                req = req.header(k.as_str(), v.as_str());
+        // G12：代理 / 超时 / 自动重试
+        let mut headers: Vec<(String, String)> = vec![
+            ("Authorization".to_string(), format!("Bearer {}", api_key)),
+            ("Content-Type".to_string(), "application/json".to_string()),
+        ];
+        if let Some(hs) = &upstream_headers {
+            for (k, v) in hs {
+                headers.push((k.clone(), v.clone()));
             }
         }
-        let resp = match req.json(&body).send().await {
-            Ok(r) => {
-                if !r.status().is_success() {
-                    let status = r.status();
-                    let err_body = r.text().await.unwrap_or_default();
-                    return Err(format!("API 错误 ({}): {}", status, err_body));
-                }
-                r
-            }
-            Err(e) => return Err(format!("请求失败: {}", e)),
-        };
+        let resp = send_json_with_retry(
+            &http_client,
+            &url,
+            &headers,
+            &body,
+            network.retry_enabled,
+            network.retry_max,
+        )
+        .await?;
 
         let (assistant_msg, tool_calls, usage) =
             collect_stream(resp, &window, &session_id, &mut abort_rx).await?;
@@ -717,6 +718,55 @@ fn split_messages(messages: &[Value]) -> (Vec<Value>, Vec<Value>) {
     (kept, history)
 }
 
+/// 构建 HTTP 客户端：复用 NetworkConfig::build_client（G12）。
+fn build_http_client(network: &crate::settings::NetworkConfig) -> Result<reqwest::Client, String> {
+    network.build_client()
+}
+
+/// 发送 JSON 请求并带重试（G12）：仅对连接失败与 5xx 服务端错误重试；
+/// 4xx（参数/鉴权错误）不重试，避免重复计费与掩盖配置问题。
+async fn send_json_with_retry(
+    client: &reqwest::Client,
+    url: &str,
+    headers: &[(String, String)],
+    body: &Value,
+    retry_enabled: bool,
+    retry_max: u32,
+) -> Result<reqwest::Response, String> {
+    let max = if retry_enabled { retry_max.min(3) } else { 0 };
+    let mut attempt = 0u32;
+    loop {
+        let mut req = client.post(url);
+        for (k, v) in headers {
+            req = req.header(k.as_str(), v.as_str());
+        }
+        let resp = match req.json(body).send().await {
+            Ok(r) => r,
+            Err(e) => {
+                if attempt < max {
+                    attempt += 1;
+                    tracing::warn!("请求失败（{e}），第 {attempt}/{max} 次重试");
+                    tokio::time::sleep(std::time::Duration::from_secs(attempt as u64)).await;
+                    continue;
+                }
+                return Err(format!("请求失败（已重试 {attempt} 次）: {e}"));
+            }
+        };
+        if resp.status().is_success() {
+            return Ok(resp);
+        }
+        let status = resp.status();
+        if status.is_server_error() && attempt < max {
+            attempt += 1;
+            tracing::warn!("服务端错误 {status}，第 {attempt}/{max} 次重试");
+            tokio::time::sleep(std::time::Duration::from_secs(attempt as u64)).await;
+            continue;
+        }
+        let err_body = resp.text().await.unwrap_or_default();
+        return Err(format!("API 错误 ({}): {}", status, err_body));
+    }
+}
+
 /// 调用模型把一段对话历史压缩为中文摘要（非流式）。
 async fn summarize_history(
     api_base: &str,
@@ -724,6 +774,7 @@ async fn summarize_history(
     model: &str,
     history: &[Value],
     upstream_headers: &Option<HashMap<String, String>>,
+    network: &crate::settings::NetworkConfig,
 ) -> Result<String, String> {
     let url = format!("{}/chat/completions", api_base.trim_end_matches('/'));
     let history_json = serde_json::to_string(history).unwrap_or_default();
@@ -741,26 +792,19 @@ async fn summarize_history(
         ],
         "stream": false,
     });
-    let client = reqwest::Client::new();
-    let mut req = client
-        .post(&url)
-        .header("Authorization", format!("Bearer {}", api_key))
-        .header("Content-Type", "application/json");
-    if let Some(headers) = upstream_headers {
-        for (k, v) in headers {
-            req = req.header(k.as_str(), v.as_str());
+    let http_client = build_http_client(network)?;
+    let mut headers: Vec<(String, String)> = vec![
+        ("Authorization".to_string(), format!("Bearer {}", api_key)),
+        ("Content-Type".to_string(), "application/json".to_string()),
+    ];
+    if let Some(hs) = upstream_headers {
+        for (k, v) in hs {
+            headers.push((k.clone(), v.clone()));
         }
     }
-    let resp = req
-        .json(&body)
-        .send()
+    let resp = send_json_with_retry(&http_client, &url, &headers, &body, network.retry_enabled, network.retry_max)
         .await
         .map_err(|e| format!("压缩请求失败: {e}"))?;
-    if !resp.status().is_success() {
-        let status = resp.status();
-        let err_body = resp.text().await.unwrap_or_default();
-        return Err(format!("压缩请求错误 ({}): {}", status, err_body));
-    }
     let parsed: Value = resp
         .json()
         .await

@@ -4,14 +4,18 @@
 //! 可启停、可定位的条目列表。
 
 use crate::{settings::DesktopSettings, state::AppState};
-use serde::Serialize;
-use serde_json::Value;
+use futures::StreamExt;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::{
     fs,
+    io::Write,
     path::{Path, PathBuf},
 };
-use tauri::State;
+use tauri::{Emitter, State};
 use walkdir::WalkDir;
+use zip::ZipArchive;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CapabilitySourceDto {
@@ -1090,7 +1094,93 @@ fn load_workspace_index(workspace: &Path, cache: &Path) -> Vec<IndexedFile> {
     files
 }
 
-/// 工作区轻量检索：文件名与内容关键词匹配，返回 top-k 片段。
+// ─── Workspace RAG (hybrid search, G8) ────────────────
+
+const STOPWORDS_EN: &[&str] = &[
+    "the", "is", "a", "an", "and", "or", "to", "of", "in", "on", "for", "with",
+    "at", "by", "from", "as", "be", "are", "was", "this", "that", "it", "do",
+    "does", "have", "has", "will", "can", "could", "should", "would", "please",
+    "file", "code", "how", "what", "why", "when", "where", "which", "who",
+];
+
+/// 查询分词：ASCII 词 + 中文连续段；过滤停用词与单字虚词。
+fn tokenize_query(query: &str) -> Vec<String> {
+    let lower = query.to_lowercase();
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut cur_is_cjk = false;
+    for ch in lower.chars() {
+        let cjk = (ch as u32) >= 0x4E00 && (ch as u32) <= 0x9FFF;
+        if ch.is_alphanumeric() {
+            if cjk != cur_is_cjk && !current.is_empty() {
+                tokens.push(std::mem::take(&mut current));
+            }
+            current.push(ch);
+            cur_is_cjk = cjk;
+        } else if !current.is_empty() {
+            tokens.push(std::mem::take(&mut current));
+        }
+    }
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+    tokens
+        .into_iter()
+        .filter(|t| {
+            let is_cjk = t.chars().next().map(|ch| (ch as u32) >= 0x4E00 && (ch as u32) <= 0x9FFF).unwrap_or(false);
+            if is_cjk {
+                t.chars().count() >= 2 // 过滤单字虚词（的/了/在…）
+            } else {
+                t.len() >= 2 && !STOPWORDS_EN.contains(&t.as_str())
+            }
+        })
+        .collect()
+}
+
+/// 文件级评分：文件名/路径命中 + 内容逐 token 命中（跨行聚合）+ 高频词降权。
+fn score_file(
+    name: &str,
+    rel_path: &str,
+    content: &str,
+    tokens: &[String],
+) -> (usize, Vec<(usize, String)>) {
+    let name_l = name.to_lowercase();
+    let path_l = rel_path.to_lowercase();
+    let content_l = content.to_lowercase();
+    let mut score = 0usize;
+    let mut line_hits: Vec<(usize, usize, String)> = Vec::new();
+    for (i, line) in content.lines().enumerate() {
+        let l = line.to_lowercase();
+        let mut hits = 0usize;
+        for t in tokens {
+            if l.contains(t) {
+                hits += 1;
+            }
+        }
+        if hits > 0 {
+            score += hits * 2;
+            line_hits.push((i + 1, hits, line.trim().to_string()));
+        }
+    }
+    for t in tokens {
+        if name_l.contains(t) {
+            score += 12;
+        }
+        if path_l.contains(t) {
+            score += 6;
+        }
+        // 高频词降权（通用词出现在 100+ 行说明区分度低）
+        let count = content_l.matches(t).count();
+        if count > 100 {
+            score = score.saturating_sub(3);
+        }
+    }
+    line_hits.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.2.len().cmp(&b.2.len())));
+    (score, line_hits.into_iter().map(|(l, _, s)| (l, s)).collect())
+}
+
+/// 工作区混合检索：多 token 文件级评分（文件名/路径/内容跨行聚合），
+/// 语义引擎不可用时自动降级为关键词模式。
 #[tauri::command]
 pub async fn workspace_search(
     state: State<'_, AppState>,
@@ -1101,44 +1191,287 @@ pub async fn workspace_search(
     if !workspace.is_dir() {
         return Err("未选择工作区".into());
     }
-    let query = query.trim().to_string();
-    if query.is_empty() {
+    let tokens = tokenize_query(&query);
+    if tokens.is_empty() {
         return Ok(Vec::new());
     }
     let limit = limit.unwrap_or(10).min(50);
     let workspace_clone = workspace.clone();
-    let hits = tokio::task::spawn_blocking(move || {
+    let tokens_clone = tokens.clone();
+
+    // 关键词初筛：文件级评分，取 top 候选（每文件最多 2 条最佳命中行）
+    let keyword_candidates = tokio::task::spawn_blocking(move || {
         let cache = workspace_index_cache(&workspace_clone);
         let files = load_workspace_index(&workspace_clone, &cache);
-        let q = query.to_lowercase();
-        let mut hits = Vec::new();
+        let mut candidates: Vec<(usize, String, Vec<(usize, String)>)> = Vec::new();
         for file in files {
-            let name_score = file.name.to_lowercase().matches(&q).count();
             let full_path = workspace_clone.join(&file.path);
-            let Ok(content) = fs::read_to_string(&full_path) else {
+            let Ok(content) = fs::read_to_string(&full_path) else { continue };
+            let (score, lines) = score_file(&file.name, &file.path, &content, &tokens_clone);
+            if score == 0 || lines.is_empty() {
                 continue;
-            };
-            for (i, line) in content.lines().enumerate() {
-                if line.to_lowercase().contains(&q) {
-                    hits.push(WorkspaceSearchHitDto {
-                        path: file.path.clone(),
-                        line: i + 1,
-                        snippet: line.trim().chars().take(200).collect(),
-                        score: name_score * 10 + 1,
-                    });
-                }
             }
-            if hits.len() >= limit * 30 {
+            candidates.push((score, file.path.clone(), lines.into_iter().take(2).collect()));
+            if candidates.len() >= 60 {
                 break;
             }
         }
-        hits.sort_by(|a, b| b.score.cmp(&a.score));
-        hits.truncate(limit);
-        hits
+        candidates.sort_by(|a, b| b.0.cmp(&a.0));
+        candidates.truncate(20);
+        candidates
     })
     .await
     .map_err(|e| e.to_string())?;
-    Ok(hits)
+
+    if keyword_candidates.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // 语义增强：检测到 Ollama embedding 模型时，对候选文件计算余弦相似度并融合（G8）
+    let embed_model = ollama_embed_model().await;
+    let mut scored: Vec<(f64, WorkspaceSearchHitDto)> = Vec::new();
+    if let Some(model) = &embed_model {
+        let query_vec = embed_text(model, &query).await;
+        for (kw_score, rel_path, lines) in &keyword_candidates {
+            let full_path = workspace.join(rel_path);
+            let content = fs::read_to_string(&full_path).unwrap_or_default();
+            let content_trunc: String = content.chars().take(8000).collect();
+            let sim = match &query_vec {
+                Some(qv) => embed_text(model, &content_trunc)
+                    .await
+                    .map(|cv| cosine_sim(qv, &cv))
+                    .unwrap_or(0.0),
+                None => 0.0,
+            };
+            // 融合：关键词分 + 语义相似度加权（相似度 0~1 映射到 0~80 分）
+            let fused = *kw_score as f64 + sim as f64 * 80.0;
+            for (line, snippet) in lines {
+                scored.push((
+                    fused,
+                    WorkspaceSearchHitDto {
+                        path: rel_path.clone(),
+                        line: *line,
+                        snippet: snippet.clone(),
+                        score: fused as usize,
+                    },
+                ));
+            }
+        }
+    } else {
+        for (kw_score, rel_path, lines) in &keyword_candidates {
+            for (line, snippet) in lines {
+                scored.push((
+                    *kw_score as f64,
+                    WorkspaceSearchHitDto {
+                        path: rel_path.clone(),
+                        line: *line,
+                        snippet: snippet.clone(),
+                        score: *kw_score,
+                    },
+                ));
+            }
+        }
+    }
+
+    scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+    Ok(scored.into_iter().take(limit).map(|(_, dto)| dto).collect())
+}
+
+/// 检测本地 Ollama 的 embedding 模型（G8）：优先 bge-m3，其次 nomic/embed 系列。
+async fn ollama_embed_model() -> Option<String> {
+    let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(2))
+        .build()
+        .ok()?;
+    let resp = client.get("http://localhost:11434/api/tags").send().await.ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    let value: Value = resp.json().await.ok()?;
+    let mut candidates: Vec<String> = Vec::new();
+    let mut preferred: Option<String> = None;
+    for model in value["models"].as_array()? {
+        let name = model["name"].as_str().unwrap_or("").to_string();
+        let lower = name.to_lowercase();
+        if lower.contains("bge") || lower.contains("nomic") || lower.contains("embed") {
+            if preferred.is_none() && lower.contains("bge-m3") {
+                preferred = Some(name.clone());
+            }
+            candidates.push(name);
+        }
+    }
+    preferred.or_else(|| candidates.first().cloned())
+}
+
+/// 调用 Ollama /api/embeddings 获取文本向量。
+async fn embed_text(model: &str, text: &str) -> Option<Vec<f32>> {
+    let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .build()
+        .ok()?;
+    let body = json!({ "model": model, "prompt": text });
+    let resp = client
+        .post("http://localhost:11434/api/embeddings")
+        .json(&body)
+        .send()
+        .await
+        .ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    let value: Value = resp.json().await.ok()?;
+    // 新版返回 embeddings: [[...]]，旧版返回 embedding: [...]
+    if let Some(arr) = value["embeddings"].as_array().and_then(|a| a.first()) {
+        return arr
+            .as_array()
+            .map(|v| v.iter().filter_map(|x| x.as_f64().map(|f| f as f32)).collect());
+    }
+    value["embedding"]
+        .as_array()
+        .map(|v| v.iter().filter_map(|x| x.as_f64().map(|f| f as f32)).collect())
+}
+
+/// 余弦相似度。
+fn cosine_sim(a: &[f32], b: &[f32]) -> f32 {
+    if a.is_empty() || b.is_empty() || a.len() != b.len() {
+        return 0.0;
+    }
+    let mut dot = 0.0f32;
+    let mut na = 0.0f32;
+    let mut nb = 0.0f32;
+    for i in 0..a.len() {
+        dot += a[i] * b[i];
+        na += a[i] * a[i];
+        nb += b[i] * b[i];
+    }
+    if na <= 0.0 || nb <= 0.0 {
+        return 0.0;
+    }
+    dot / (na.sqrt() * nb.sqrt())
+}
+
+/// 索引与语义引擎状态（G8）。
+#[derive(Debug, Clone, Serialize)]
+pub struct WorkspaceIndexStatusDto {
+    pub workspace: String,
+    pub file_count: usize,
+    pub cache_path: String,
+    pub semantic_engine: String,
+    pub semantic_model: Option<String>,
+}
+
+#[tauri::command]
+pub async fn workspace_index_status(
+    state: State<'_, AppState>,
+) -> Result<WorkspaceIndexStatusDto, String> {
+    let workspace = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    let cache = workspace_index_cache(&workspace);
+    let file_count = fs::read_to_string(&cache)
+        .ok()
+        .and_then(|raw| serde_json::from_str::<Vec<IndexedFile>>(&raw).ok())
+        .map(|files| files.len())
+        .unwrap_or(0);
+
+    // 检测本地语义引擎（Ollama），可用则标记语义模式
+    let (engine, model) = if ollama_available().await {
+        ("ollama".to_string(), Some("bge-m3 / nomic-embed-text（需在 Ollama 拉取）".to_string()))
+    } else {
+        ("keyword".to_string(), None)
+    };
+    Ok(WorkspaceIndexStatusDto {
+        workspace: workspace.to_string_lossy().to_string(),
+        file_count,
+        cache_path: cache.to_string_lossy().to_string(),
+        semantic_engine: engine,
+        semantic_model: model,
+    })
+}
+
+/// 重建工作区索引缓存（G8）：强制重新遍历并落盘。
+#[tauri::command]
+pub async fn workspace_index_rebuild(
+    state: State<'_, AppState>,
+) -> Result<WorkspaceIndexStatusDto, String> {
+    let workspace = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    if !workspace.is_dir() {
+        return Err("未选择工作区".into());
+    }
+    let cache = workspace_index_cache(&workspace);
+    let cache_for_job = cache.clone();
+    let workspace_for_job = workspace.clone();
+    let files = tokio::task::spawn_blocking(move || {
+        let files = build_workspace_index(&workspace_for_job);
+        if let Some(parent) = cache_for_job.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let _ = fs::write(&cache_for_job, serde_json::to_string(&files).unwrap_or_default());
+        files
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(WorkspaceIndexStatusDto {
+        workspace: workspace.to_string_lossy().to_string(),
+        file_count: files.len(),
+        cache_path: cache.to_string_lossy().to_string(),
+        semantic_engine: if ollama_available().await { "ollama".into() } else { "keyword".into() },
+        semantic_model: None,
+    })
+}
+
+/// 清除工作区索引缓存（G8）：删除缓存文件并返回空状态。
+#[tauri::command]
+pub async fn workspace_index_clear(
+    state: State<'_, AppState>,
+) -> Result<WorkspaceIndexStatusDto, String> {
+    let workspace = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    let cache = workspace_index_cache(&workspace);
+    if cache.exists() {
+        let _ = fs::remove_file(&cache);
+    }
+    Ok(WorkspaceIndexStatusDto {
+        workspace: workspace.to_string_lossy().to_string(),
+        file_count: 0,
+        cache_path: cache.to_string_lossy().to_string(),
+        semantic_engine: if ollama_available().await { "ollama".into() } else { "keyword".into() },
+        semantic_model: None,
+    })
+}
+
+/// 检测本地 Ollama 服务是否可用（localhost:11434）。
+async fn ollama_available() -> bool {
+    let client = match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(2))
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+    match client.get("http://localhost:11434/api/tags").send().await {
+        Ok(resp) => resp.status().is_success(),
+        Err(_) => false,
+    }
+}
+
+// ─── App info (H3) ───────────────────────────────────
+
+/// 应用信息：版本、构建时间、签名状态。
+#[derive(Debug, Clone, Serialize)]
+pub struct AppInfoDto {
+    pub version: String,
+    pub build_time: String,
+    pub signed: bool,
+}
+
+/// 返回应用基础信息（H3）：关于页展示版本与签名状态。
+/// 签名状态由构建时环境变量 WTH_SIGNED=1 标记（配置证书打包时设置）。
+#[tauri::command]
+pub async fn app_info() -> Result<AppInfoDto, String> {
+    Ok(AppInfoDto {
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        build_time: option_env!("WTH_BUILD_TIME").unwrap_or("unknown").to_string(),
+        signed: option_env!("WTH_SIGNED").is_some(),
+    })
 }
 
 // ─── Update check ────────────────────────────────────
@@ -1220,6 +1553,335 @@ pub async fn update_check() -> Result<UpdateCheckDto, String> {
         release_url,
         notes,
     })
+}
+
+// ─── Update download (G11) ────────────────────────────
+
+/// 更新下载结果。
+#[derive(Debug, Clone, Serialize)]
+pub struct UpdateDownloadResultDto {
+    pub file_path: String,
+    pub file_name: String,
+    pub bytes: u64,
+    pub sha256: String,
+    pub verified: bool,
+}
+
+/// 下载进度事件（update:progress）。
+#[derive(Debug, Clone, Serialize)]
+pub struct UpdateProgressDto {
+    pub received: u64,
+    pub total: u64,
+    pub percent: u8,
+}
+
+/// 下载最新版 NSIS 安装包（G11）：GitHub Releases → 进度回传 → sha256 校验。
+#[tauri::command]
+pub async fn update_download(window: tauri::Window) -> Result<UpdateDownloadResultDto, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    // 1. 获取最新 release 信息
+    let resp = client
+        .get("https://api.github.com/repos/Wan-1230/Wide-Thought-Host/releases/latest")
+        .header("User-Agent", "WTH-Desktop")
+        .send()
+        .await
+        .map_err(|e| format!("网络请求失败：{e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("GitHub API 返回状态码 {}", resp.status()));
+    }
+    let value: Value = resp.json().await.map_err(|e| format!("解析响应失败：{e}"))?;
+    let body = value.get("body").and_then(|v| v.as_str()).unwrap_or("");
+    // 优先选择 NSIS 安装包（.exe），其次任意资产
+    let assets = value.get("assets").and_then(|a| a.as_array()).cloned().unwrap_or_default();
+    let asset = assets
+        .iter()
+        .find(|a| a["name"].as_str().map(|n| n.ends_with(".exe")).unwrap_or(false))
+        .or_else(|| assets.first());
+    let Some(asset) = asset else {
+        return Err("该版本没有可下载的安装资产".into());
+    };
+    let name = asset["name"].as_str().unwrap_or("wth-setup.exe").to_string();
+    let download_url = asset["browser_download_url"].as_str().ok_or("资产下载地址缺失")?;
+    let total = asset["size"].as_u64().unwrap_or(0);
+
+    // 2. 流式下载到临时目录
+    let dir = std::env::temp_dir().join("wth-update");
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let file_path = dir.join(&name);
+    let resp = client
+        .get(download_url)
+        .header("User-Agent", "WTH-Desktop")
+        .send()
+        .await
+        .map_err(|e| format!("下载失败：{e}"))?
+        .error_for_status()
+        .map_err(|e| format!("下载失败：{e}"))?;
+    let mut file = fs::File::create(&file_path).map_err(|e| e.to_string())?;
+    let mut stream = resp.bytes_stream();
+    let mut hasher = Sha256::new();
+    let mut received: u64 = 0;
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| format!("下载中断：{e}"))?;
+        hasher.update(&chunk);
+        file.write_all(&chunk).map_err(|e| format!("写入文件失败：{e}"))?;
+        received += chunk.len() as u64;
+        if total > 0 {
+            let percent = ((received as f64 / total as f64) * 100.0).min(100.0) as u8;
+            let _ = window.emit(
+                "update:progress",
+                UpdateProgressDto { received, total, percent },
+            );
+        }
+    }
+    file.flush().map_err(|e| e.to_string())?;
+    let digest = format!("{:x}", hasher.finalize());
+
+    // 3. 与 Release 说明中的哈希比对（若声明）
+    let mut verified = false;
+    let expected = body
+        .split(['\n', '\r'])
+        .map(|line| line.trim())
+        .filter(|line| line.to_lowercase().contains("sha256"))
+        .find_map(|line| {
+            line.split(|c: char| !c.is_ascii_hexdigit() && !c.is_ascii_alphabetic())
+                .find(|tok| tok.len() == 64)
+        });
+    if let Some(expected) = expected {
+        verified = expected.eq_ignore_ascii_case(&digest);
+        if !verified {
+            let _ = fs::remove_file(&file_path);
+            return Err(format!(
+                "校验失败：安装包哈希不匹配（期望 {}，实际 {}），已删除下载文件",
+                expected, digest
+            ));
+        }
+    }
+
+    Ok(UpdateDownloadResultDto {
+        file_path: file_path.to_string_lossy().to_string(),
+        file_name: name,
+        bytes: received,
+        sha256: digest,
+        verified,
+    })
+}
+
+// ─── Plugin market (G9) ───────────────────────────────
+
+/// 远程插件清单条目（来自索引 JSON）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PluginMarketEntryDto {
+    pub name: String,
+    pub description: String,
+    pub version: String,
+    pub author: String,
+    pub download_url: String,
+    pub sha256: String,
+    pub permissions: Vec<String>,
+    pub verified: bool,
+}
+
+/// 市场列表响应：远程条目 + 本地状态对比。
+#[derive(Debug, Clone, Serialize)]
+pub struct PluginMarketListDto {
+    pub source: String,
+    pub entries: Vec<PluginMarketItemDto>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PluginMarketItemDto {
+    #[serde(flatten)]
+    pub entry: PluginMarketEntryDto,
+    /// 本地是否已安装
+    pub installed: bool,
+    /// 本地已安装版本（未安装为 None）
+    pub installed_version: Option<String>,
+    /// 是否有可更新的新版本
+    pub has_update: bool,
+}
+
+/// 默认插件市场源（GitHub 仓库静态索引）。
+const DEFAULT_PLUGIN_MARKET_URL: &str =
+    "https://raw.githubusercontent.com/Wan-1230/Wide-Thought-Host/main/plugin-index.json";
+
+fn local_plugin_version(plugins_dir: &Path, name: &str) -> Option<String> {
+    let meta = plugins_dir.join(name).join("plugin.json");
+    let content = fs::read_to_string(&meta).ok()?;
+    let parsed: Value = serde_json::from_str(&content).ok()?;
+    parsed["version"].as_str().map(|s| s.to_string())
+}
+
+/// 拉取插件市场清单（G9），与本地安装状态合并。
+#[tauri::command]
+pub async fn plugin_market_list(
+    source: Option<String>,
+) -> Result<PluginMarketListDto, String> {
+    let url = source.unwrap_or_else(|| DEFAULT_PLUGIN_MARKET_URL.to_string());
+    let plugins_dir = xai_grok_config::wth_home().join("plugins");
+    let mut dto = PluginMarketListDto {
+        source: url.clone(),
+        entries: Vec::new(),
+        error: None,
+    };
+    let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let resp = match client.get(&url).send().await {
+        Ok(r) if r.status().is_success() => r,
+        Ok(r) => {
+            dto.error = Some(format!("市场源返回 HTTP {}", r.status()));
+            return Ok(dto);
+        }
+        Err(e) => {
+            dto.error = Some(format!("无法访问市场源：{e}"));
+            return Ok(dto);
+        }
+    };
+    let text = resp.text().await.map_err(|e| format!("读取市场源失败：{e}"))?;
+    let parsed: Value = match serde_json::from_str(&text) {
+        Ok(v) => v,
+        Err(e) => {
+            dto.error = Some(format!("市场索引格式错误：{e}"));
+            return Ok(dto);
+        }
+    };
+    let list = parsed.get("plugins").and_then(|p| p.as_array()).cloned().unwrap_or_default();
+    for item in list {
+        let entry: PluginMarketEntryDto = match serde_json::from_value(item) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        let installed_version = local_plugin_version(&plugins_dir, &entry.name);
+        let installed = installed_version.is_some();
+        let has_update = installed_version
+            .as_deref()
+            .map(|v| version_gt(&entry.version, v))
+            .unwrap_or(false);
+        dto.entries.push(PluginMarketItemDto {
+            entry,
+            installed,
+            installed_version,
+            has_update,
+        });
+    }
+    Ok(dto)
+}
+
+/// 从市场安装/更新插件：下载 zip → 校验 sha256 → 解压到 ~/.wth/plugins/{name}。
+#[tauri::command]
+pub async fn plugin_market_install(entry: PluginMarketEntryDto) -> Result<String, String> {
+    let name = entry.name.clone();
+    if name.is_empty() || name.contains(['/', '\\']) || name.contains("..") {
+        return Err("插件名称非法".into());
+    }
+    let plugins_dir = xai_grok_config::wth_home().join("plugins");
+    fs::create_dir_all(&plugins_dir).map_err(|e| e.to_string())?;
+    let dest = plugins_dir.join(&name);
+
+    // 1. 下载插件包
+    let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let bytes = client
+        .get(&entry.download_url)
+        .send()
+        .await
+        .map_err(|e| format!("下载插件失败：{e}"))?
+        .error_for_status()
+        .map_err(|e| format!("下载插件失败：{e}"))?
+        .bytes()
+        .await
+        .map_err(|e| format!("读取插件包失败：{e}"))?;
+
+    // 2. 校验 sha256
+    if !entry.sha256.trim().is_empty() {
+        let mut hasher = Sha256::new();
+        hasher.update(&bytes);
+        let digest = format!("{:x}", hasher.finalize());
+        if !digest.eq_ignore_ascii_case(&entry.sha256) {
+            return Err(format!(
+                "校验失败：插件包哈希不匹配（期望 {}，实际 {}），已拒绝安装",
+                entry.sha256, digest
+            ));
+        }
+    }
+
+    // 3. 解压（zip-slip 防护：拒绝越界路径）
+    let reader = std::io::Cursor::new(bytes);
+    let mut archive = ZipArchive::new(reader).map_err(|e| format!("插件包不是有效的 zip：{e}"))?;
+    let staging = plugins_dir.join(format!(".staging-{name}"));
+    if staging.exists() {
+        let _ = fs::remove_dir_all(&staging);
+    }
+    fs::create_dir_all(&staging).map_err(|e| e.to_string())?;
+    for i in 0..archive.len() {
+        let mut file = archive
+            .by_index(i)
+            .map_err(|e| format!("读取插件包条目失败：{e}"))?;
+        let entry_path = file.name().to_string();
+        let safe_path = entry_path.replace('\\', "/");
+        if safe_path.contains("..") {
+            let _ = fs::remove_dir_all(&staging);
+            return Err("插件包包含非法路径，已拒绝安装".into());
+        }
+        let out_path = staging.join(&safe_path);
+        if !out_path.starts_with(&staging) {
+            let _ = fs::remove_dir_all(&staging);
+            return Err("插件包路径越界，已拒绝安装".into());
+        }
+        if file.is_dir() {
+            fs::create_dir_all(&out_path).map_err(|e| e.to_string())?;
+        } else {
+            if let Some(parent) = out_path.parent() {
+                fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            }
+            let mut out = fs::File::create(&out_path).map_err(|e| e.to_string())?;
+            std::io::copy(&mut file, &mut out).map_err(|e| e.to_string())?;
+        }
+    }
+
+    // 4. 替换目标目录（先备份旧目录，解压失败可回滚）
+    let backup = plugins_dir.join(format!(".backup-{name}"));
+    if backup.exists() {
+        let _ = fs::remove_dir_all(&backup);
+    }
+    if dest.exists() {
+        fs::rename(&dest, &backup).map_err(|e| e.to_string())?;
+    }
+    match fs::rename(&staging, &dest) {
+        Ok(()) => {
+            let _ = fs::remove_dir_all(&backup);
+            Ok(format!("插件「{name}」v{} 安装成功", entry.version))
+        }
+        Err(e) => {
+            if backup.exists() && !dest.exists() {
+                let _ = fs::rename(&backup, &dest);
+            }
+            Err(format!("安装插件失败：{e}"))
+        }
+    }
+}
+
+/// 卸载插件：删除目录并清理启用状态。
+#[tauri::command]
+pub async fn plugin_uninstall(name: String) -> Result<String, String> {
+    if name.is_empty() || name.contains(['/', '\\']) || name.contains("..") {
+        return Err("插件名称非法".into());
+    }
+    let plugins_dir = xai_grok_config::wth_home().join("plugins");
+    let dest = plugins_dir.join(&name);
+    if !dest.is_dir() {
+        return Err(format!("插件「{name}」不存在"));
+    }
+    fs::remove_dir_all(&dest).map_err(|e| format!("卸载失败：{e}"))?;
+    Ok(format!("插件「{name}」已卸载"))
 }
 
 /// 从本地目录导入插件（复制到 ~/.wth/plugins/{名称}）。
@@ -1628,6 +2290,28 @@ pub async fn diagnostics_get(state: State<'_, AppState>) -> Result<Vec<Diagnosti
         detail: agent_detail,
     });
 
+    // 工作区索引（G8）
+    {
+        let workspace = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+        let cache = workspace_index_cache(&workspace);
+        let file_count = fs::read_to_string(&cache)
+            .ok()
+            .and_then(|raw| serde_json::from_str::<Vec<IndexedFile>>(&raw).ok())
+            .map(|files| files.len())
+            .unwrap_or(0);
+        let detail = if workspace.is_dir() {
+            let engine = if ollama_available().await { "语义检索（Ollama）" } else { "关键词检索" };
+            format!("已索引 {} 个文件，模式：{}", file_count, engine)
+        } else {
+            "未选择工作区".to_string()
+        };
+        items.push(DiagnosticItemDto {
+            name: "工作区索引".into(),
+            status: if workspace.is_dir() { "ok".into() } else { "warn".into() },
+            detail,
+        });
+    }
+
     // 凭据存储
     let cred = credentials_roundtrip();
     items.push(DiagnosticItemDto {
@@ -1704,6 +2388,32 @@ mod tests {
         let with_ws = memory_relevance(&entry, "重构", "wth");
         let without_ws = memory_relevance(&entry, "重构", "other");
         assert!(with_ws >= without_ws);
+    }
+
+    #[test]
+    fn tokenize_query_filters_stopwords_and_single_chars() {
+        use super::{tokenize_query, STOPWORDS_EN};
+        assert!(!STOPWORDS_EN.is_empty());
+        let tokens = tokenize_query("please fix the login timeout in auth service");
+        assert!(tokens.iter().any(|t| t == "login"));
+        assert!(tokens.iter().any(|t| t == "timeout"));
+        assert!(tokens.iter().any(|t| t == "auth"));
+        assert!(!tokens.iter().any(|t| t.as_str() == "the"));
+        assert!(!tokens.iter().any(|t| t.as_str() == "please"));
+        let cjk = tokenize_query("处理登录超时的代码");
+        assert!(cjk.iter().any(|t| t.contains("登录") || t.contains("超时")));
+        assert!(!cjk.iter().any(|t| t.chars().count() < 2));
+    }
+
+    #[test]
+    fn cosine_sim_scores_similar_vectors() {
+        use super::cosine_sim;
+        assert_eq!(cosine_sim(&[], &[]), 0.0);
+        assert_eq!(cosine_sim(&[1.0, 0.0], &[0.0, 1.0]), 0.0);
+        let same = cosine_sim(&[1.0, 2.0, 3.0], &[1.0, 2.0, 3.0]);
+        assert!((same - 1.0).abs() < 1e-5);
+        let partial = cosine_sim(&[1.0, 0.0], &[1.0, 1.0]);
+        assert!(partial > 0.5 && partial < 1.0);
     }
 
     #[test]

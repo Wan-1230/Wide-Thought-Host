@@ -340,6 +340,8 @@ pub struct DesktopSettings {
     pub prompt_templates: Vec<PromptTemplate>,
     /// 工作流定义（G7）
     pub workflows: Vec<WorkflowConfig>,
+    /// 网络配置（G12）：代理模式 / 请求超时 / 自动重试
+    pub network: NetworkConfig,
 }
 
 impl Default for DesktopSettings {
@@ -386,6 +388,7 @@ impl Default for DesktopSettings {
             onboarding_completed: false,
             prompt_templates: default_prompt_templates(),
             workflows: default_workflows(),
+            network: NetworkConfig::default(),
         }
     }
 }
@@ -435,6 +438,60 @@ impl Default for ProviderConfig {
             enabled: true,
             builtin: false,
         }
+    }
+}
+
+/// 网络配置（G12）：代理模式、请求超时与自动重试。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct NetworkConfig {
+    /// 代理模式：off（关闭）/ system（系统代理）/ custom（自定义代理）
+    pub proxy_mode: String,
+    /// 自定义代理地址（proxy_mode = custom 时生效），如 http://127.0.0.1:7890
+    pub proxy_url: Option<String>,
+    /// 请求超时（秒），连接阶段超时；流式响应不设整体超时
+    pub request_timeout_secs: u64,
+    /// 是否启用自动重试（仅对连接失败与 5xx 生效）
+    pub retry_enabled: bool,
+    /// 最大重试次数（0~3）
+    pub retry_max: u32,
+}
+
+impl Default for NetworkConfig {
+    fn default() -> Self {
+        Self {
+            proxy_mode: "off".into(),
+            proxy_url: None,
+            request_timeout_secs: 15,
+            retry_enabled: true,
+            retry_max: 2,
+        }
+    }
+}
+
+impl NetworkConfig {
+    /// 按配置构建 HTTP 客户端（G12）：代理模式 + 连接超时。
+    /// 流式响应不设整体超时，只限制连接阶段，避免长流被切断。
+    pub fn build_client(&self) -> Result<reqwest::Client, String> {
+        let mut builder = reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(self.request_timeout_secs.max(1)));
+        match self.proxy_mode.as_str() {
+            "off" => {
+                builder = builder.no_proxy();
+            }
+            "custom" => {
+                if let Some(proxy_url) = &self.proxy_url {
+                    if !proxy_url.trim().is_empty() {
+                        let proxy = reqwest::Proxy::all(proxy_url)
+                            .map_err(|e| format!("代理地址无效：{e}"))?;
+                        builder = builder.proxy(proxy);
+                    }
+                }
+            }
+            // "system"：不设置 proxy，reqwest 默认读取系统代理
+            _ => {}
+        }
+        builder.build().map_err(|e| format!("HTTP 客户端构建失败：{e}"))
     }
 }
 
@@ -667,10 +724,8 @@ pub async fn provider_test(id: String, state: State<'_, AppState>) -> Result<Str
     let key = credentials::read_secret("provider", &provider.id)?
         .ok_or_else(|| "尚未配置 API Key".to_string())?;
     let endpoint = format!("{}/models", provider.base_url.trim_end_matches('/'));
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(15))
-        .build()
-        .map_err(|e| e.to_string())?;
+    let network = state.settings.read().map_err(|e| e.to_string())?.network.clone();
+    let client = network.build_client()?;
     let request = if provider.kind == "anthropic" {
         client
             .get(endpoint)
@@ -810,6 +865,19 @@ pub async fn workspace_git_branch(state: State<'_, AppState>) -> Result<Option<S
 
 #[cfg(test)]
 mod tests {
+    use super::NetworkConfig;
+
+    #[test]
+    fn network_config_defaults_are_safe() {
+        let n = NetworkConfig::default();
+        assert_eq!(n.proxy_mode, "off");
+        assert_eq!(n.request_timeout_secs, 15);
+        assert!(n.retry_enabled);
+        assert_eq!(n.retry_max, 2);
+        // 关闭模式下不应配置代理
+        let client = n.build_client().unwrap();
+        let _ = client; // 构建成功即可
+    }
     use super::{DesktopSettings, default_shortcuts, default_subagents, load_settings, save_settings, validate};
 
     #[test]
