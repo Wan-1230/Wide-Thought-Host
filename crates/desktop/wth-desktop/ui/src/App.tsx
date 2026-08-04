@@ -1,3 +1,16 @@
+// App — 桌面应用整体布局骨架。
+//
+// 布局结构（桌面客户端标准范式）：
+//   ┌────────────────────────────────────────────┐
+//   │ TitleBar（自定义标题栏：名称/会话/窗口控制） │
+//   ├──────┬───────────────────────┬──────────────┤
+//   │ 侧边 │   主对话区 + 输入框    │ 执行面板(右) │
+//   │  栏  │   (+终端/编辑器)       │  可收起可拖宽 │
+//   ├──────┴───────────────────────┴──────────────┤
+//   │ StatusBar（状态栏）                           │
+//   └────────────────────────────────────────────┘
+// 本文件仅承担布局编排与既有业务回调接线，不含新增业务接口。
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { listen } from "@tauri-apps/api/event";
@@ -7,6 +20,8 @@ import {
   Activity,
   Check,
   ChevronDown,
+  Cpu,
+  Database,
   Folder,
   FolderOpen,
   Github,
@@ -19,16 +34,13 @@ import {
   Plus,
   Search,
   Settings as SettingsIcon,
-  Cpu,
-  Sparkles,
   Sun,
   Terminal,
-  X,
-  Brain,
-  Database,
   UserCircle2,
+  X,
 } from "lucide-react";
 
+import { TitleBar } from "./components/titlebar/TitleBar";
 import { Sidebar } from "./components/sidebar/Sidebar";
 import { ChatView } from "./components/chat/ChatView";
 import { FileTree } from "./components/filetree/FileTree";
@@ -36,6 +48,7 @@ import { SettingsModal } from "./components/settings/Settings";
 import { TerminalPanel } from "./components/terminal/TerminalPanel";
 import { EditorPanel } from "./components/editor/EditorPanel";
 import { DiffModal } from "./components/editor/DiffModal";
+import { InspectorPanel } from "./components/inspector/InspectorPanel";
 import { CommandPalette } from "./components/common/CommandPalette";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { OnboardingModal } from "./components/common/OnboardingModal";
@@ -43,7 +56,9 @@ import { QuickAskModal } from "./components/common/QuickAskModal";
 import { ContextMenu, contextMenuPointFromEvent, type ContextMenuItem, type ContextMenuPoint } from "./components/common/ContextMenu";
 import { useChatStore } from "./stores/chat";
 import { useWorkbenchStore } from "./stores/workbench";
+import { useUiStore } from "./stores/ui";
 import { useResizable } from "./hooks/useResizable";
+import { useResponsiveLayout } from "./hooks/useResponsiveLayout";
 import {
   githubAuthCancel,
   githubAuthLogout,
@@ -53,6 +68,7 @@ import {
   onAgentApproval,
   onAgentStream,
   onSubagentResult,
+  providerList,
   sessionCreate,
   sessionDelete,
   sessionLoadMessages,
@@ -66,6 +82,7 @@ import {
   settingsGet,
   type DesktopSettings,
   type GitHubAuthStatus,
+  type ProviderSummary,
   type StreamChunk,
   type WorkspaceInfo,
   workspaceClear,
@@ -74,7 +91,6 @@ import {
   workspaceRecent,
   workspaceSelect,
 } from "./lib/ipc";
-import wthIcon from "@/assets/wth-icon.png";
 
 type NavSection = "sessions" | "files";
 
@@ -90,8 +106,7 @@ function keysMatch(e: KeyboardEvent, keys: string): boolean {
     (p) => !["ctrl", "alt", "shift", "super", "meta", "win", "cmdorctrl", "cmd", "control"].includes(p),
   );
   if (!expected) return false;
-  const actual = e.key.length === 1 ? e.key.toLowerCase() : e.key.toLowerCase();
-  return actual === expected;
+  return e.key.toLowerCase() === expected;
 }
 
 export default function App() {
@@ -117,6 +132,19 @@ export default function App() {
     updateToolCallResult,
   } = useChatStore();
 
+  // ─── 布局状态（stores/ui.ts） ──────────────────────
+  const sidebarCollapsed = useUiStore((s) => s.sidebarCollapsed);
+  const inspectorOpen = useUiStore((s) => s.inspectorOpen);
+  const inspectorForceCollapsed = useUiStore((s) => s.inspectorForceCollapsed);
+  const inspectorWidth = useUiStore((s) => s.inspectorWidth);
+  const setInspectorWidth = useUiStore((s) => s.setInspectorWidth);
+  const toggleInspector = useUiStore((s) => s.toggleInspector);
+  const inspectorVisible = inspectorOpen && !inspectorForceCollapsed;
+  const [inspectorDragging, setInspectorDragging] = useState(false);
+
+  // 响应式：窗口变窄自动折叠侧边栏 / 强制收起右侧面板
+  useResponsiveLayout();
+
   const [navSection, setNavSection] = useState<NavSection>("sessions");
   const [showTerminalPanel, setShowTerminalPanel] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -133,10 +161,10 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchMode, setSearchMode] = useState<"title" | "message">("title");
   const [messageHits, setMessageHits] = useState<import("./lib/ipc").MessageSearchHit[]>([]);
-  const [showPromo, setShowPromo] = useState(true);
   const [github, setGithub] = useState<GitHubAuthStatus | null>(null);
   const [showGithub, setShowGithub] = useState(false);
   const [workspaceMenuPoint, setWorkspaceMenuPoint] = useState<ContextMenuPoint | null>(null);
+  const [providers, setProviders] = useState<ProviderSummary[]>([]);
   const editorVisible = useWorkbenchStore((s) => s.editorVisible);
   const sessionUsage = useChatStore((s) => (activeSessionId ? s.usage[activeSessionId] : undefined));
   const openFileInEditor = useWorkbenchStore((s) => s.openFile);
@@ -160,6 +188,10 @@ export default function App() {
     root.classList.remove("dark", "light");
     root.classList.add(theme);
   }, [theme]);
+
+  const refreshProviders = useCallback(() => {
+    providerList().then(setProviders).catch(() => {});
+  }, []);
 
   const refreshWorkspace = useCallback(async () => {
     const [nextWorkspace, nextBranch, nextRecent] = await Promise.all([
@@ -185,6 +217,7 @@ export default function App() {
     }).catch(console.error);
     refreshWorkspace().catch(console.error);
     refreshGitHub().catch(console.error);
+    refreshProviders();
 
     const unlistenApproval = onAgentApproval((evt) => {
       updateToolCall(evt.session_id, evt.tool_id, {
@@ -277,6 +310,7 @@ export default function App() {
     appendToLastMessage,
     finalizeAssistantMessage,
     refreshGitHub,
+    refreshProviders,
     refreshWorkspace,
     setSessions,
     setStreaming,
@@ -294,8 +328,7 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [github?.state]);
 
-
-  // G3: 激活会话时从磁盘恢复消息内容
+  // 激活会话时从磁盘恢复消息内容
   useEffect(() => {
     if (!activeSessionId) return;
     let cancelled = false;
@@ -311,7 +344,7 @@ export default function App() {
     };
   }, [activeSessionId, setMessages]);
 
-  // G3: 消息变化防抖 2s 自动保存，异常退出后仍可恢复
+  // 消息变化防抖 2s 自动保存，异常退出后仍可恢复
   useEffect(() => {
     if (!activeSessionId) return;
     const msgs = messages[activeSessionId];
@@ -394,13 +427,28 @@ export default function App() {
       if (keysMatch(e, sc.toggle_terminal || "Ctrl+Shift+T")) {
         e.preventDefault();
         setShowTerminalPanel((v) => !v);
+        return;
+      }
+      if (keysMatch(e, sc.toggle_inspector || "Ctrl+Shift+I")) {
+        e.preventDefault();
+        toggleInspector();
+        return;
+      }
+      if (keysMatch(e, sc.focus_input || "Ctrl+L")) {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent("wth:focus-input"));
+        return;
+      }
+      if (keysMatch(e, sc.stop_generation || "Ctrl+Shift+S")) {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent("wth:stop-generation"));
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [appSettings, handleNewSession]);
+  }, [appSettings, handleNewSession, toggleInspector]);
 
-  // G4: 消息模式全文检索（防抖 300ms）
+  // 消息模式全文检索（防抖 300ms）
   useEffect(() => {
     if (searchMode !== "message") {
       setMessageHits([]);
@@ -444,6 +492,34 @@ export default function App() {
     const updated = await sessionSetPinned(id, pinned);
     pinSession(updated.id, Boolean(updated.pinned));
   }, [pinSession]);
+
+  /** 复制会话：创建新会话并克隆消息（纯前端编排，复用既有 IPC）。 */
+  const handleDuplicateSession = useCallback(async (id: string) => {
+    const source = sessions.find((s) => s.id === id);
+    if (!source) return;
+    try {
+      const session = await sessionCreate(`${source.title || "未命名会话"}（副本）`, source.model || "");
+      const msgs = useChatStore.getState().messages[id] || [];
+      if (msgs.length > 0) {
+        const cloned = msgs.map((m) => ({ ...m, id: crypto.randomUUID() }));
+        setMessages(session.id, cloned);
+        await sessionSaveMessages(session.id, cloned).catch(() => {});
+      }
+      upsertSession(session);
+      setActiveSession(session.id);
+      setNavSection("sessions");
+    } catch (error) {
+      console.error("复制会话失败：", error);
+    }
+  }, [sessions, setActiveSession, setMessages, upsertSession]);
+
+  /** 清空当前会话消息（保留会话本身）。 */
+  const handleClearSession = useCallback(async () => {
+    if (!activeSessionId) return;
+    if (!window.confirm("确定清空当前会话的全部消息吗？此操作不可撤销。")) return;
+    setMessages(activeSessionId, []);
+    await sessionSaveMessages(activeSessionId, []).catch(() => {});
+  }, [activeSessionId, setMessages]);
 
   /** 导出会话：从 store 取消息，生成 Markdown / JSON 文件下载。 */
   const handleExportSession = useCallback(
@@ -540,7 +616,7 @@ export default function App() {
       for (const recent of recentWorkspaces.slice(0, 5)) {
         items.push({
           key: `recent-${recent.path}`,
-          icon: recent.active ? <Check size={14} /> : <FolderInputIcon size={14} />,
+          icon: recent.active ? <Check size={14} /> : <FolderOpen size={14} />,
           label: recent.name || recent.path,
           onSelect: async () => {
             await workspaceSelect(recent.path);
@@ -554,106 +630,107 @@ export default function App() {
     return items;
   }, [clearWorkspace, recentWorkspaces, refreshWorkspace, selectWorkspace]);
 
-  const toolbarButtonClass =
-    "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors hover:bg-[color:var(--surface-2)]";
+  // ─── 右侧执行面板拖拽调宽 ──────────────────────────
+  const handleInspectorDragStart = useCallback(
+    (e: ReactMouseEvent) => {
+      e.preventDefault();
+      setInspectorDragging(true);
+      const startX = e.clientX;
+      const startWidth = useUiStore.getState().inspectorWidth;
+      const onMove = (ev: MouseEvent) => {
+        // 面板在右侧，向左拖动增加宽度
+        setInspectorWidth(startWidth + (startX - ev.clientX));
+      };
+      const onUp = () => {
+        setInspectorDragging(false);
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+      };
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    },
+    [setInspectorDragging, setInspectorWidth],
+  );
 
   return (
     <div className="h-full w-full flex flex-col overflow-hidden" style={{ background: "var(--bg-body)", color: "var(--text-primary)" }}>
+      {/* 自定义窗口标题栏 */}
+      <TitleBar sessionTitle={activeSession?.title ?? null} streaming={isStreaming} />
+
       <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* 左侧侧边栏：宽度动画过渡，折叠后仅保留图标 */}
         <aside
-          className="w-64 flex-shrink-0 flex flex-col border-r"
-          style={{ background: "var(--surface-1)", borderColor: "var(--surface-3)" }}
+          className="flex-shrink-0 flex flex-col border-r overflow-hidden layout-transition"
+          style={{
+            width: sidebarCollapsed ? 48 : 244,
+            background: "var(--surface-1)",
+            borderColor: "var(--surface-3)",
+          }}
         >
-          <div className="px-3 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-2 min-w-0">
-              <img src={wthIcon} alt="WTH" className="w-8 h-8 rounded-lg object-cover theme-logo" />
-              <div className="min-w-0">
-                <div className="text-sm font-semibold truncate">Wide Thought Host</div>
-                <div className="text-[10px]" style={{ color: "var(--text-dim)" }}>桌面代理</div>
+          {!sidebarCollapsed && (
+            <>
+              {/* 搜索 */}
+              <div className="px-2.5 pt-2 pb-1.5 flex-shrink-0">
+                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg" style={{ background: "var(--surface-2)" }}>
+                  <Search size={12} style={{ color: "var(--text-muted)" }} />
+                  <input
+                    type="text"
+                    placeholder={searchMode === "message" ? "搜索全部消息…" : "搜索会话…"}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="flex-1 min-w-0 bg-transparent border-none outline-none text-[12px]"
+                    style={{ color: "var(--text-primary)" }}
+                  />
+                </div>
+                <div className="mt-1.5 flex items-center gap-1 px-1 py-0.5 rounded-lg">
+                  {(["title", "message"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => setSearchMode(mode)}
+                      className="flex-1 text-[10.5px] px-2 py-0.5 rounded transition-colors"
+                      style={{
+                        background: searchMode === mode ? "var(--surface-2)" : "transparent",
+                        color: searchMode === mode ? "var(--text-primary)" : "var(--text-muted)",
+                      }}
+                    >
+                      {mode === "title" ? "标题" : "消息内容"}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-            <button
-              onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
-              title={theme === "dark" ? "切换浅色" : "切换深色"}
-              className="p-1.5 rounded-md hover:bg-surface-2 transition-colors"
-              style={{ color: "var(--text-muted)" }}
-            >
-              {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-            </button>
-          </div>
 
-          <div className="px-3 pb-2">
-            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg" style={{ background: "var(--surface-2)" }}>
-              <Search size={13} style={{ color: "var(--text-muted)" }} />
-              <input
-                type="text"
-                placeholder={searchMode === "message" ? "搜索全部消息内容…" : "搜索会话标题…"}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="flex-1 bg-transparent border-none outline-none text-[13px] placeholder:text-[13px]"
-                style={{ color: "var(--text-primary)" }}
-              />
-            </div>
-            <div className="mt-1.5 flex items-center gap-1 px-1 py-0.5 rounded-lg" style={{ background: "var(--surface-1)" }}>
-              {(["title", "message"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setSearchMode(mode)}
-                  className="flex-1 text-[11px] px-2 py-0.5 rounded transition-colors"
-                  style={{
-                    background: searchMode === mode ? "var(--surface-2)" : "transparent",
-                    color: searchMode === mode ? "var(--text-primary)" : "var(--text-muted)",
-                  }}
-                >
-                  {mode === "title" ? "标题" : "消息内容"}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <nav className="px-2 py-1 space-y-0.5">
-            {[
-              { id: "sessions" as const, label: "会话", icon: <MessageSquare size={16} /> },
-              { id: "files" as const, label: "文件", icon: <Folder size={16} /> },
-            ].map((item) => {
-              const active = navSection === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setNavSection(item.id)}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors duration-150 ${
-                    active ? "" : "hover:bg-surface-2"
-                  }`}
-                  style={{
-                    background: active ? "var(--surface-2)" : "transparent",
-                    color: "var(--text-primary)",
-                  }}
-                >
-                  {item.icon}
-                  <span className="flex-1 text-left">{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-
-          {navSection === "sessions" && (
-            <div className="px-3 pt-4 pb-1 flex items-center justify-between">
-              <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--text-dim)" }}>
-                会话
-              </span>
-              <button
-                onClick={handleNewSession}
-                className="p-0.5 rounded hover:bg-surface-2 transition-colors"
-                style={{ color: "var(--text-muted)" }}
-                title="新建会话"
-              >
-                <Plus size={13} />
-              </button>
-            </div>
+              {/* 会话 / 文件切换 */}
+              <nav className="px-2 pb-1 flex items-center gap-1 flex-shrink-0">
+                {[
+                  { id: "sessions" as const, label: "会话", icon: <MessageSquare size={13} /> },
+                  { id: "files" as const, label: "文件", icon: <Folder size={13} /> },
+                ].map((item) => {
+                  const active = navSection === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => setNavSection(item.id)}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11.5px] transition-colors duration-150"
+                      style={{
+                        background: active ? "var(--surface-2)" : "transparent",
+                        color: active ? "var(--text-primary)" : "var(--text-muted)",
+                      }}
+                    >
+                      {item.icon}
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </nav>
+            </>
           )}
 
           <div className="flex-1 min-h-0 overflow-hidden">
-            {navSection === "sessions" && searchMode === "message" ? (
+            {navSection === "sessions" && searchMode === "message" && !sidebarCollapsed ? (
               <div className="h-full overflow-y-auto px-2 pb-2">
                 {searchQuery.trim() === "" ? (
                   <div className="text-center py-6 text-[11px]" style={{ color: "var(--text-dim)" }}>
@@ -668,7 +745,7 @@ export default function App() {
                     {messageHits.map((hit, i) => (
                       <button
                         key={i}
-                        className="w-full text-left p-2 rounded-lg transition-colors hover:bg-surface-2"
+                        className="w-full text-left p-2 rounded-lg transition-colors hover:bg-[color:var(--surface-2)]"
                         style={{ background: "var(--surface-1)" }}
                         onClick={() => {
                           setActiveSession(hit.session_id);
@@ -698,126 +775,89 @@ export default function App() {
                   </div>
                 )}
               </div>
-            ) : navSection === "sessions" ? (
+            ) : navSection === "files" && !sidebarCollapsed ? (
+              <FileTree workspaceActive={workspaceActive} onFileOpen={handleOpenFile} />
+            ) : (
               <Sidebar
+                collapsed={sidebarCollapsed}
                 sessions={sessions}
                 activeId={activeSessionId}
+                streaming={streaming}
+                providers={providers}
+                onRefreshProviders={refreshProviders}
+                onNewSession={() => void handleNewSession()}
                 onSelect={setActiveSession}
                 onDeleteSession={handleDeleteSession}
                 onRenameSession={handleRenameSession}
+                onDuplicateSession={handleDuplicateSession}
                 onTogglePinSession={handleTogglePinSession}
                 onExportSession={handleExportSession}
+                onOpenSettings={() => setShowSettings(true)}
                 searchQuery={searchQuery}
               />
-            ) : navSection === "files" ? (
-              <FileTree workspaceActive={workspaceActive} onFileOpen={handleOpenFile} />
-            ) : null}
-          </div>
-
-          <div className="px-3 py-3 border-t flex items-center gap-2.5" style={{ borderColor: "var(--surface-3)" }}>
-            <button
-              onClick={() => setShowSettings(true)}
-              className="p-2 rounded-lg hover:bg-surface-2"
-              title="设置"
-              style={{ color: "var(--text-muted)" }}
-            >
-              <SettingsIcon size={16} />
-            </button>
-            <button
-              onClick={() => (github?.state === "signed_in" ? setShowGithub(true) : beginGitHubLogin())}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold overflow-hidden"
-              title={github?.state === "signed_in" ? "GitHub 账户" : "使用 GitHub 登录"}
-              style={{ background: "var(--surface-3)", color: "var(--text-primary)" }}
-            >
-              {github?.user?.avatar_url ? (
-                <img className="w-full h-full object-cover" src={github.user.avatar_url} alt="GitHub 头像" />
-              ) : (
-                <Github size={14} />
-              )}
-            </button>
-            <div className="flex-1 min-w-0">
-              <div className="text-[12px] font-medium truncate">
-                {github?.user?.name || github?.user?.login || "使用 GitHub 登录"}
-              </div>
-              <div className="text-[10px] truncate" style={{ color: "var(--text-dim)" }}>
-                Free 计划
-              </div>
-            </div>
+            )}
           </div>
         </aside>
 
+        {/* 中间主区 */}
         <main className="flex-1 flex flex-col min-w-0 min-h-0">
-          <div
-            className="flex items-center justify-between gap-2 px-4 py-1.5 flex-shrink-0"
-            style={{ background: "transparent" }}
-          >
-              <div className="flex items-center gap-1 min-w-0">
-                <ToolbarButton icon={<Plus size={14} />} label="新建会话" onClick={handleNewSession} />
-                <ToolbarButton
-                  icon={<FolderOpen size={13} />}
-                  label={workspaceLabel}
-                  onClick={openWorkspaceMenu}
-                  onContextMenu={openWorkspaceMenu}
-                />
-              </div>
+          {/* 轻量工具条 */}
+          <div className="flex items-center justify-between gap-2 px-3 py-1 flex-shrink-0">
+            <div className="flex items-center gap-1 min-w-0">
+              <ToolbarButton icon={<Plus size={13} />} label="新建会话" onClick={() => void handleNewSession()} />
               <ToolbarButton
-                icon={showTerminalPanel ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
+                icon={<FolderOpen size={12} />}
+                label={workspaceLabel}
+                onClick={openWorkspaceMenu}
+                onContextMenu={openWorkspaceMenu}
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              <ToolbarButton
+                icon={theme === "dark" ? <Sun size={13} /> : <Moon size={13} />}
+                label={theme === "dark" ? "浅色" : "深色"}
+                onClick={() => setTheme((c) => (c === "dark" ? "light" : "dark"))}
+              />
+              <ToolbarButton
+                icon={showTerminalPanel ? <Terminal size={13} /> : <Terminal size={13} />}
                 label="终端"
                 onClick={() => setShowTerminalPanel((current) => !current)}
                 active={showTerminalPanel}
               />
+              <ToolbarButton
+                icon={inspectorVisible ? <PanelRightClose size={13} /> : <PanelRightOpen size={13} />}
+                label="执行面板"
+                onClick={toggleInspector}
+                active={inspectorVisible}
+              />
             </div>
+          </div>
 
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
             <div className="flex-1 min-h-0 flex overflow-hidden">
-            <>
               <div className="flex-1 min-w-0 min-h-0 relative">
-                <ChatView onNewSession={handleNewSession} />
-                  {navSection === "sessions" && !activeSessionId && showPromo && (
-                    <div className="absolute bottom-4 right-4 z-10">
-                      <div
-                        className="flex items-center gap-3 px-3.5 py-2.5 rounded-2xl shadow-lg"
-                        style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}
-                      >
-                        <Sparkles size={16} />
-                        <div className="flex-1">
-                          <div className="text-[12px] font-semibold leading-tight">WTH Pro</div>
-                          <div className="text-[10px] opacity-70 leading-tight">解锁更长上下文与更多模型</div>
-                        </div>
-                        <button
-                          onClick={() => window.alert("WTH Pro 即将推出")}
-                          className="text-[11px] font-semibold px-2.5 py-1 rounded-full transition-colors"
-                          style={{ background: "var(--surface-0)", color: "var(--text-primary)" }}
-                        >
-                          升级
-                        </button>
-                        <button
-                          onClick={() => setShowPromo(false)}
-                          className="opacity-60 hover:opacity-100 transition-opacity"
-                          title="关闭"
-                        >
-                          <X size={12} />
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                {showTerminalPanel && (
-                  <>
-                    <div
-                      className="w-1 shrink-0 cursor-col-resize transition-colors"
-                      style={{ background: terminalResize.isDragging ? "var(--accent-blue)" : "var(--surface-3)" }}
-                      onMouseDown={terminalResize.handleMouseDown}
-                    />
-                    <div
-                      className="shrink-0 overflow-hidden"
-                      style={{ width: terminalResize.width, background: "var(--surface-0)" }}
-                    >
-                      <TerminalPanel />
-                    </div>
-                  </>
-                )}
-            </>
+                <ChatView
+                  onNewSession={() => void handleNewSession()}
+                  onClearSession={() => void handleClearSession()}
+                  onExportSession={handleExportSession}
+                  sessionTitle={activeSession?.title ?? null}
+                />
+              </div>
+              {showTerminalPanel && (
+                <>
+                  <div
+                    className="w-1 shrink-0 cursor-col-resize transition-colors"
+                    style={{ background: terminalResize.isDragging ? "var(--accent-blue)" : "var(--surface-3)" }}
+                    onMouseDown={terminalResize.handleMouseDown}
+                  />
+                  <div
+                    className="shrink-0 overflow-hidden"
+                    style={{ width: terminalResize.width, background: "var(--surface-0)" }}
+                  >
+                    <TerminalPanel />
+                  </div>
+                </>
+              )}
             </div>
             {editorVisible && (
               <>
@@ -836,6 +876,25 @@ export default function App() {
             )}
           </div>
         </main>
+
+        {/* 右侧执行面板：可收起、可拖宽、平滑过渡 */}
+        <div
+          className="flex-shrink-0 flex overflow-hidden layout-transition"
+          style={{ width: inspectorVisible ? inspectorWidth : 0 }}
+        >
+          {inspectorVisible && (
+            <>
+              <div
+                className="w-1 shrink-0 cursor-col-resize transition-colors self-stretch"
+                style={{ background: inspectorDragging ? "var(--accent-blue)" : "var(--surface-3)" }}
+                onMouseDown={handleInspectorDragStart}
+              />
+              <div className="flex-1 min-w-0 border-l" style={{ borderColor: "var(--surface-3)" }}>
+                <InspectorPanel workspaceLabel={workspaceLabel} workspaceBranch={workspaceBranch} />
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       <StatusBar
@@ -850,6 +909,7 @@ export default function App() {
         github={github}
         onWorkspaceClick={openWorkspaceMenu}
         onSettingsClick={() => setShowSettings(true)}
+        onGithubClick={() => (github?.state === "signed_in" ? setShowGithub(true) : void beginGitHubLogin())}
       />
 
       <DiffModal theme={theme} />
@@ -866,7 +926,7 @@ export default function App() {
         <GitHubDialog
           status={github}
           onClose={() => setShowGithub(false)}
-          onStart={beginGitHubLogin}
+          onStart={() => void beginGitHubLogin()}
           onCancel={async () => {
             await githubAuthCancel();
             await refreshGitHub();
@@ -930,7 +990,7 @@ export default function App() {
         onClose={() => setShowCommandPalette(false)}
         sessions={sessions}
         onSelectSession={(id) => { setActiveSession(id); setNavSection("sessions"); }}
-        onNewSession={handleNewSession}
+        onNewSession={() => void handleNewSession()}
         onOpenSettings={() => setShowSettings(true)}
         onToggleTheme={() => setTheme((c) => (c === "dark" ? "light" : "dark"))}
       />
@@ -950,6 +1010,7 @@ function StatusBar({
   github,
   onWorkspaceClick,
   onSettingsClick,
+  onGithubClick,
 }: {
   modelLabel?: string;
   workspaceLabel: string;
@@ -962,10 +1023,11 @@ function StatusBar({
   github: GitHubAuthStatus | null;
   onWorkspaceClick: (event: ReactMouseEvent<HTMLElement>) => void;
   onSettingsClick: () => void;
+  onGithubClick: () => void;
 }) {
   return (
     <div
-      className="flex items-center justify-between px-3 py-1.5 border-t text-[11px]"
+      className="flex items-center justify-between px-3 py-1 border-t text-[11px] flex-shrink-0"
       style={{ background: "var(--surface-1)", borderColor: "var(--surface-3)" }}
     >
       {/* 左侧：模型 / 工作区 / 分支 */}
@@ -977,7 +1039,7 @@ function StatusBar({
           title="当前模型"
           onClick={onSettingsClick}
         >
-          <Brain size={11} />
+          <Cpu size={11} />
           <span className="max-w-[120px] truncate">{modelLabel || "默认模型"}</span>
         </button>
         <button
@@ -1004,7 +1066,7 @@ function StatusBar({
       {/* 右侧：统计 / 状态 / GitHub / 设置 */}
       <div className="flex items-center gap-1.5 shrink-0">
         <span
-          className="hidden sm:flex items-center gap-1.5 rounded-full px-2.5 py-1 border"
+          className="hidden lg:flex items-center gap-1.5 rounded-full px-2.5 py-1 border"
           style={{ borderColor: "var(--surface-3)", color: "var(--text-muted)" }}
         >
           <Database size={11} />
@@ -1025,20 +1087,24 @@ function StatusBar({
           <Activity size={11} />
           <span>{streaming ? "思考中" : "就绪"}</span>
         </span>
-        <span
-          className="hidden md:flex items-center gap-1.5 rounded-full px-2.5 py-1 border"
+        <button
+          type="button"
+          onClick={onGithubClick}
+          className="flex items-center gap-1.5 rounded-full px-2.5 py-1 border transition-colors hover:bg-[color:var(--surface-2)]"
           style={{ borderColor: "var(--surface-3)", color: github?.state === "signed_in" ? "var(--text-primary)" : "var(--text-dim)" }}
+          title={github?.state === "signed_in" ? "GitHub 账户" : "使用 GitHub 登录"}
         >
           {github?.state === "signed_in" ? <Github size={11} /> : <UserCircle2 size={11} />}
           <span className="max-w-[80px] truncate">
             {github?.state === "signed_in" ? (github.user?.login || "已登录") : "未登录"}
           </span>
-        </span>
+        </button>
         <button
           type="button"
           onClick={onSettingsClick}
           className="flex items-center gap-1.5 rounded-full px-2.5 py-1 border transition-colors hover:bg-[color:var(--surface-2)]"
           style={{ borderColor: "var(--surface-3)", color: "var(--text-primary)" }}
+          title="设置"
         >
           <SettingsIcon size={11} />
         </button>
@@ -1069,15 +1135,15 @@ function ToolbarButton({
         event.preventDefault();
         onContextMenu(event);
       }}
-      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-medium transition-colors hover:bg-[color:var(--surface-2)]"
+      className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px] font-medium transition-colors hover:bg-[color:var(--surface-2)]"
       style={{
         background: active ? "var(--surface-2)" : "transparent",
         color: "var(--text-primary)",
       }}
     >
       {icon}
-      <span className="max-w-[20rem] truncate">{label}</span>
-      {onContextMenu && <ChevronDown size={11} style={{ color: "var(--text-dim)" }} />}
+      <span className="max-w-[16rem] truncate">{label}</span>
+      {onContextMenu && <ChevronDown size={10} style={{ color: "var(--text-dim)" }} />}
     </button>
   );
 }
@@ -1159,13 +1225,10 @@ function GitHubDialog({
           </>
         )}
         <button className="mt-4 block text-xs" style={{ color: "var(--text-muted)" }} onClick={onClose}>
+          <X size={12} className="inline mr-1" />
           关闭
         </button>
       </div>
     </div>
   );
-}
-
-function FolderInputIcon({ size }: { size: number }) {
-  return <FolderOpen size={size} />;
 }

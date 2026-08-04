@@ -48,7 +48,9 @@
 /* 字体缩放 */
 body {
   font-size: calc(14px * var(--font-scale, 1));
-  font-family: var(--ui-font-family, "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  /* 中文排版适配：中文回退字体 + 更舒展的行高 */
+  font-family: var(--ui-font-family, "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif);
+  line-height: 1.6;
 }
 
 /* ========================================
@@ -129,6 +131,122 @@ code {
 }
 .animate-fade-in {
   animation: fadeIn 0.2s ease-out;
+}
+
+/* ========================================
+   布局过渡 — 侧边栏 / 右侧面板收起展开平滑动画
+   ======================================== */
+
+.layout-transition {
+  transition: width var(--duration-normal) var(--ease-out);
+}
+
+/* 侧边栏折叠态淡入 */
+.sidebar-collapse-in {
+  animation: fadeIn 0.18s var(--ease-out);
+}
+
+/* ========================================
+   自定义标题栏（Tauri 无边框窗口）
+   ======================================== */
+
+.title-bar {
+  /* 双击标题栏空白处最大化/还原由 Tauri 处理 */
+  -webkit-app-region: no-drag;
+}
+
+.title-bar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: var(--text-muted);
+  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+}
+.title-bar-btn:hover {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+
+/* Windows 风格窗口控制按钮 */
+.win-ctrl {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 100%;
+  color: var(--text-muted);
+  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+}
+.win-ctrl:hover {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+.win-ctrl-close:hover {
+  background: var(--accent-red);
+  color: #ffffff;
+}
+
+/* ========================================
+   侧边栏：折叠图标按钮 / 行内悬浮操作
+   ======================================== */
+
+.sidebar-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: var(--text-muted);
+  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+}
+.sidebar-icon-btn:hover {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+.sidebar-icon-btn-primary {
+  background: var(--text-primary);
+  color: var(--surface-0);
+}
+.sidebar-icon-btn-primary:hover {
+  background: var(--text-primary);
+  color: var(--surface-0);
+  opacity: 0.88;
+}
+
+.sidebar-row-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: var(--surface-1);
+  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+}
+.sidebar-row-action:hover {
+  background: var(--surface-3);
+  color: var(--text-primary);
+}
+
+/* 会话头部操作按钮 */
+.chat-head-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: var(--text-muted);
+  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+}
+.chat-head-btn:hover {
+  background: var(--surface-2);
+  color: var(--text-primary);
 }
 
 /* ========================================

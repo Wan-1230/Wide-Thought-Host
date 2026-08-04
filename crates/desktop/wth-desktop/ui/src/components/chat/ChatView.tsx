@@ -20,6 +20,7 @@ import {
   Wrench,
   ChevronRight,
   ChevronDown,
+  ChevronUp,
   Brain,
   Copy,
   Check,
@@ -33,9 +34,14 @@ import {
   Users,
   X,
   BookOpen,
+  Download,
+  Eraser,
+  PanelRightOpen,
+  Loader2,
 } from "lucide-react";
 import { THINKING_MESSAGE, useChatStore } from "@/stores/chat";
 import { useWorkbenchStore } from "@/stores/workbench";
+import { useUiStore } from "@/stores/ui";
 import { agentSend, agentAbort, agentApproveTool, agentDenyTool, fileList, listSlashCommands, resolveSkill, subagentList, subagentRun, memoryWrite, sessionCreate, workspaceSearch, settingsGet, workspaceGet } from "@/lib/ipc";
 import type { ChatMessage, ToolCall } from "@/stores/chat";
 import type { FileEntry, HistoryMessage, PromptTemplate, SlashCommandInfo, SubagentConfig, WorkspaceSearchHit } from "@/lib/ipc";
@@ -252,8 +258,119 @@ function ToolCallCard({ call }: { call: ToolCall }) {
   );
 }
 
-/// 渲染单条消息。
-function MessageBubble({ msg, onContextMenu }: { msg: ChatMessage; onContextMenu?: (e: ReactMouseEvent<HTMLElement>) => void }) {
+/// 代码块：带语言标签与一键复制按钮。
+function CodeBlock({ language, code }: { language: string; code: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div
+      className="rounded-lg overflow-hidden my-1"
+      style={{ border: "1px solid var(--surface-4)", background: "var(--surface-0)" }}
+    >
+      <div
+        className="flex items-center justify-between px-3 py-1 text-[10px]"
+        style={{ background: "var(--surface-1)", borderBottom: "1px solid var(--surface-4)", color: "var(--text-dim)" }}
+      >
+        <span className="font-mono">{language}</span>
+        <button
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors hover:bg-[color:var(--surface-2)]"
+          style={{ color: copied ? "var(--accent-green)" : "var(--text-muted)" }}
+          onClick={() => {
+            navigator.clipboard.writeText(code).catch(() => {});
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          }}
+        >
+          {copied ? <Check size={10} /> : <Copy size={10} />}
+          {copied ? "已复制" : "复制"}
+        </button>
+      </div>
+      <SyntaxHighlighter
+        style={oneDark}
+        language={language}
+        PreTag="div"
+        customStyle={{
+          margin: 0,
+          background: "var(--surface-0)",
+          border: "none",
+          borderRadius: 0,
+          fontSize: "12px",
+        }}
+      >
+        {code}
+      </SyntaxHighlighter>
+    </div>
+  );
+}
+
+/// Agent 多步骤执行进度卡片：汇总本条消息的工具调用，支持展开详情与随时中断。
+function StepProgressCard({ calls }: { calls: ToolCall[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const activeSessionId = useChatStore((s) => s.activeSessionId);
+  const setStreaming = useChatStore((s) => s.setStreaming);
+  const finalizeAssistantMessage = useChatStore((s) => s.finalizeAssistantMessage);
+  const running = calls.some((c) => c.status === "running" || c.status === "pending" || c.result === undefined);
+  const failed = calls.some((c) => /error/i.test(String(JSON.stringify(c.result ?? ""))));
+  const doneCount = calls.filter((c) => c.result !== undefined).length;
+
+  const abort = async () => {
+    if (!activeSessionId) return;
+    try {
+      await agentAbort(activeSessionId);
+      finalizeAssistantMessage(activeSessionId, "（已中止）");
+      setStreaming(activeSessionId, false);
+    } catch (err) {
+      console.error("中止失败：", err);
+    }
+  };
+
+  return (
+    <div className="my-2 border rounded-lg overflow-hidden" style={{ borderColor: "var(--surface-4)", background: "var(--surface-1)" }}>
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[color:var(--surface-2)] transition-colors"
+      >
+        {expanded ? <ChevronUp size={12} style={{ color: "var(--text-muted)" }} /> : <ChevronDown size={12} style={{ color: "var(--text-muted)" }} />}
+        {running ? (
+          <Loader2 size={12} className="animate-spin" style={{ color: "var(--accent-blue)" }} />
+        ) : failed ? (
+          <AlertCircle size={12} style={{ color: "var(--accent-red)" }} />
+        ) : (
+          <Check size={12} style={{ color: "var(--accent-green)" }} />
+        )}
+        <span className="text-[12px] font-medium flex-1 text-left" style={{ color: "var(--text-primary)" }}>
+          {running ? `正在执行步骤 ${Math.min(doneCount + 1, calls.length)}/${calls.length}` : `任务完成 · ${calls.length} 个步骤`}
+        </span>
+        {running && (
+          <span
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-medium transition-colors hover:opacity-80"
+            style={{ background: "var(--surface-2)", color: "var(--accent-red)" }}
+            onClick={(e) => {
+              e.stopPropagation();
+              void abort();
+            }}
+            role="button"
+            title="中断任务"
+          >
+            <Square size={9} />
+            中断
+          </span>
+        )}
+      </button>
+      {expanded && (
+        <div className="px-3 pb-2 space-y-0.5 border-t" style={{ borderColor: "var(--surface-4)" }}>
+          {calls.map((call) => (
+            <ToolCallCard key={call.id} call={call} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/// 渲染单条消息。live=true 表示正在流式输出，此时长消息不自动折叠。
+function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live }: { msg: ChatMessage; onContextMenu?: (e: ReactMouseEvent<HTMLElement>) => void; onRegenerate?: () => void; canRegenerate?: boolean; live?: boolean }) {
+  // Hook 必须在任何条件早退之前调用（消息从思考占位 → 正式内容时 hooks 数量不变）
+  const [collapsedView, setCollapsedView] = useState<boolean | null>(null);
   if (msg.role === "user") {
     return (
       <div className="flex justify-end mb-4" onContextMenu={onContextMenu}>
@@ -315,6 +432,8 @@ function MessageBubble({ msg, onContextMenu }: { msg: ChatMessage; onContextMenu
   }
 
   const isLong = (msg.content || "").length > 800;
+  // 长消息默认折叠，减少视觉压力；流式输出中保持展开
+  const isCollapsed = collapsedView ?? (isLong && msg.content !== THINKING_MESSAGE && !live);
 
   return (
     <div className="group flex items-start gap-3 mb-4 animate-fade-in" onContextMenu={onContextMenu}>
@@ -333,8 +452,10 @@ function MessageBubble({ msg, onContextMenu }: { msg: ChatMessage; onContextMenu
             color: "var(--text-primary)",
           }}
         >
-          <div className={`prose prose-sm max-w-none break-words leading-relaxed ${isLong ? "max-h-48 overflow-hidden" : ""}`}
-            style={{ color: "var(--text-primary)" }}>
+          <div
+            className={`prose prose-sm max-w-none break-words leading-relaxed ${isCollapsed ? "max-h-40 overflow-hidden relative" : ""}`}
+            style={{ color: "var(--text-primary)" }}
+          >
             <ReactMarkdown
               components={{
                 code({ node, className, children, ...props }: any) {
@@ -352,35 +473,35 @@ function MessageBubble({ msg, onContextMenu }: { msg: ChatMessage; onContextMenu
                     );
                   }
                   return (
-                    <SyntaxHighlighter
-                      style={oneDark}
+                    <CodeBlock
                       language={match ? match[1] : "text"}
-                      PreTag="div"
-                      customStyle={{
-                        margin: 0,
-                        background: "var(--surface-0)",
-                        border: "1px solid var(--surface-4)",
-                        borderRadius: "8px",
-                        fontSize: "12px",
-                      }}
-                    >
-                      {String(children).replace(/\n$/, "")}
-                    </SyntaxHighlighter>
+                      code={String(children).replace(/\n$/, "")}
+                    />
                   );
                 },
               }}
             >
               {msg.content || ""}
             </ReactMarkdown>
+            {isCollapsed && (
+              <div
+                className="absolute inset-x-0 bottom-0 h-12 pointer-events-none"
+                style={{ background: "linear-gradient(transparent, var(--surface-1))" }}
+              />
+            )}
           </div>
+          {isLong && (
+            <button
+              onClick={() => setCollapsedView(!isCollapsed)}
+              className="mt-1.5 inline-flex items-center gap-1 text-[11px] transition-colors hover:opacity-75"
+              style={{ color: "var(--accent-blue)" }}
+            >
+              {isCollapsed ? <ChevronDown size={11} /> : <ChevronUp size={11} />}
+              {isCollapsed ? "展开全文" : "收起"}
+            </button>
+          )}
         </div>
-        {msg.tool_calls && msg.tool_calls.length > 0 && (
-          <div className="mt-2">
-            {msg.tool_calls.map((tc) => (
-              <ToolCallCard key={tc.id} call={tc} />
-            ))}
-          </div>
-        )}
+        {msg.tool_calls && msg.tool_calls.length > 0 && <StepProgressCard calls={msg.tool_calls} />}
         {/* 悬浮操作按钮 */}
         <div className="mt-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <MessageActionBtn
@@ -388,6 +509,17 @@ function MessageBubble({ msg, onContextMenu }: { msg: ChatMessage; onContextMenu
             label="复制"
             onClick={() => navigator.clipboard.writeText(msg.content || "")}
           />
+          {canRegenerate && onRegenerate && (
+            <button
+              className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[10px] transition-colors hover:bg-[color:var(--surface-2)]"
+              style={{ color: "var(--text-dim)" }}
+              title="重新生成这条回复"
+              onClick={onRegenerate}
+            >
+              <RotateCcw size={11} />
+              重新生成
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -416,7 +548,17 @@ function StreamingCursor() {
   );
 }
 
-export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
+interface ChatViewProps {
+  onNewSession?: () => void;
+  /** 清空当前会话消息（由 App 提供） */
+  onClearSession?: () => void;
+  /** 导出会话（由 App 提供） */
+  onExportSession?: (id: string, format: "markdown" | "json") => void;
+  /** 当前会话标题（头部展示） */
+  sessionTitle?: string | null;
+}
+
+export function ChatView({ onNewSession, onClearSession, onExportSession, sessionTitle }: ChatViewProps) {
   const {
     activeSessionId,
     messages,
@@ -452,6 +594,22 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [highlightIndex, setHighlightIndex] = useState<number | null>(null);
+  /** 供全局快捷键（停止生成）调用的中止句柄 */
+  const handleAbortRef = useRef<() => Promise<void>>(async () => {});
+
+  // 监听全局快捷键事件：聚焦输入框（Ctrl+L）/ 停止生成（Ctrl+Shift+S）
+  useEffect(() => {
+    const onFocusInput = () => textareaRef.current?.focus();
+    const onStopGeneration = () => {
+      if (activeSessionId && streaming[activeSessionId]) void handleAbortRef.current();
+    };
+    window.addEventListener("wth:focus-input", onFocusInput);
+    window.addEventListener("wth:stop-generation", onStopGeneration);
+    return () => {
+      window.removeEventListener("wth:focus-input", onFocusInput);
+      window.removeEventListener("wth:stop-generation", onStopGeneration);
+    };
+  }, [activeSessionId, streaming]);
 
   // G4: 监听消息检索跳转事件，滚动并高亮命中消息
   useEffect(() => {
@@ -863,6 +1021,7 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
       console.error("中止失败：", err);
     }
   };
+  handleAbortRef.current = handleAbort;
 
   const handleKeyDown = (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
     // Popup navigation
@@ -963,6 +1122,41 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
 
   return (
     <div className="h-full flex flex-col bg-surface-0">
+      {/* 会话头部：标题 + 会话操作（清空 / 导出 / 执行面板） */}
+      <div
+        className="flex items-center gap-1 px-4 py-1.5 flex-shrink-0 border-b"
+        style={{ borderColor: "var(--surface-3)" }}
+      >
+        <span className="flex-1 min-w-0 text-[12px] font-medium truncate" style={{ color: "var(--text-primary)" }}>
+          {sessionTitle || "新会话"}
+        </span>
+        {activeSessionId && (
+          <>
+            <button
+              className="chat-head-btn"
+              title="清空当前会话"
+              onClick={onClearSession}
+            >
+              <Eraser size={13} />
+            </button>
+            <button
+              className="chat-head-btn"
+              title="导出会话（Markdown）"
+              onClick={() => onExportSession?.(activeSessionId, "markdown")}
+            >
+              <Download size={13} />
+            </button>
+            <button
+              className="chat-head-btn"
+              title="打开执行面板（Ctrl+Shift+I）"
+              onClick={() => useUiStore.getState().setInspectorOpen(true)}
+            >
+              <PanelRightOpen size={13} />
+            </button>
+          </>
+        )}
+      </div>
+
       {/* 消息流 */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
         {sessionMessages.length === 0 ? (
@@ -991,6 +1185,11 @@ export function ChatView({ onNewSession }: { onNewSession?: () => void }) {
                     e.preventDefault();
                     setMsgMenu({ point: contextMenuPointFromEvent(e), content: msg.content || "", role: msg.role, id: msg.id });
                   }}
+                  canRegenerate={
+                    msg.role === "assistant" && msg.content !== THINKING_MESSAGE && !isStreaming
+                  }
+                  onRegenerate={() => void regenerateFrom(msg)}
+                  live={isLast && isStreaming}
                 />
                 {showCursor && <StreamingCursor />}
               </div>

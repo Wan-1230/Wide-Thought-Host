@@ -22,14 +22,23 @@ export default {
         },
       },
       fontFamily: {
+        // 中文排版适配：英文字体后接中文回退字体
         sans: [
           "Inter",
           "-apple-system",
           "BlinkMacSystemFont",
           "Segoe UI",
+          "PingFang SC",
+          "Hiragino Sans GB",
+          "Microsoft YaHei",
+          "Noto Sans SC",
           "sans-serif",
         ],
         mono: ["JetBrains Mono", "Fira Code", "Cascadia Code", "monospace"],
+      },
+      transitionTimingFunction: {
+        // 与 index.css 中的动画令牌保持一致
+        "ease-out-expo": "cubic-bezier(0.16, 1, 0.3, 1)",
       },
     },
   },
