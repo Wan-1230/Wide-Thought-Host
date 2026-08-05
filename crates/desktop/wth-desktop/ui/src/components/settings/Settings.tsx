@@ -870,12 +870,25 @@ function PageGeneral({
         <p className="text-[11px] mb-2" style={{ color: "var(--text-muted)" }}>
           聊天输入框左侧的模板入口可直接插入。支持变量：{`{{`}workspace{`}}`}（工作区名）、{`{{`}file{`}}`}、{`{{`}language{`}}`}。
         </p>
-        <div className="space-y-2">
+        <div className="space-y-2.5">
+          {(settings.prompt_templates || []).length === 0 && (
+            <div
+              className="rounded-xl border border-dashed px-4 py-6 text-center text-[11px]"
+              style={{ borderColor: "var(--surface-3)", color: "var(--text-dim)" }}
+            >
+              暂无提示词模板，点击下方「+ 新增模板」创建
+            </div>
+          )}
           {(settings.prompt_templates || []).map((tpl, idx) => (
-            <div key={tpl.id} className="rounded-xl p-3" style={{ background: "var(--surface-1)", border: "1px solid var(--surface-3)" }}>
+            <div
+              key={tpl.id}
+              className="rounded-xl p-3 space-y-2.5"
+              style={{ background: "var(--surface-1)", border: "1px solid var(--surface-3)" }}
+            >
+              {/* 名称行：输入框 + 内置徽标 / 删除按钮 */}
               <div className="flex items-center gap-2">
                 <input
-                  className="control flex-1"
+                  className="control flex-1 min-w-0"
                   value={tpl.name}
                   placeholder="模板名称"
                   onChange={(e) => {
@@ -884,40 +897,61 @@ function PageGeneral({
                     onSave({ ...settings, prompt_templates: next });
                   }}
                 />
+                {tpl.builtin && (
+                  <span
+                    className="flex-shrink-0 text-[10px] px-2 py-1 rounded-full leading-none"
+                    style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}
+                  >
+                    内置
+                  </span>
+                )}
                 {!tpl.builtin && (
                   <button
-                    className="small-btn"
+                    className="icon-btn flex-shrink-0 !p-1.5"
                     title="删除模板"
                     onClick={() => {
                       const next = (settings.prompt_templates || []).filter((t) => t.id !== tpl.id);
                       onSave({ ...settings, prompt_templates: next });
                     }}
                   >
-                    删除
+                    <Trash2 size={13} />
                   </button>
                 )}
               </div>
-              <input
-                className="control mt-2"
-                value={tpl.description}
-                placeholder="模板描述（显示在模板列表）"
-                onChange={(e) => {
-                  const next = [...(settings.prompt_templates || [])];
-                  next[idx] = { ...tpl, description: e.target.value };
-                  onSave({ ...settings, prompt_templates: next });
-                }}
-              />
-              <textarea
-                className="control mt-2 font-mono text-[11px] resize-y"
-                rows={3}
-                value={tpl.content}
-                placeholder="模板内容，可包含 {{workspace}} / {{file}} / {{language}} 变量"
-                onChange={(e) => {
-                  const next = [...(settings.prompt_templates || [])];
-                  next[idx] = { ...tpl, content: e.target.value };
-                  onSave({ ...settings, prompt_templates: next });
-                }}
-              />
+              {/* 描述：独占一行，全宽 */}
+              <div className="min-w-0">
+                <label className="block text-[10px] mb-1" style={{ color: "var(--text-dim)" }}>
+                  描述
+                </label>
+                <input
+                  className="control block w-full"
+                  value={tpl.description}
+                  placeholder="模板描述（显示在模板列表）"
+                  onChange={(e) => {
+                    const next = [...(settings.prompt_templates || [])];
+                    next[idx] = { ...tpl, description: e.target.value };
+                    onSave({ ...settings, prompt_templates: next });
+                  }}
+                />
+              </div>
+              {/* 内容：全宽多行，等宽字体，纵向可拉伸 */}
+              <div className="min-w-0">
+                <label className="block text-[10px] mb-1" style={{ color: "var(--text-dim)" }}>
+                  内容（支持变量占位符）
+                </label>
+                <textarea
+                  className="control block w-full font-mono text-[11px] leading-relaxed resize-y"
+                  rows={4}
+                  style={{ minHeight: 96 }}
+                  value={tpl.content}
+                  placeholder="模板内容，可包含 {{workspace}} / {{file}} / {{language}} 变量"
+                  onChange={(e) => {
+                    const next = [...(settings.prompt_templates || [])];
+                    next[idx] = { ...tpl, content: e.target.value };
+                    onSave({ ...settings, prompt_templates: next });
+                  }}
+                />
+              </div>
             </div>
           ))}
           <button
