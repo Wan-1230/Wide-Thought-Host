@@ -780,6 +780,7 @@ export default function App() {
             ) : (
               <Sidebar
                 collapsed={sidebarCollapsed}
+                theme={theme}
                 sessions={sessions}
                 activeId={activeSessionId}
                 streaming={streaming}

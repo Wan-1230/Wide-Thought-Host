@@ -26,9 +26,11 @@ pub fn build_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         .tooltip("Wide Thought Host");
 
     // 使用与主窗口、安装包相同的品牌图标，避免 Windows 使用 Tauri 默认图标。
-    if let Some(icon) = app.default_window_icon() {
-        tray_builder = tray_builder.icon(icon.clone());
-    }
+    let tray_icon = match app.default_window_icon() {
+        Some(icon) => icon.clone(),
+        None => tauri::image::Image::from_bytes(include_bytes!("../icons/32x32.png"))?,
+    };
+    tray_builder = tray_builder.icon(tray_icon);
 
     let _tray = tray_builder
         .on_menu_event(move |app, event| match event.id().as_ref() {

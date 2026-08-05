@@ -27,6 +27,9 @@ import {
 import type { ProviderSummary, SessionInfo } from "@/lib/ipc";
 import { providerList, providerSetDefault } from "@/lib/ipc";
 import { ContextMenu, contextMenuPointFromEvent, type ContextMenuPoint } from "@/components/common/ContextMenu";
+import wthLogoDark from "@/assets/wth-logo-dark.png";
+import wthLogoLight from "@/assets/wth-logo-light.png";
+import wthMark from "@/assets/wth-mark.png";
 
 /** 判定会话是否为 Agent 任务条目（委派/子会话标题以 [ 开头约定）。可按需自定义。 */
 function isTaskSession(session: SessionInfo): boolean {
@@ -51,6 +54,8 @@ function relativeTime(iso: string): string {
 interface SidebarProps {
   /** 是否折叠为图标栏 */
   collapsed: boolean;
+  /** 当前主题，用于切换 Logo 深浅版本 */
+  theme: "dark" | "light";
   sessions: SessionInfo[];
   activeId: string | null;
   /** 各会话的执行状态（true = 执行中） */
@@ -150,6 +155,7 @@ function ModelSwitcher({ providers, onRefresh }: { providers: ProviderSummary[];
 
 export function Sidebar({
   collapsed,
+  theme,
   sessions,
   activeId,
   streaming,
@@ -217,6 +223,14 @@ export function Sidebar({
   if (collapsed) {
     return (
       <div className="h-full flex flex-col items-center py-2 gap-1 overflow-y-auto sidebar-collapse-in">
+        {/* 收起态：简化单色符号（浅色主题反色适配） */}
+        <img
+          src={wthMark}
+          alt="WTH"
+          className="w-6 h-6 mb-1 flex-shrink-0"
+          style={{ filter: theme === "light" ? "invert(1)" : undefined, opacity: 0.9 }}
+          draggable={false}
+        />
         <button onClick={onNewSession} className="sidebar-icon-btn sidebar-icon-btn-primary" title="新建会话">
           <Plus size={16} />
         </button>
@@ -255,6 +269,16 @@ export function Sidebar({
   // ─── 展开态 ────────────────────────────────────────
   return (
     <div className="h-full flex flex-col min-h-0">
+      {/* 顶部：主 Logo + 字标（随主题切换深/浅版本） */}
+      <div className="px-3.5 pt-3 pb-1 flex-shrink-0 flex items-center">
+        <img
+          src={theme === "dark" ? wthLogoDark : wthLogoLight}
+          alt="Wide Thought Host"
+          className="h-[22px] w-auto select-none"
+          draggable={false}
+        />
+      </div>
+
       {/* 顶部：新建会话按钮（醒目常驻） */}
       <div className="px-2.5 pt-2.5 pb-1.5 flex-shrink-0">
         <button
