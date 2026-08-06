@@ -174,6 +174,20 @@ export function Sidebar({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [menuPoint, setMenuPoint] = useState<ContextMenuPoint | null>(null);
   const [menuSession, setMenuSession] = useState<SessionInfo | null>(null);
+  /** 两步确认删除：第一次点击进确认态，2.5s 内再点才真正删除 */
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const confirmTimerRef = useRef<number | null>(null);
+
+  const requestDelete = (id: string) => {
+    if (confirmTimerRef.current) window.clearTimeout(confirmTimerRef.current);
+    if (confirmingId === id) {
+      setConfirmingId(null);
+      void handleDelete(id);
+      return;
+    }
+    setConfirmingId(id);
+    confirmTimerRef.current = window.setTimeout(() => setConfirmingId(null), 2500);
+  };
 
   const filteredSessions = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -363,10 +377,11 @@ export function Sidebar({
                         )}
                       </div>
 
-                      {/* hover 悬浮操作入口 */}
+                      {/* hover 悬浮操作入口（隐藏时不拦截点击，避免误触） */}
                       <div
                         className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center opacity-0
-                          group-hover:opacity-100 transition-opacity duration-150"
+                          pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto
+                          transition-opacity duration-150"
                       >
                         <button
                           onClick={(e) => {
@@ -392,11 +407,16 @@ export function Sidebar({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            void handleDelete(session.id);
+                            requestDelete(session.id);
                           }}
                           disabled={deletingId === session.id}
-                          title="删除"
-                          className="sidebar-row-action hover:!bg-[color:var(--accent-red)]/15"
+                          title={confirmingId === session.id ? "再次点击确认删除" : "删除"}
+                          className="sidebar-row-action"
+                          style={
+                            confirmingId === session.id
+                              ? { background: "var(--accent-red)", color: "#ffffff" }
+                              : undefined
+                          }
                         >
                           {deletingId === session.id ? (
                             <Loader2 size={11} className="animate-spin" />
@@ -499,6 +519,10 @@ export function Sidebar({
                   label: "删除",
                   danger: true,
                   onSelect: async () => {
+                    if (!window.confirm(`确定删除会话「${menuSession.title || "未命名会话"}」吗？此操作不可撤销。`)) {
+                      closeMenu();
+                      return;
+                    }
                     await handleDelete(menuSession.id);
                   },
                 },
