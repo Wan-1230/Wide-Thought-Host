@@ -1,6 +1,21 @@
 fn main() {
     tauri_build::build();
 
+    // 品牌图标变更时强制重跑构建脚本，确保 exe / 安装包内嵌图标与最新母版同步
+    for icon in [
+        "icons/icon.ico",
+        "icons/icon.icns",
+        "icons/32x32.png",
+        "icons/64x64.png",
+        "icons/128x128.png",
+        "icons/128x128@2x.png",
+        "icons/256x256.png",
+        "icons/app-icon.png",
+        "icons/icon-master.png",
+    ] {
+        println!("cargo:rerun-if-changed={icon}");
+    }
+
     // Windows GNU toolchain doesn't auto-bundle WebView2Loader.dll.
     // Copy it alongside the binary so the NSIS installer can include it.
     #[cfg(target_os = "windows")]
