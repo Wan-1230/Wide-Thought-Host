@@ -120,7 +120,21 @@ async function buildAttachment(
   return { name, path: path ?? undefined, mime_type };
 }
 
-/// 渲染单条 tool call 卡片（折叠式）。支持“等待确认 → 允许/拒绝 → 执行结果”状态。
+/// 提取工具调用的关键摘要，用于审批说明（优先展示 bash 命令 / git 子命令 / 目标路径）。
+function summarizeToolArgs(call: ToolCall): string {
+  const args = (call.arguments ?? null) as Record<string, unknown> | null;
+  if (!args || typeof args !== "object") return "";
+  if (typeof args.command === "string") return args.command;
+  if (Array.isArray(args.args)) return `git ${args.args.join(" ")}`;
+  if (typeof args.path === "string") {
+    return typeof args.query === "string" ? `${args.path} → ${args.query}` : args.path;
+  }
+  const s = JSON.stringify(args);
+  return s.length > 160 ? `${s.slice(0, 160)}…` : s;
+}
+
+/// 渲染单条 tool call 卡片（折叠式）。待确认的高危操作（如 bash）审批区直接外露，无需展开；
+/// 命令在后端确认前不会执行。
 function ToolCallCard({ call }: { call: ToolCall }) {
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -201,6 +215,47 @@ function ToolCallCard({ call }: { call: ToolCall }) {
           )}
         </span>
       </button>
+      {/* 待确认审批区：直接渲染在对话流中，无需展开卡片 */}
+      {pending && (
+        <div
+          className="border-t px-3 py-2.5 space-y-2"
+          style={{ borderColor: "var(--surface-4)", background: "var(--surface-2)" }}
+        >
+          <div className="flex items-center gap-1.5 text-[11px] font-medium" style={{ color: "var(--accent-yellow)" }}>
+            <AlertCircle size={12} className="flex-shrink-0" />
+            高危操作待确认 · <span className="font-mono">{call.name}</span>，确认前不会执行
+          </div>
+          {(() => {
+            const summary = summarizeToolArgs(call);
+            return summary ? (
+              <pre
+                className="font-mono text-[11px] whitespace-pre-wrap break-all rounded-md px-2.5 py-1.5 max-h-32 overflow-y-auto"
+                style={{ background: "var(--surface-0)", border: "1px solid var(--surface-4)", color: "var(--text-primary)" }}
+              >
+                {summary}
+              </pre>
+            ) : null;
+          })()}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleApprove}
+              disabled={busy}
+              className="px-3 py-1.5 rounded-md text-[11px] font-medium text-white disabled:opacity-50"
+              style={{ background: "var(--accent-green)" }}
+            >
+              确认执行
+            </button>
+            <button
+              onClick={handleDeny}
+              disabled={busy}
+              className="px-3 py-1.5 rounded-md text-[11px] font-medium disabled:opacity-50"
+              style={{ background: "var(--surface-1)", border: "1px solid var(--surface-4)", color: "var(--text-primary)" }}
+            >
+              拒绝
+            </button>
+          </div>
+        </div>
+      )}
       {expanded && (
         <div className="border-t px-3 py-2 space-y-2" style={{ borderColor: "var(--surface-4)" }}>
           <div>
@@ -209,26 +264,6 @@ function ToolCallCard({ call }: { call: ToolCall }) {
               {argStr}
             </pre>
           </div>
-          {pending && (
-            <div className="flex items-center gap-2 pt-1">
-              <button
-                onClick={handleApprove}
-                disabled={busy}
-                className="px-3 py-1.5 rounded-md text-[11px] font-medium text-white disabled:opacity-50"
-                style={{ background: "var(--accent-green)" }}
-              >
-                允许执行
-              </button>
-              <button
-                onClick={handleDeny}
-                disabled={busy}
-                className="px-3 py-1.5 rounded-md text-[11px] font-medium disabled:opacity-50"
-                style={{ background: "var(--surface-2)", border: "1px solid var(--surface-4)", color: "var(--text-primary)" }}
-              >
-                拒绝
-              </button>
-            </div>
-          )}
           {resultStr !== null && (
             <div>
               <div className="text-[10px] uppercase mb-1" style={{ color: "var(--text-muted)" }}>结果</div>
@@ -303,11 +338,13 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
 }
 
 /// Agent 多步骤执行进度卡片：汇总本条消息的工具调用，支持展开详情与随时中断。
+/// 待确认的调用不随卡片折叠，直接在主对话流展示审批控件。
 function StepProgressCard({ calls }: { calls: ToolCall[] }) {
   const [expanded, setExpanded] = useState(false);
   const activeSessionId = useChatStore((s) => s.activeSessionId);
   const setStreaming = useChatStore((s) => s.setStreaming);
   const finalizeAssistantMessage = useChatStore((s) => s.finalizeAssistantMessage);
+  const pendingCalls = calls.filter((c) => c.status === "pending");
   const running = calls.some((c) => c.status === "running" || c.status === "pending" || c.result === undefined);
   const failed = calls.some((c) => /error/i.test(String(JSON.stringify(c.result ?? ""))));
   const doneCount = calls.filter((c) => c.result !== undefined).length;
@@ -340,6 +377,14 @@ function StepProgressCard({ calls }: { calls: ToolCall[] }) {
         <span className="text-[12px] font-medium flex-1 text-left" style={{ color: "var(--text-primary)" }}>
           {running ? `正在执行步骤 ${Math.min(doneCount + 1, calls.length)}/${calls.length}` : `任务完成 · ${calls.length} 个步骤`}
         </span>
+        {pendingCalls.length > 0 && (
+          <span
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-medium animate-pulse"
+            style={{ background: "color-mix(in srgb, var(--accent-yellow) 18%, transparent)", color: "var(--accent-yellow)" }}
+          >
+            待确认
+          </span>
+        )}
         {running && (
           <span
             className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-medium transition-colors hover:opacity-80"
@@ -356,9 +401,13 @@ function StepProgressCard({ calls }: { calls: ToolCall[] }) {
           </span>
         )}
       </button>
+      {/* 待确认的调用直接外露在主对话流，不进入折叠区 */}
+      {pendingCalls.map((call) => (
+        <ToolCallCard key={call.id} call={call} />
+      ))}
       {expanded && (
         <div className="px-3 pb-2 space-y-0.5 border-t" style={{ borderColor: "var(--surface-4)" }}>
-          {calls.map((call) => (
+          {calls.filter((c) => c.status !== "pending").map((call) => (
             <ToolCallCard key={call.id} call={call} />
           ))}
         </div>
@@ -367,8 +416,37 @@ function StepProgressCard({ calls }: { calls: ToolCall[] }) {
   );
 }
 
+/// 从助手消息中提取可点选项（交互式任务如 /brainstorming 输出的选项列表）。
+/// 仅识别 2–8 项的编号/符号列表，且消息含提问信号，避免误伤普通对话的列表内容。
+function extractQuickOptions(content: string): string[] {
+  if (!content || content.length > 8000) return [];
+  if (!/选择|请选择|请问|确认|回复|选项|pick|choose|option|which|\?|？/.test(content)) return [];
+  const lines = content.split("\n");
+  const opts: string[] = [];
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    // 编号列表：1. / 1) / 1、/ **1.** ；符号列表：- / * / •
+    const m =
+      /^(?:\*\*)?\d+[.)、．.](?:\*\*)?\s*(.+)$/.exec(line) ||
+      /^[-*•]\s+(.+)$/.exec(line);
+    if (!m) {
+      // 选项列表开始前的引导语（如“请选择：”）允许忽略；列表后出现正文则放弃提取
+      if (opts.length > 0) return [];
+      continue;
+    }
+    let text = m[1].trim().replace(/^\*+|\*+$/g, "").trim();
+    if (text.length > 80) text = `${text.slice(0, 80)}…`;
+    if (text) opts.push(text);
+  }
+  if (opts.length < 2 || opts.length > 8) return [];
+  // 排除长段落式列表（多为说明文档而非选项）
+  if (opts.some((o) => o.length > 60)) return [];
+  return opts;
+}
+
 /// 渲染单条消息。live=true 表示正在流式输出，此时长消息不自动折叠。
-function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live }: { msg: ChatMessage; onContextMenu?: (e: ReactMouseEvent<HTMLElement>) => void; onRegenerate?: () => void; canRegenerate?: boolean; live?: boolean }) {
+function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live, onQuickReply, quickReplyDisabled }: { msg: ChatMessage; onContextMenu?: (e: ReactMouseEvent<HTMLElement>) => void; onRegenerate?: () => void; canRegenerate?: boolean; live?: boolean; onQuickReply?: (text: string) => void; quickReplyDisabled?: boolean }) {
   // Hook 必须在任何条件早退之前调用（消息从思考占位 → 正式内容时 hooks 数量不变）
   const [collapsedView, setCollapsedView] = useState<boolean | null>(null);
   if (msg.role === "user") {
@@ -434,6 +512,9 @@ function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live }
   const isLong = (msg.content || "").length > 800;
   // 长消息默认折叠，减少视觉压力；流式输出中保持展开
   const isCollapsed = collapsedView ?? (isLong && msg.content !== THINKING_MESSAGE && !live);
+
+  // 交互式任务选项：流式结束后提取，直接渲染可点按钮，无需手动输入
+  const quickOptions = !live && onQuickReply ? extractQuickOptions(msg.content || "") : [];
 
   return (
     <div className="group flex items-start gap-3 mb-4 animate-fade-in" onContextMenu={onContextMenu}>
@@ -502,6 +583,31 @@ function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live }
           )}
         </div>
         {msg.tool_calls && msg.tool_calls.length > 0 && <StepProgressCard calls={msg.tool_calls} />}
+        {/* 交互式任务选项按钮：点击即作为回复发送 */}
+        {quickOptions.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {quickOptions.map((opt, i) => (
+              <button
+                key={`${i}-${opt}`}
+                disabled={quickReplyDisabled}
+                onClick={() => onQuickReply?.(opt)}
+                title={opt}
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
+                style={{ background: "var(--surface-2)", border: "1px solid var(--surface-4)", color: "var(--text-primary)" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = "var(--accent-blue)";
+                  e.currentTarget.style.color = "var(--accent-blue)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "var(--surface-4)";
+                  e.currentTarget.style.color = "var(--text-primary)";
+                }}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        )}
         {/* 悬浮操作按钮 */}
         <div className="mt-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <MessageActionBtn
@@ -905,6 +1011,12 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
     return () => window.removeEventListener("wth:send-example", onSendExample);
   }, [activeSessionId, sessionMessages, runAgentRequest]);
 
+  /** 快捷选项回复：交互式任务的可点选项直接作为用户消息发送。 */
+  const sendQuickReply = async (text: string) => {
+    if (!activeSessionId || isStreaming || !text.trim()) return;
+    await runAgentRequest(text.trim(), buildHistory(sessionMessages), [], undefined);
+  };
+
   const handleSend = async () => {
     if (!activeSessionId) return;
     let content = input.trim();
@@ -1168,6 +1280,14 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
             const isLast = idx === sessionMessages.length - 1;
             const showCursor =
               isLast && msg.role === "assistant" && isStreaming;
+            // 仅最新一条未续答的助手消息展示可点选项；后续已有用户回复则不再展示
+            const hasNextUserReply = sessionMessages
+              .slice(idx + 1)
+              .some((m) => m.role === "user");
+            const quickReplyProps =
+              msg.role === "assistant" && !hasNextUserReply
+                ? { onQuickReply: sendQuickReply, quickReplyDisabled: isStreaming }
+                : {};
             return (
               <div
                 key={msg.id}
@@ -1190,6 +1310,7 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
                   }
                   onRegenerate={() => void regenerateFrom(msg)}
                   live={isLast && isStreaming}
+                  {...quickReplyProps}
                 />
                 {showCursor && <StreamingCursor />}
               </div>
