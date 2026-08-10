@@ -19,7 +19,11 @@ pub struct TerminalSessions {
 }
 
 pub struct TerminalHandle {
+    /// 会话 ID（保留用于未来状态同步）
+    #[allow(dead_code)]
     pub id: String,
+    /// 子进程 PID（保留用于诊断）
+    #[allow(dead_code)]
     pub pid: u32,
     pub writer: Option<Box<dyn std::io::Write + Send>>,
     pub master: Box<dyn portable_pty::MasterPty + Send>,
@@ -34,7 +38,11 @@ pub struct AgentSessions {
 }
 
 pub struct AgentHandle {
+    /// 会话 ID（保留用于未来状态同步）
+    #[allow(dead_code)]
     pub id: String,
+    /// 会话标题（保留用于诊断）
+    #[allow(dead_code)]
     pub title: String,
     pub running: bool,
     /// Channel to abort a running agent

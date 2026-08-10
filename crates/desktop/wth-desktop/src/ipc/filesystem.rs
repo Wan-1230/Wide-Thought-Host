@@ -52,7 +52,19 @@ pub async fn file_read(
 ) -> Result<String, String> {
     let root = workspace_root(&state)?;
     let path = sanitize_path(&args.path, &root)?;
-    std::fs::read_to_string(&path).map_err(|e| format!("Failed to read {}: {}", args.path, e))
+    let bytes = std::fs::read(&path).map_err(|e| format!("Failed to read {}: {}", args.path, e))?;
+    match args.encoding.as_deref() {
+        Some("utf-8") | None => String::from_utf8(bytes)
+            .map_err(|e| format!("文件不是合法 UTF-8: {}", e)),
+        Some("utf-16") | Some("utf-16le") => String::from_utf16(
+            &bytes
+                .chunks_exact(2)
+                .map(|c| u16::from_le_bytes([c[0], c[1]]))
+                .collect::<Vec<_>>(),
+        )
+        .map_err(|e| format!("文件不是合法 UTF-16: {}", e)),
+        Some(other) => Err(format!("不支持的编码: {other}（支持 utf-8 / utf-16）")),
+    }
 }
 
 /// Write content to a file (creates or overwrites).

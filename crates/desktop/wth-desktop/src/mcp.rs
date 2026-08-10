@@ -20,6 +20,8 @@ const CALL_TIMEOUT_SECS: u64 = 60;
 
 /// 一个 stdio MCP 服务器连接。
 pub struct McpClient {
+    /// 服务器唯一标识（保留用于多实例区分）
+    #[allow(dead_code)]
     pub server_id: String,
     pub display_name: String,
     pub tools: Vec<McpTool>,

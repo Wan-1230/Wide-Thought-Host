@@ -10,14 +10,6 @@ use serde_json::Value;
 use std::path::Path;
 use walkdir::WalkDir;
 
-/// 当前支持的触发点。
-pub const TRIGGERS: &[&str] = &[
-    "message_sent",
-    "agent_response_done",
-    "tool_approved",
-    "tool_denied",
-];
-
 /// 异步执行匹配 trigger 的全部启用 hooks，返回已触发 hook 的名称。
 pub async fn run_hooks(
     trigger: &str,

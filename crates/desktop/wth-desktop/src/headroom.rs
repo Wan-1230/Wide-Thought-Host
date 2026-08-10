@@ -47,7 +47,8 @@ impl HeadroomManager {
             let port = *self.port.lock().unwrap();
             HeadroomStatus::Running { port }
         } else {
-            HeadroomStatus::Disabled
+            // enabled 但无子进程：表示启动中或启动失败
+            HeadroomStatus::Starting
         }
     }
 

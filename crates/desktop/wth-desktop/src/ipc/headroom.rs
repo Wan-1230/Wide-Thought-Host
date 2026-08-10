@@ -18,6 +18,8 @@ pub struct HeadroomStatusResponse {
     pub port: u16,
     pub installed: bool,
     pub proxy_url: Option<String>,
+    /// 错误信息（序列化给前端展示）
+    #[allow(dead_code)]
     pub error: Option<String>,
 }
 
@@ -98,14 +100,11 @@ pub async fn headroom_start(
             let status = state.headroom.status();
             Ok(build_response(status, true, None))
         }
-        Err(e) => Ok(HeadroomStatusResponse {
-            enabled: true,
-            running: false,
-            port,
-            installed: true,
-            proxy_url: None,
-            error: Some(e),
-        }),
+        Err(e) => Ok(build_response(
+            HeadroomStatus::Error(e),
+            true,
+            None,
+        )),
     }
 }
 

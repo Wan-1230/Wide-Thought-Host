@@ -4,7 +4,7 @@
 //! 按拓扑序调度：无依赖节点并行执行，依赖满足后进入下一轮。
 //! 节点输出（子智能体最终回复）供后续节点通过 {{prev_output:node_id}} 引用。
 
-use crate::settings::{SubagentConfig, WorkflowConfig, WorkflowNode};
+use crate::settings::{WorkflowConfig, WorkflowNode};
 use crate::state::{AgentHandle, AppState};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -18,15 +18,6 @@ pub struct WorkflowRunResult {
     pub output: String,
     pub sub_session_id: String,
     pub error: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct WorkflowRunDto {
-    pub run_id: String,
-    pub config_id: String,
-    pub config_name: String,
-    pub results: Vec<WorkflowRunResult>,
-    pub status: String,
 }
 
 /// 列出全部工作流定义。
@@ -319,17 +310,6 @@ pub async fn workflow_run(
         });
         let done_count = results.iter().filter(|r| r.status == "done").count();
         let status = if done_count > 0 { "done" } else { "failed" };
-        let summary: Vec<String> = results
-            .iter()
-            .map(|r| {
-                format!(
-                    "【{}】{}\n{}",
-                    r.node_name,
-                    r.status,
-                    r.output.chars().take(400).collect::<String>()
-                )
-            })
-            .collect();
         let payload = serde_json::json!({
             "run_id": run_id_clone,
             "config_id": config_id,

@@ -354,8 +354,22 @@ pub(crate) async fn run_agent(
                 "type": "image_url",
                 "image_url": { "url": data_url }
             }));
-        } else if let Some(content) = &attachment.content {
-            text_extra.push_str(&format!("\n\n[附件：{}]\n{}", attachment.name, content));
+        } else {
+            // 优先使用直接传入的 content；否则尝试从 path 读取文件内容
+            let resolved = if let Some(content) = &attachment.content {
+                content.clone()
+            } else if let Some(path) = &attachment.path {
+                std::fs::read_to_string(path)
+                    .unwrap_or_else(|e| format!("（无法读取附件 {path}: {e}）"))
+            } else {
+                String::new()
+            };
+            if !resolved.is_empty() {
+                text_extra.push_str(&format!(
+                    "\n\n[附件：{}]（{}）\n{}",
+                    attachment.name, attachment.mime_type, resolved
+                ));
+            }
         }
     }
     if !text_extra.is_empty() {

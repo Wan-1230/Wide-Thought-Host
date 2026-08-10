@@ -5,7 +5,7 @@
 //! - `config_export` — 导出不含密钥的配置 JSON，可跨机器导入
 //! - `config_import` — 导入配置 JSON（凭据字段保留占位，需重新输入密钥）
 
-use crate::settings::{DesktopSettings, persist_state_settings};
+use crate::settings::persist_state_settings;
 use crate::state::AppState;
 use serde::Serialize;
 use serde_json::json;
