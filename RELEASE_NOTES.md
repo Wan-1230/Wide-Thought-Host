@@ -1,19 +1,47 @@
-# v0.2.0
+# v1.0.0 — 首个稳定版发布
 
-## 新增
+> 发布日期：2026-08
+> 这是 Wide Thought Host 的第一个稳定版本（从 v0.x 系列功能验证走向正式发布）。
 
-- 工作区语义检索升级：多 token 混合评分、Ollama 语义引擎探测、索引状态/重建/清除（设置 → 通用 → 工作区索引）。
-- 网络设置：代理模式（关闭/系统/自定义）、连接超时、自动重试；Provider 测试连接同步走代理。
-- 插件市场：远程源浏览、一键安装（SHA-256 校验 + zip-slip 防护）、更新、卸载、权限声明。
-- 应用内更新：下载安装包（进度条 + 哈希校验）→ 启动安装程序。
-- 发布自动化：打 `v*` tag 自动创建 GitHub Release（安装包 + 校验文件 + 发布说明）。
-- 用户手册：`docs/user-guide/`（快速上手、功能总览、设置说明、常见问题、隐私说明）。
-- 安装体验：WebView2 最低版本声明、关于页展示构建时间与签名状态。
+## 🎉 亮点
 
-## 修复
+- **首个稳定版**：核心功能与 API 冻结，CLI 与桌面端双形态正式可用。
+- **双界面形态**：全屏 TUI（`wth` 二进制）+ Tauri 桌面 GUI（中英双语 Windows 安装包）。
+- **多模型接入**：OpenAI 兼容端点开箱即用，支持 OpenAI / Claude / DeepSeek / Ollama / vLLM。
+- **隐私优先**：无厂商遥测、无研究上传；所有数据只发往你配置的 LLM 端点。
 
-- 工作区检索结果排序与命中质量优化。
+## ✨ 新增（相对 v0.3）
 
-## 说明
+- 桌面端技能系统：`~/.wth/skills/` 下的 `SKILL.md` 可作为斜杠命令动态加载并注入系统提示词
+- 斜杠命令动态列表：内置命令（init/compact/clear/model/help/...）+ 用户技能统一展示
+- 附件增强：支持按 `path` 读取文件内容、`utf-8` / `utf-16` 编码解码
+- Headroom 侧车整合：token 压缩代理启动/停止/状态管理、一键安装
+- 品牌统一：Logo 深色模式适配、文档与资源全面更名 wth
 
-- 当前安装包未签名，SmartScreen 可能提示"未知发布者"，选择"仍要运行"即可。
+## 🐛 修复
+
+- 文件读取 `encoding` 参数此前被忽略，现已生效
+- 附件仅传 `path` 时内容为空，现自动读取文件
+- Headroom 状态机补齐 `Starting` / `Error` 语义
+- 清理 15+ 编译警告（unused imports、f32 字面量、dead code 等）
+- README 图片链接断裂（`wth-build-tui-screenshot.jpg` 缺失）
+
+## 🧹 优化
+
+- 删除未使用的 `WorkflowRunDto`、`TRIGGERS` 常量
+- 文档资源统一命名（`gork-*` → `wth-*`）
+- README 全面重构：特性表格、安装部署教程、FAQ、GitHub 徽章
+
+## 📦 安装
+
+| 平台 | 方式 |
+|------|------|
+| Windows 10/11 x64 | 下载 NSIS 安装包（`Wide Thought Host_1.0.0_x64-setup.exe`）或 MSI |
+| 从源码 | `cargo run -p wth-pager-bin`（CLI）/ `cd crates/desktop/wth-desktop && npm run tauri dev`（桌面端） |
+
+依赖：Rust 1.92+、Node.js 20+、protoc、[WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)。
+
+## ⚠️ 说明
+
+- 安装包未签名，SmartScreen 可能提示"未知发布者"，选择"更多信息 → 仍要运行"。
+- 升级前建议通过 设置 → 备份 生成 `.wthbackup` 备份。
