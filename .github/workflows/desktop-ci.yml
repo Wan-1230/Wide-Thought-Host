@@ -133,9 +133,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd installers
-          FILES=$(find . -type f \( -name "*.exe" -o -name "*.msi" \) | tr '\n' ' ')
+          # 若 tag 已存在 release（上次失败残留），先删除再重建
+          gh release delete "${{ github.ref_name }}" --repo "${{ github.repository }}" --yes || true
+          # 文件名含空格：用 bash 数组 + NUL 分隔安全传参
+          mapfile -d '' assets < <(find . -type f \( -name "*.exe" -o -name "*.msi" \) -print0)
           gh release create "${{ github.ref_name }}" \
-            $FILES sha256sums.txt \
+            "${assets[@]}" sha256sums.txt \
             --repo "${{ github.repository }}" \
             --title "WTH Desktop ${{ github.ref_name }}" \
             --notes-file /tmp/notes.md
