@@ -113,7 +113,7 @@ jobs:
       - name: 计算 SHA-256 校验和
         working-directory: installers
         run: |
-          sha256sum *.exe *.msi > sha256sums.txt
+          find . -type f \( -name "*.exe" -o -name "*.msi" \) -exec sha256sum {} + > sha256sums.txt
           cat sha256sums.txt
 
       - name: 生成发布说明
@@ -133,8 +133,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd installers
+          FILES=$(find . -type f \( -name "*.exe" -o -name "*.msi" \) | tr '\n' ' ')
           gh release create "${{ github.ref_name }}" \
-            ./*.exe ./*.msi sha256sums.txt \
+            $FILES sha256sums.txt \
             --repo "${{ github.repository }}" \
             --title "WTH Desktop ${{ github.ref_name }}" \
             --notes-file /tmp/notes.md
