@@ -65,6 +65,7 @@ members = [
     "crates/codegen/xai-sqlite-journal",
     "crates/codegen/xai-system-power",
     "crates/codegen/xai-token-estimation",  # dir; pkg = wth-token-estimation
+    "crates/codegen/wth-mcp-server",
     "crates/codegen/xai-tracing-macros",
     "crates/codegen/xai-tty-utils",
     "crates/common/xai-circuit-breaker",

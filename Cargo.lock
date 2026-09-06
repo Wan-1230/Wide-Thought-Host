@@ -14887,6 +14887,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "wth-mcp-server"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "wth-models"
 version = "0.1.0"
 dependencies = [
@@ -14915,6 +14926,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "tracing-subscriber",
+ "wth-mcp-server",
  "xai-acp-lib",
  "xai-crash-handler",
  "xai-grok-config",
@@ -15604,6 +15616,7 @@ dependencies = [
  "uuid",
  "wait-timeout",
  "windows-sys 0.59.0",
+ "wth-mcp-server",
  "wth-token-estimation",
  "xai-acp-lib",
  "xai-crash-handler",

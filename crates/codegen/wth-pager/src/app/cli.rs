@@ -129,6 +129,13 @@ See ~/.grok/README.md for more information.
     /// `GROK_WORKSPACE_COMMAND=1` to enable it locally for testing.
     #[command(hide = true)]
     Workspace(WorkspaceMgmtArgs),
+    /// F-07: 把当前工作区以 MCP 服务器形式暴露（stdio，只读工具面），
+    /// 供 VS Code / Claude Desktop / 其他 Agent 作为 MCP 客户端消费。
+    McpServe {
+        /// 工作区根（默认当前目录）；所有工具路径严格限制在该目录内
+        #[arg(long)]
+        root: Option<std::path::PathBuf>,
+    },
     /// Open the Agent Dashboard view at startup.
     ///
     /// Centralised, agent-native overview of every session (top-level and

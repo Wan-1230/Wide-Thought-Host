@@ -22,6 +22,7 @@ path = "src/main.rs"
 [dependencies]
 # The pager library (all application logic + the public API main.rs drives).
 xai-grok-pager = { path = "../wth-pager" }
+wth-mcp-server = { path = "../wth-mcp-server" }
 # Optional scrollback-native render mode, wired in via the fn-pointer seam.
 xai-grok-pager-minimal = { path = "../xai-grok-pager-minimal" }
 

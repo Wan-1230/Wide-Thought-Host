@@ -1762,6 +1762,10 @@ async fn async_main() -> Result<()> {
                 xai_grok_shell::auth::run_cli_logout(&config)?;
                 xai_grok_shell::instrumentation::finalize_and_exit(0);
             }
+            Command::McpServe { root } => {
+                let root = root.unwrap_or_else(|| std::path::PathBuf::from("."));
+                return wth_mcp_server::run_stdio_server(root).map_err(anyhow::Error::msg);
+            }
             Command::Wrap(ref wrap_args) => {
                 return xai_grok_pager::wrap_cmd::run(wrap_args);
             }

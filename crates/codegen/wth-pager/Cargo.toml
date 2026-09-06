@@ -98,6 +98,7 @@ xai-grok-voice = { path = "../xai-grok-voice", default-features = false, feature
 xai-grok-shell = { workspace = true }
 xai-grok-workspace = { workspace = true }
 wth-token-estimation = { workspace = true }
+wth-mcp-server = { path = "../wth-mcp-server" }
 xai-grok-telemetry = { workspace = true }
 xai-fast-worktree = { path = "../xai-fast-worktree", features = ["metadata"] }
 backon = { workspace = true }

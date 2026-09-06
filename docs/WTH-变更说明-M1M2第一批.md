@@ -356,3 +356,36 @@ npm run build (ui)          → ✓ built
 - F-07 `wth mcp-serve`（MCP 服务器端）；F-10 语义索引统一；A-03 第二阶段（deny-ACL/内存限额可选）
 - A-01 步骤 2/3 与端到端联调；F-06 三阶段（按任务角色路由小模型）
 - 硬编码 Key 服务端吊销（维护者操作）；B0 包名迁移提交（方案已定稿）
+
+---
+
+# 第七批变更（B0 包名迁移 + F-07 MCP 服务器端）
+
+> 日期：2026-09-05
+
+## 33. Q-01 B0 · 包名迁移第一批落地（P1 ✅）
+
+按《Q01-包名迁移方案.md》执行 B0 批次：`xai-grok-models` → `wth-models`、`xai-token-estimation` → `wth-token-estimation`。仅改 Cargo 包名，`[lib] name` 显式固定——**全部 `use` 语句与代码零改动**；workspace.dependencies 与 10 个依赖方 Cargo.toml 同步。验证：受影响 crate（agent/pager/chat-state/pager-minimal/telemetry/tools/shared/shell/desktop/pager-bin）cargo check 全绿。
+
+## 34. F-07 · `wth mcp-serve` MCP 服务器端模式（P1 ✅ 第一阶段）
+
+**变更**
+- 新增 crate `wth-mcp-server`（零第三方协议依赖，手写 JSON-RPC，符合 MCP 2025-06-18 规范）：
+  - **stdio 传输**（newline-delimited JSON-RPC）：initialize 握手（protocolVersion/capabilities/serverInfo）、tools/list、tools/call、ping；通知静默、未知方法 -32601、非法 JSON 行回 -32700；
+  - **只读工具面三件**：`wth_read_file`（UTF-8 + 截断）、`wth_list_dir`、`wth_grep`（大小写不敏感子串、跳过 .git/target/node_modules/二进制、命中上限）；
+  - **路径围栏**：与桌面端同款 `contained_path`——拒绝绝对路径与 `..` 逃逸，全部访问限制在 `--root` 工作区内。
+- CLI 接入：`wth mcp-serve [--root <dir>]` 子命令（wth-pager cli.rs + pager-bin 分发）。
+- **生态卡位**：WTH 从"消费者"升级为"提供方"——VS Code（MCP 配置）/ Claude Desktop / 其他 Agent 均可作为客户端直接读取 WTH 工作区。
+
+**效果验证**
+- 单测 6/6：协议形状、通知语义、tools/list 与分发一致、路径围栏（绝对路径/`..` 逃逸拒绝）、grep 命中、端到端 round-trip；
+- **真实二进制冒烟**：`wth mcp-serve --root <dir>` 完成 initialize 握手 + `tools/call` 读取文件，协议输出符合规范。
+**后续**：会话级工具（`wth_ask` 经内核会话面）、HTTP 传输、写操作面（带审批）。
+
+## 35. 本批验证汇总
+
+```
+cargo check（B0 受影响 10 crate）→ 全绿
+cargo test  -p wth-mcp-server    → 6/6
+cargo build -p wth-pager-bin     → ✓（wth mcp-serve 端到端冒烟通过）
+```
