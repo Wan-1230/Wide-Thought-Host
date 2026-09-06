@@ -1,9 +1,29 @@
 //! Pure shared token-estimation primitives.
 //!
-//! This crate is the single source of truth for the bytes/4 heuristic and the
-//! derived-display arithmetic that `/context`, `/session-info`, the auto-compact
-//! gates, the preflight overflow check, and every client renderer use to talk
-//! about context-window usage.
+//! This crate is the single source of truth for token counting and the
+//! derived-display arithmetic that `/context`, `/session-info`, the
+//! auto-compact gates, the preflight overflow check, and every client
+//! renderer use to talk about context-window usage.
+//!
+//! ## Counting tiers
+//!
+//! 1. **Model-aware BPE counting** ([`estimate_tokens_for_model`]) — real
+//!    tokenizer counts via `tiktoken-rs` for model families whose tokenizers
+//!    we bundle (OpenAI `cl100k`/`o200k`, and `cl100k` as an approximation
+//!    for DeepSeek). Callers that know the model id should prefer this.
+//! 2. **CJK-aware heuristic** ([`estimate_tokens`]) — the shared default.
+//!    ASCII/latin text keeps the historical bytes/4 arithmetic; CJK, kana,
+//!    and Hangul characters count as one token each, which corrects the
+//!    severe undercount the raw bytes/4 rule produced for Chinese/Japanese/
+//!    Korean input (3 UTF-8 bytes per ideograph → 0.75 tokens, versus the
+//!    ~1.0–1.5 real tokens). Underestimating drives the auto-compact gates
+//!    to fire too late and overflow the context window, so the heuristic is
+//!    deliberately conservative for CJK.
+//! 3. **Legacy bytes/4** ([`estimate_tokens_bytes4`]) — preserved verbatim
+//!    for callers that need the old semantics (e.g. byte-budget sizing).
+//!
+//! The heuristic tier stays dependency-free in spirit (no I/O, no runtime
+//! download); the BPE tier is CPU-only construction, cached process-wide.
 
 /// Bytes per token under the rough character-based heuristic.
 pub const BYTES_PER_TOKEN: u64 = 4;
@@ -12,15 +32,135 @@ pub const BYTES_PER_TOKEN: u64 = 4;
 /// low-resolution image patches.
 pub const IMAGE_TOKEN_ESTIMATE: u64 = 765;
 
-/// Bytes/4 estimate of a string's token count.
+/// Bytes/4 estimate of a string's token count (legacy semantics).
+///
+/// Prefer [`estimate_tokens`] (CJK-aware) for context accounting and
+/// [`estimate_tokens_for_model`] when the model id is known.
+#[inline]
+pub fn estimate_tokens_bytes4(s: &str) -> u64 {
+    (s.len() as u64) / BYTES_PER_TOKEN
+}
+
+/// CJK-aware token estimate of a string's token count.
+///
+/// ASCII text reduces exactly to the historical bytes/4 arithmetic;
+/// CJK ideographs, kana, and Hangul syllables count as one token each and
+/// contribute no bytes to the byte-half of the estimate.
 #[inline]
 pub fn estimate_tokens(s: &str) -> u64 {
-    (s.len() as u64) / BYTES_PER_TOKEN
+    let mut cjk_chars: u64 = 0;
+    let mut other_bytes: u64 = 0;
+    for ch in s.chars() {
+        if is_cjk(ch) {
+            cjk_chars += 1;
+        } else {
+            other_bytes += ch.len_utf8() as u64;
+        }
+    }
+    other_bytes / BYTES_PER_TOKEN + cjk_chars
+}
+
+/// True when `ch` is a CJK ideograph, CJK punctuation, kana, or Hangul
+/// syllable — the code-point ranges where BPE tokenizers commonly spend
+/// (at least) one token per character.
+#[inline]
+pub fn is_cjk(ch: char) -> bool {
+    matches!(ch as u32,
+        0x3000..=0x303F   // CJK symbols and punctuation
+        | 0x3040..=0x30FF // Hiragana + Katakana
+        | 0x3130..=0x318F // Hangul compatibility jamo
+        | 0x3400..=0x4DBF // CJK unified ideographs extension A
+        | 0x4E00..=0x9FFF // CJK unified ideographs
+        | 0xAC00..=0xD7AF // Hangul syllables
+        | 0xF900..=0xFAFF // CJK compatibility ideographs
+        | 0xFF00..=0xFFEF // Full-width forms
+    )
+}
+
+/// Which tokenizer family a model id belongs to, as far as this crate can
+/// tell from the name alone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ModelFamily {
+    /// OpenAI models whose tokenizer ships in `tiktoken-rs` (`cl100k` or
+    /// `o200k`, selected by model id).
+    OpenAi,
+    /// DeepSeek models — approximated with `cl100k` (their native BPE is
+    /// not public, but vocabulary overlap makes the count close).
+    DeepSeek,
+    /// Anthropic Claude models — no public offline tokenizer; use the
+    /// CJK-aware heuristic.
+    Anthropic,
+    /// Everything else (Grok, Qwen, GLM, Llama, Ollama tags, ...) —
+    /// CJK-aware heuristic.
+    Other,
+}
+
+/// Best-effort model-family classification from a model id.
+pub fn model_family(model: &str) -> ModelFamily {
+    let m = model.to_ascii_lowercase();
+    if m.contains("deepseek") {
+        return ModelFamily::DeepSeek;
+    }
+    if m.contains("claude") {
+        return ModelFamily::Anthropic;
+    }
+    const OPENAI_MARKERS: &[&str] = &[
+        "gpt-", "gpt4", "gpt5", "chatgpt", "codex", "davinci", "text-embedding", "omni",
+    ];
+    if OPENAI_MARKERS.iter().any(|marker| m.contains(marker))
+        || m.starts_with("o1")
+        || m.starts_with("o3")
+        || m.starts_with("o4-")
+    {
+        return ModelFamily::OpenAi;
+    }
+    ModelFamily::Other
+}
+
+/// Token estimate for `s` as `model` would count it.
+///
+/// Uses a real bundled BPE for [`ModelFamily::OpenAi`] and
+/// [`ModelFamily::DeepSeek`]; falls back to the CJK-aware heuristic
+/// (matching [`estimate_tokens`]) for every other family or if BPE
+/// construction fails.
+pub fn estimate_tokens_for_model(model: &str, s: &str) -> u64 {
+    match model_family(model) {
+        ModelFamily::OpenAi => {
+            let bpe = if uses_o200k(model) { o200k_bpe() } else { cl100k_bpe() };
+            bpe.and_then(|bpe| bpe.encode_ordinary(s).len().try_into().ok())
+                .unwrap_or_else(|| estimate_tokens(s))
+        }
+        ModelFamily::DeepSeek => cl100k_bpe()
+            .and_then(|bpe| bpe.encode_ordinary(s).len().try_into().ok())
+            .unwrap_or_else(|| estimate_tokens(s)),
+        ModelFamily::Anthropic | ModelFamily::Other => estimate_tokens(s),
+    }
+}
+/// Model ids tokenized with `o200k_base` (GPT-4o/4.1/5 generations, the
+/// `o`-series reasoners, and chatgpt-branded variants). Everything else
+/// OpenAI defaults to `cl100k_base`.
+fn uses_o200k(model: &str) -> bool {
+    let m = model.to_ascii_lowercase();
+    const O200K_MARKERS: &[&str] = &["gpt-4o", "gpt-4.1", "gpt-5", "chatgpt", "omni", "codex"];
+    O200K_MARKERS.iter().any(|marker| m.contains(marker))
+        || m.starts_with("o1")
+        || m.starts_with("o3")
+        || m.starts_with("o4-")
+}
+
+fn o200k_bpe() -> Option<&'static tiktoken_rs::CoreBPE> {
+    static BPE: std::sync::OnceLock<Option<tiktoken_rs::CoreBPE>> = std::sync::OnceLock::new();
+    BPE.get_or_init(|| tiktoken_rs::o200k_base().ok()).as_ref()
+}
+
+fn cl100k_bpe() -> Option<&'static tiktoken_rs::CoreBPE> {
+    static BPE: std::sync::OnceLock<Option<tiktoken_rs::CoreBPE>> = std::sync::OnceLock::new();
+    BPE.get_or_init(|| tiktoken_rs::cl100k_base().ok()).as_ref()
 }
 
 /// Inverse of [`estimate_tokens`]: convert a token budget into a character
 /// budget. Used by skill discovery to size text passages against the model's
-/// context window.
+/// context window. (Byte-oriented; exact for ASCII-only text.)
 #[inline]
 pub fn estimate_chars(tokens: u64) -> u64 {
     tokens.saturating_mul(BYTES_PER_TOKEN)
@@ -113,6 +253,97 @@ mod tests {
         assert_eq!(estimate_tokens("abc"), 0);
         assert_eq!(estimate_tokens("abcd"), 1);
         assert_eq!(estimate_tokens(&"x".repeat(4000)), 1000);
+    }
+
+    /// ASCII text keeps the exact legacy bytes/4 arithmetic.
+    #[test]
+    fn estimate_tokens_matches_bytes4_for_ascii() {
+        for s in ["", "abc", "abcd", "hello world", &"x".repeat(4000)] {
+            assert_eq!(estimate_tokens(s), estimate_tokens_bytes4(s), "input: {s}");
+        }
+    }
+
+    /// CJK text previously undercounted by ~4x (3 bytes/char → 0.75 tokens
+    /// versus ~1 real token). The CJK-aware rule counts one token per
+    /// ideograph, which must never be below the legacy estimate for
+    /// CJK-bearing input.
+    #[test]
+    fn estimate_tokens_counts_cjk_chars_as_tokens() {
+        assert_eq!(estimate_tokens("你好"), 2);
+        assert_eq!(estimate_tokens("你好世界"), 4);
+        assert_eq!(estimate_tokens("こんにちは"), 5);
+        assert_eq!(estimate_tokens("안녕하세요"), 5);
+        // Mixed: "abc " is 4 other-bytes (1 token) + 2 CJK chars.
+        assert_eq!(estimate_tokens("abc 你好"), 3);
+        // Full-width punctuation is CJK-classified.
+        assert_eq!(estimate_tokens("你好。"), 3);
+        assert!(estimate_tokens("你好") > estimate_tokens_bytes4("你好"));
+    }
+
+    #[test]
+    fn is_cjk_covers_expected_ranges() {
+        assert!(is_cjk('你'));
+        assert!(is_cjk('あ'));
+        assert!(is_cjk('가'));
+        assert!(is_cjk('。'));
+        assert!(is_cjk('Ａ')); // full-width
+        assert!(!is_cjk('a'));
+        assert!(!is_cjk(' '));
+        assert!(!is_cjk('é'));
+    }
+
+    #[test]
+    fn model_family_classification() {
+        assert_eq!(model_family("gpt-4"), ModelFamily::OpenAi);
+        assert_eq!(model_family("gpt-4.1"), ModelFamily::OpenAi);
+        assert_eq!(model_family("gpt-4o-mini"), ModelFamily::OpenAi);
+        assert_eq!(model_family("o3-mini"), ModelFamily::OpenAi);
+        assert_eq!(model_family("codex-latest"), ModelFamily::OpenAi);
+        assert_eq!(model_family("deepseek-chat"), ModelFamily::DeepSeek);
+        assert_eq!(model_family("deepseek-reasoner"), ModelFamily::DeepSeek);
+        assert_eq!(model_family("claude-sonnet-4-20250514"), ModelFamily::Anthropic);
+        assert_eq!(model_family("grok-build"), ModelFamily::Other);
+        assert_eq!(model_family("qwen3:8b"), ModelFamily::Other);
+        assert_eq!(model_family("llama3.2"), ModelFamily::Other);
+        assert_eq!(model_family(""), ModelFamily::Other);
+    }
+
+    /// Anchor: `cl100k_base` encodes "hello world" as 2 tokens. Pins that
+    /// the BPE path is actually reached for cl100k-classified models.
+    #[test]
+    fn estimate_tokens_for_model_uses_cl100k_for_gpt4() {
+        assert_eq!(estimate_tokens_for_model("gpt-4", "hello world"), 2);
+    }
+
+    /// Property: the model-aware estimate is total, non-negative, and
+    /// bounded (never wildly above the bytes/4 ceiling — BPE never spends
+    /// more than ~1 token per byte for these tokenizers).
+    #[test]
+    fn estimate_tokens_for_model_is_bounded() {
+        let samples = [
+            "def tokenize(text: str) -> list[int]: ...",
+            "你好，世界！这是一个测试。",
+            "",
+            "mixed 中文 and english 🎉 emoji",
+        ];
+        for model in ["gpt-4o", "gpt-4", "deepseek-chat", "claude-sonnet-4", "qwen3:8b"] {
+            for s in samples {
+                let est = estimate_tokens_for_model(model, s);
+                assert!(est <= (s.len() as u64).max(1), "model={model} s={s:?} est={est}");
+            }
+        }
+    }
+
+    /// DeepSeek and OpenAI families fall back to the heuristic if BPE
+    /// construction fails; Anthropic/Other always use it. Just pins the
+    /// Anthropic path equals `estimate_tokens`.
+    #[test]
+    fn estimate_tokens_for_model_heuristic_families_match_estimate_tokens() {
+        for model in ["claude-sonnet-4", "grok-build", "qwen3:8b"] {
+            for s in ["hello", "你好世界", "mixed 中文 text"] {
+                assert_eq!(estimate_tokens_for_model(model, s), estimate_tokens(s));
+            }
+        }
     }
 
     #[test]
