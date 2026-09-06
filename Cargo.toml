@@ -64,7 +64,7 @@ members = [
     "crates/codegen/xai-ratatui-textarea",
     "crates/codegen/xai-sqlite-journal",
     "crates/codegen/xai-system-power",
-    "crates/codegen/xai-token-estimation",
+    "crates/codegen/xai-token-estimation",  # dir; pkg = wth-token-estimation
     "crates/codegen/xai-tracing-macros",
     "crates/codegen/xai-tty-utils",
     "crates/common/xai-circuit-breaker",
@@ -293,7 +293,7 @@ xai-grok-markdown-core = { path = "crates/codegen/xai-grok-markdown-core" }
 xai-grok-mcp = { path = "crates/codegen/xai-grok-mcp" }
 xai-grok-memory = { path = "crates/codegen/xai-grok-memory" }
 xai-grok-mermaid = { path = "crates/codegen/xai-grok-mermaid" }
-xai-grok-models = { path = "crates/codegen/wth-models" }
+wth-models = { path = "crates/codegen/wth-models" }
 xai-grok-sampler = { path = "crates/codegen/xai-grok-sampler" }
 xai-grok-secrets = { path = "crates/codegen/xai-grok-secrets" }
 xai-grok-shared = { path = "crates/codegen/xai-grok-shared" }
@@ -317,7 +317,7 @@ xai-ratatui-textarea = { path = "crates/codegen/xai-ratatui-textarea" }
 xai-sqlite-journal = { path = "crates/codegen/xai-sqlite-journal" }
 xai-system-power = { path = "crates/codegen/xai-system-power" }
 xai-test-utils = { path = "crates/common/xai-test-utils" }
-xai-token-estimation = { path = "crates/codegen/xai-token-estimation" }
+wth-token-estimation = { path = "crates/codegen/xai-token-estimation" }
 xai-tool-protocol = { path = "crates/common/wth-tool-protocol" }
 xai-tool-runtime = { path = "crates/common/wth-tool-runtime" }
 xai-tool-types = { path = "crates/common/wth-tool-types" }

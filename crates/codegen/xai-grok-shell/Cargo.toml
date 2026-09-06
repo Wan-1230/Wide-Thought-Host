@@ -132,7 +132,7 @@ xai-chat-state = { path = "../xai-chat-state" }
 xai-grok-compaction = { path = "../../common/xai-grok-compaction" }
 xai-grok-sampler = { path = "../xai-grok-sampler" }
 xai-sqlite-journal = { workspace = true }
-xai-token-estimation = { workspace = true }
+wth-token-estimation = { workspace = true }
 xai-grok-sampling-types = { path = "../xai-grok-sampling-types" }
 xai-grok-tools = { path = "../xai-grok-tools" }
 xai-tty-utils = { workspace = true }
@@ -150,7 +150,7 @@ xai-file-utils = { path = "../xai-file-utils" }
 xai-grok-auth = { workspace = true, features = ["middleware"] }
 xai-grok-telemetry = { workspace = true }
 xai-grok-http = { workspace = true }
-xai-grok-models = { workspace = true }
+wth-models = { workspace = true }
 prod-mc-cli-chat-proxy-types = { path = "../../../prod/mc/cli-chat-proxy-types" }
 flate2 = { workspace = true }
 fs2 = { workspace = true }

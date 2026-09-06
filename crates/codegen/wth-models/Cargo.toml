@@ -1,9 +1,12 @@
 [package]
 license = "Apache-2.0"
-name = "xai-grok-models"
+name = "wth-models"
 version = "0.1.0"
 edition.workspace = true
 description = "Default model IDs for the grok CLI, loaded from the embedded default_models.json."
+
+[lib]
+name = "xai_grok_models"
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }

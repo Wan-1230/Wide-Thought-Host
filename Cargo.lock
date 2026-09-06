@@ -14868,12 +14868,12 @@ dependencies = [
  "walkdir",
  "windows 0.61.3",
  "windows-sys 0.60.2",
+ "wth-models",
  "xai-grok-agent",
  "xai-grok-config",
  "xai-grok-config-types",
  "xai-grok-mcp",
  "xai-grok-memory",
- "xai-grok-models",
  "xai-grok-sampler",
  "xai-grok-sandbox",
  "xai-grok-secrets",
@@ -14884,6 +14884,14 @@ dependencies = [
  "xai-tool-runtime",
  "xai-tool-types",
  "zip 2.4.2",
+]
+
+[[package]]
+name = "wth-models"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -14919,6 +14927,13 @@ dependencies = [
  "xai-grok-version",
  "xai-grok-workspace",
  "xai-tty-utils",
+]
+
+[[package]]
+name = "wth-token-estimation"
+version = "0.1.0"
+dependencies = [
+ "tiktoken-rs",
 ]
 
 [[package]]
@@ -15019,9 +15034,9 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
+ "wth-token-estimation",
  "xai-grok-compaction",
  "xai-grok-sampling-types",
- "xai-token-estimation",
 ]
 
 [[package]]
@@ -15279,11 +15294,11 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
+ "wth-token-estimation",
  "xai-grok-config",
  "xai-grok-hooks",
  "xai-grok-sampling-types",
  "xai-grok-tools",
- "xai-token-estimation",
  "xai-tool-types",
  "zeroize",
 ]
@@ -15530,14 +15545,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "xai-grok-models"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "xai-grok-pager"
 version = "0.1.220-alpha.4"
 dependencies = [
@@ -15597,6 +15604,7 @@ dependencies = [
  "uuid",
  "wait-timeout",
  "windows-sys 0.59.0",
+ "wth-token-estimation",
  "xai-acp-lib",
  "xai-crash-handler",
  "xai-fast-worktree",
@@ -15622,7 +15630,6 @@ dependencies = [
  "xai-prompt-queue",
  "xai-ratatui-inline",
  "xai-ratatui-textarea",
- "xai-token-estimation",
  "xai-tty-utils",
 ]
 
@@ -15636,11 +15643,11 @@ dependencies = [
  "similar",
  "tracing",
  "uuid",
+ "wth-token-estimation",
  "xai-grok-pager",
  "xai-grok-shell",
  "xai-grok-version",
  "xai-ratatui-inline",
- "xai-token-estimation",
 ]
 
 [[package]]
@@ -15845,8 +15852,8 @@ dependencies = [
  "urlencoding",
  "uuid",
  "wl-clipboard-rs",
+ "wth-models",
  "xai-grok-config-types",
- "xai-grok-models",
  "xai-grok-tools",
  "xai-tty-utils",
 ]
@@ -15943,6 +15950,8 @@ dependencies = [
  "walkdir",
  "webbrowser",
  "windows 0.61.3",
+ "wth-models",
+ "wth-token-estimation",
  "xai-acp-lib",
  "xai-agent-lifecycle",
  "xai-chat-state",
@@ -15961,7 +15970,6 @@ dependencies = [
  "xai-grok-http",
  "xai-grok-mcp",
  "xai-grok-memory",
- "xai-grok-models",
  "xai-grok-paths",
  "xai-grok-plugin-marketplace",
  "xai-grok-sampler",
@@ -15983,7 +15991,6 @@ dependencies = [
  "xai-sqlite-journal",
  "xai-system-power",
  "xai-test-utils",
- "xai-token-estimation",
  "xai-tool-protocol",
  "xai-tool-runtime",
  "xai-tool-types",
@@ -16093,6 +16100,7 @@ dependencies = [
  "url",
  "uuid",
  "whoami",
+ "wth-token-estimation",
  "xai-file-utils",
  "xai-grok-auth",
  "xai-grok-config",
@@ -16100,7 +16108,6 @@ dependencies = [
  "xai-grok-sampler",
  "xai-grok-secrets",
  "xai-mixpanel",
- "xai-token-estimation",
 ]
 
 [[package]]
@@ -16186,6 +16193,7 @@ dependencies = [
  "which",
  "windows 0.61.3",
  "wiremock",
+ "wth-token-estimation",
  "xai-computer-hub-core",
  "xai-computer-hub-sdk",
  "xai-file-utils",
@@ -16197,7 +16205,6 @@ dependencies = [
  "xai-grok-workspace-types",
  "xai-interjection-core",
  "xai-test-utils",
- "xai-token-estimation",
  "xai-tool-protocol",
  "xai-tool-runtime",
  "xai-tool-types",
@@ -16519,13 +16526,6 @@ dependencies = [
  "runfiles",
  "tracing",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "xai-token-estimation"
-version = "0.1.0"
-dependencies = [
- "tiktoken-rs",
 ]
 
 [[package]]

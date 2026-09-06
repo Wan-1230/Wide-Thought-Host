@@ -38,7 +38,7 @@ chrono = { workspace = true }
 similar = { workspace = true }
 xai-grok-shell = { workspace = true }
 xai-grok-version = { workspace = true }
-xai-token-estimation = { workspace = true }
+wth-token-estimation = { workspace = true }
 
 [dev-dependencies]
 # The unit tests reuse the pager's test-only view-model constructors
