@@ -14867,6 +14867,7 @@ dependencies = [
  "uuid",
  "walkdir",
  "windows 0.61.3",
+ "windows-sys 0.60.2",
  "xai-grok-agent",
  "xai-grok-config",
  "xai-grok-config-types",

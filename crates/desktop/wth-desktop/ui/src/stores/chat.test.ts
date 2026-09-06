@@ -127,3 +127,70 @@ describe("用量统计", () => {
     expect(total.prompt_tokens).toBe(20);
   });
 });
+
+describe("工具调用生命周期（Q-02）", () => {
+  function assistantMsg(id = "a1"): ChatMessage {
+    return { id, role: "assistant", content: "", timestamp: new Date().toISOString() };
+  }
+
+  it("addToolCall 只挂在最后一条 assistant 消息上", () => {
+    useChatStore.getState().setMessages("s1", [assistantMsg()]);
+    useChatStore.getState().addToolCall("s1", {
+      id: "t1", name: "file_read", arguments: { path: "a.rs" }, status: "running",
+    });
+    const last = useChatStore.getState().messages["s1"][0];
+    expect(last.tool_calls).toHaveLength(1);
+    expect(last.tool_calls![0].name).toBe("file_read");
+
+    // 没有 assistant 消息时不产生副作用
+    useChatStore.getState().addToolCall("s2", {
+      id: "t2", name: "bash", arguments: {}, status: "running",
+    });
+    expect(useChatStore.getState().messages["s2"]).toBeUndefined();
+  });
+
+  it("updateToolCall 更新状态，updateToolCallResult 写入结果", () => {
+    useChatStore.getState().setMessages("s1", [assistantMsg()]);
+    useChatStore.getState().addToolCall("s1", {
+      id: "t1", name: "file_edit", arguments: {}, status: "pending", needsApproval: true,
+    });
+    useChatStore.getState().updateToolCall("s1", "t1", { status: "done" });
+    let tc = useChatStore.getState().messages["s1"][0].tool_calls![0];
+    expect(tc.status).toBe("done");
+    expect(tc.needsApproval).toBe(true);
+
+    useChatStore.getState().updateToolCallResult("s1", "t1", { ok: true });
+    tc = useChatStore.getState().messages["s1"][0].tool_calls![0];
+    expect(tc.result).toEqual({ ok: true });
+  });
+
+  it("未知 toolId 的更新无副作用", () => {
+    useChatStore.getState().setMessages("s1", [assistantMsg()]);
+    useChatStore.getState().addToolCall("s1", {
+      id: "t1", name: "git_status", arguments: {}, status: "running",
+    });
+    useChatStore.getState().updateToolCall("s1", "nope", { status: "done" });
+    const tc = useChatStore.getState().messages["s1"][0].tool_calls![0];
+    expect(tc.status).toBe("running");
+  });
+});
+
+describe("消息截断（Q-02，重新生成/rewind 基础）", () => {
+  it("truncateMessages 保留目标消息之前的内容", () => {
+    useChatStore.getState().setMessages("s1", [
+      msg("user", "第一问", "m1"),
+      msg("assistant", "第一答", "m2"),
+      msg("user", "第二问", "m3"),
+      msg("assistant", "第二答", "m4"),
+    ]);
+    useChatStore.getState().truncateMessages("s1", "m3");
+    const left = useChatStore.getState().messages["s1"];
+    expect(left.map((m) => m.id)).toEqual(["m1", "m2"]);
+  });
+
+  it("truncateMessages 对不存在的消息 id 无副作用", () => {
+    useChatStore.getState().setMessages("s1", [msg("user", "唯一", "m1")]);
+    useChatStore.getState().truncateMessages("s1", "nope");
+    expect(useChatStore.getState().messages["s1"]).toHaveLength(1);
+  });
+});

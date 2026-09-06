@@ -497,13 +497,33 @@ async fn run_shell(command: &str, root: &Path) -> Result<ShellOutput, String> {
         c
     };
     cmd.current_dir(root);
+    // 超时路径 future 被 drop 时连带终止直连子进程（kill-on-drop）；
+    // Windows 上另有 Job kill-on-close 兜底整棵树。
+    cmd.kill_on_drop(true);
+    // A-03: 子进程纳入 kill-on-close Job——命令结束（含超时）后连带清理
+    // 全部残留子孙进程；Job 创建/挂入失败时降级为无 containment。
+    #[cfg(windows)]
+    let job = crate::ipc::sandbox_windows::ChildJob::create();
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("命令执行失败: {e}"))?;
+    #[cfg(windows)]
+    {
+        if let (Some(job), Some(_)) = (&job, child.id()) {
+            if let Err(e) = job.assign_child(&child) {
+                tracing::debug!("子进程未纳入 Job（降级）: {e}");
+            }
+        }
+    }
     let output = tokio::time::timeout(
         std::time::Duration::from_secs(SHELL_TIMEOUT_SECS),
-        cmd.output(),
+        child.wait_with_output(),
     )
     .await
     .map_err(|_| format!("命令执行超时（>{SHELL_TIMEOUT_SECS}s）"))?
     .map_err(|e| format!("命令执行失败: {e}"))?;
+    #[cfg(windows)]
+    drop(job);
     Ok(ShellOutput {
         code: output.status.code(),
         stdout: truncate(&String::from_utf8_lossy(&output.stdout)),

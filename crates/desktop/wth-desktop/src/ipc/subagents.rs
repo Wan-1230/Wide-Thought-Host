@@ -73,7 +73,7 @@ pub async fn subagent_run(
     if task.is_empty() {
         return Err("任务内容不能为空".into());
     }
-    let (subagent, provider, api_key, workspace_root, edit_mode, reasoning_effort) = {
+    let (subagent, provider, api_key, workspace_root, edit_mode, reasoning_effort, fallback_chain) = {
         let settings = state.settings.read().map_err(|e| e.to_string())?;
         let subagent = settings
             .subagents
@@ -104,6 +104,8 @@ pub async fn subagent_run(
             })?
         };
         let workspace_root = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+        let fallback_chain =
+            crate::ipc::agent::resolve_fallback_chain(&settings, &provider.id)?;
         (
             subagent,
             provider,
@@ -111,6 +113,7 @@ pub async fn subagent_run(
             workspace_root,
             settings.edit_mode.clone(),
             settings.reasoning_effort.clone(),
+            fallback_chain,
         )
     };
 
@@ -197,7 +200,8 @@ pub async fn subagent_run(
             provider.base_url.clone(),
             api_key,
             provider.model.clone(),
-            Vec::new(),
+            // F-06 二阶段: 子代理同样按设置降级
+            fallback_chain,
             window_clone.clone(),
             abort_rx,
             None,

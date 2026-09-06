@@ -117,6 +117,9 @@ pub async fn workflow_run(
     let edit_mode = settings.edit_mode.clone();
     let reasoning_effort = settings.reasoning_effort.clone();
     let subagents = settings.subagents.clone();
+    // F-06 二阶段: 工作流节点同样按设置降级（排除默认 Provider）
+    let fallback_chain =
+        crate::ipc::agent::resolve_fallback_chain(&settings, &default_provider_id)?;
 
     let agent_state = state.inner().agents.clone();
     let approvals = state.inner().approvals.clone();
@@ -169,6 +172,7 @@ pub async fn workflow_run(
                 let node_output_limit = node.output_limit;
                 let run_id_inner = run_id_clone.clone();
                 let config_id_inner = config_id.clone();
+                let fallback_chain = fallback_chain.clone();
                 let provider = provider.clone();
                 let api_key = api_key.clone();
                 let workspace_root = workspace_root.clone();
@@ -271,7 +275,7 @@ pub async fn workflow_run(
                             provider.base_url.clone(),
                             api_key.clone(),
                             provider.model.clone(),
-                            Vec::new(),
+                            fallback_chain.clone(),
                             window.clone(),
                             tokio::sync::mpsc::channel(1).1,
                             None,

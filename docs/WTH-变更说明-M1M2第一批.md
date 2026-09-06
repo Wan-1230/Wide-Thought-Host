@@ -316,3 +316,43 @@ npm run build (ui)            → ✓ built（模型页 fallback 编辑器 + 单
 - F-06 二阶段（子代理 fallback、按任务角色路由）；F-07 `wth mcp-serve`；F-10 语义索引统一；A-03 Windows 沙箱；Q-02 前端测试补强
 - A-01 步骤 2/3（记忆/存储统一）与端到端联调；A-02 子代理 token 预算
 - 硬编码 Key 服务端吊销（维护者操作）；B0 包名迁移提交（方案已定稿）
+
+---
+
+# 第六批变更（M3 收官：A-03 + F-06 二阶段 + Q-02）
+
+> 日期：2026-09-05
+
+## 28. A-03 · Windows 子进程 containment 第一阶段（P1 ✅）
+
+**变更**
+- 新增 `ipc/sandbox_windows.rs`：`ChildJob`（kill-on-close Job Object）——Agent 执行的 shell 命令整棵进程树纳入 Job，命令结束（含超时路径）句柄 Drop 触发内核级清理，根治"agent 启动常驻进程未回收"的泄漏面。
+- `tools.rs::run_shell` 重构为 `spawn → assign → wait_with_output`，Job 创建/挂入失败 fail-open 降级（Windows 嵌套 Job 于 Win8+ 支持，实测正常）；补 `kill_on_drop(true)` 保证超时路径直连子进程必然终止。
+- 第一阶段刻意**不含内存限额**（cargo/rustc 类合法命令可能超限误伤），作为后续可选配置项。
+**效果验证**：47/47（新增测试实证 kill-on-close：30 秒 ping 子进程在句柄 Drop 后 0.3s 内被终止）。
+
+## 29. F-06 二阶段 · 子代理/工作流接入 fallback 链（P1 ✅）
+
+- 抽取公共 `resolve_fallback_chain(settings, exclude_provider_id)`（跳过停用/主端点自身/无 Key 云端备用）；
+- **子代理委派**（`subagents.rs`）与 **DAG 工作流节点**（`workflow.rs`，链构建一次、节点并发共享）均接入降级链——此前仅主会话生效；
+- 主会话同函数复用，消除三处重复。
+
+## 30. Q-02 · 前端测试补强（P1 ✅ 第一阶段）
+
+- chat store 测试 10 → **15 项**：新增工具调用生命周期（只挂 assistant 尾消息/状态与结果更新/未知 id 无副作用）与消息截断（rewind/重新生成的基础原语）两组共 5 项。
+- 效果验证：`npx vitest run` **15/15** ✅。
+
+## 31. 本批验证汇总
+
+```
+cargo test  -p wth-desktop  → 47/47（新增 Job Object kill-on-close 实证测试）
+cargo check -p xai-grok-shell → Finished
+npx vitest run (ui)         → 15/15
+npm run build (ui)          → ✓ built
+```
+
+## 32. M3/M4 收尾清单（全部余量）
+
+- F-07 `wth mcp-serve`（MCP 服务器端）；F-10 语义索引统一；A-03 第二阶段（deny-ACL/内存限额可选）
+- A-01 步骤 2/3 与端到端联调；F-06 三阶段（按任务角色路由小模型）
+- 硬编码 Key 服务端吊销（维护者操作）；B0 包名迁移提交（方案已定稿）

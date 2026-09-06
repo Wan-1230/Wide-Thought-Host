@@ -7,6 +7,7 @@ pub mod filesystem;
 pub mod hooks;
 pub mod headroom;
 pub mod local_models;
+pub mod sandbox_windows;
 pub mod session;
 pub mod subagents;
 pub mod terminal;

@@ -225,34 +225,10 @@ pub async fn agent_send(
         }
     };
 
-    // F-06: 解析 fallback 链（设置中的备用 Provider 顺序，仅主会话启用）
+    // F-06: 解析 fallback 链（设置中的备用 Provider 顺序）
     let fallback_chain: Vec<FallbackEndpoint> = {
         let settings = state.settings.read().map_err(|e| e.to_string())?;
-        let mut chain = Vec::new();
-        for fid in &settings.fallback_provider_ids {
-            let Some(p) = settings.providers.iter().find(|p| p.id == *fid && p.enabled) else {
-                continue;
-            };
-            if p.id == provider.id {
-                continue; // 主端点自身不重复入链
-            }
-            let key = if p.local {
-                String::new()
-            } else {
-                crate::credentials::read_secret("provider", &p.id)?.unwrap_or_default()
-            };
-            if !p.local && key.is_empty() {
-                continue; // 无 Key 的云端备用没有意义
-            }
-            chain.push(FallbackEndpoint {
-                api_base: p.base_url.clone(),
-                api_key: key,
-                model: p.model.clone(),
-                price_input: p.price_input,
-                price_output: p.price_output,
-            });
-        }
-        chain
+        resolve_fallback_chain(&settings, &provider.id)?
     };
 
     tokio::spawn(async move {
@@ -388,6 +364,38 @@ struct ActiveEndpoint {
     model: String,
     price_input: Option<f64>,
     price_output: Option<f64>,
+}
+
+/// F-06: 按设置解析 fallback 链（跳过停用/主端点自身/无 Key 的云端备用）。
+pub(crate) fn resolve_fallback_chain(
+    settings: &crate::settings::DesktopSettings,
+    exclude_provider_id: &str,
+) -> Result<Vec<FallbackEndpoint>, String> {
+    let mut chain = Vec::new();
+    for fid in &settings.fallback_provider_ids {
+        let Some(p) = settings.providers.iter().find(|p| p.id == *fid && p.enabled) else {
+            continue;
+        };
+        if p.id == exclude_provider_id {
+            continue; // 主端点自身不重复入链
+        }
+        let key = if p.local {
+            String::new()
+        } else {
+            crate::credentials::read_secret("provider", &p.id)?.unwrap_or_default()
+        };
+        if !p.local && key.is_empty() {
+            continue; // 无 Key 的云端备用没有意义
+        }
+        chain.push(FallbackEndpoint {
+            api_base: p.base_url.clone(),
+            api_key: key,
+            model: p.model.clone(),
+            price_input: p.price_input,
+            price_output: p.price_output,
+        });
+    }
+    Ok(chain)
 }
 
 fn endpoint_of(e: &FallbackEndpoint) -> ActiveEndpoint {
