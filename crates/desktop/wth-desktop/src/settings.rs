@@ -388,6 +388,14 @@ pub struct DesktopSettings {
     /// 请求失败（5xx/429/网络错误）时依次降级。仅主会话生效。
     #[serde(default)]
     pub fallback_provider_ids: Vec<String>,
+    /// F-06 三阶段: 上下文压缩摘要使用的模型（角色路由——用更便宜的小模型
+    /// 做摘要）。None = 跟随当前会话模型。
+    #[serde(default)]
+    pub summary_model: Option<String>,
+    /// A-03 二阶段: shell 命令内存限额（MB）。None = 不限额（默认，
+    /// 避免 cargo/rustc 重构建被误伤）。
+    #[serde(default)]
+    pub bash_memory_limit_mb: Option<u64>,
 }
 
 impl Default for DesktopSettings {
@@ -445,6 +453,8 @@ impl Default for DesktopSettings {
             verify_max_rounds: 3,
             searxng_url: None,
             fallback_provider_ids: Vec::new(),
+            summary_model: None,
+            bash_memory_limit_mb: None,
         }
     }
 }

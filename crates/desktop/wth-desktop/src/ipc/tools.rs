@@ -383,7 +383,7 @@ pub async fn execute_tool(
                 .get("command")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| "缺少 command 参数".to_string())?;
-            let output = run_shell(command, &root).await?;
+            let output = run_shell(command, &root, settings.bash_memory_limit_mb).await?;
             Ok(ToolOutput::plain(json!({
                 "command": command,
                 "exit_code": output.code,
@@ -483,7 +483,11 @@ struct ShellOutput {
     stderr: String,
 }
 
-async fn run_shell(command: &str, root: &Path) -> Result<ShellOutput, String> {
+async fn run_shell(
+    command: &str,
+    root: &Path,
+    memory_limit_mb: Option<u64>,
+) -> Result<ShellOutput, String> {
     #[cfg(windows)]
     let mut cmd = {
         let mut c = tokio::process::Command::new("cmd");
@@ -503,7 +507,8 @@ async fn run_shell(command: &str, root: &Path) -> Result<ShellOutput, String> {
     // A-03: 子进程纳入 kill-on-close Job——命令结束（含超时）后连带清理
     // 全部残留子孙进程；Job 创建/挂入失败时降级为无 containment。
     #[cfg(windows)]
-    let job = crate::ipc::sandbox_windows::ChildJob::create();
+    let job =
+        crate::ipc::sandbox_windows::ChildJob::create_with_memory_limit(memory_limit_mb);
     let mut child = cmd
         .spawn()
         .map_err(|e| format!("命令执行失败: {e}"))?;

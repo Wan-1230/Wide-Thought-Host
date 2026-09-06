@@ -159,6 +159,8 @@ const emptySettings: DesktopSettings = {
   show_system_events: true,
   web_search_engine: "duckduckgo",
   searxng_url: null,
+  summary_model: null,
+  bash_memory_limit_mb: null,
   headroom_enabled: false,
   headroom_port: 8787,
   context_compression: true,
@@ -601,6 +603,28 @@ function PageGeneral({
             onChange={(e) => {
               const v = Number(e.target.value);
               if (v >= 0 && v <= 10) onSave({ ...settings, verify_max_rounds: v });
+            }}
+          />
+        </SettingRow>
+        <SettingRow label="压缩摘要模型" hint="F-06 角色路由：上下文压缩摘要用更便宜的小模型；留空跟随会话模型">
+          <input
+            className="control w-64"
+            placeholder="例如：deepseek-chat"
+            value={settings.summary_model ?? ""}
+            onChange={(e) => onSave({ ...settings, summary_model: e.target.value || null })}
+          />
+        </SettingRow>
+        <SettingRow label="Shell 内存限额 (MB)" hint="A-03：命令子进程内存上限；留空不限额（cargo/rustc 重构建建议留空）">
+          <input
+            className="control w-28"
+            type="number"
+            min="0"
+            placeholder="例如：2048"
+            value={settings.bash_memory_limit_mb ?? ""}
+            onChange={(e) => {
+              const raw = e.target.value;
+              const v = raw === "" ? null : Number(raw);
+              if (v === null || v >= 0) onSave({ ...settings, bash_memory_limit_mb: v });
             }}
           />
         </SettingRow>

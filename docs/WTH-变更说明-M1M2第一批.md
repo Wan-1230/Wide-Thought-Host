@@ -389,3 +389,31 @@ cargo check（B0 受影响 10 crate）→ 全绿
 cargo test  -p wth-mcp-server    → 6/6
 cargo build -p wth-pager-bin     → ✓（wth mcp-serve 端到端冒烟通过）
 ```
+
+---
+
+# 第八批变更（F-12 决断 + A-03 二阶段 + F-06 三阶段 + Q-02）
+
+> 日期：2026-09-05
+
+## 36. F-12 · deploy_app 决断：补齐 stub 本意（P2 ✅）
+
+PRD 要求"stub 要么实现要么移除"。完整移除需动 shell 5 文件 + builder 的 `AppBuilderDeployerConfig` 管线，风险高；**决断为补齐 stub 的设计意图**——Disabled 状态下注册 `DeployAppStubTool` 占位工具（明确返回"deploy_app 未启用"错误，而非工具缺失导致 toolset finalize 失败），走完整注册仪式（中央 I/O 枚举/元数据投影/渲染）。
+**附带收益**：修复了基线记录的**预存测试失败** `full_toolset_descriptions_render_cleanly`（tools 测试 2519 通过/44 失败，净修复 1；剩余 44 个经聚类核对为纯环境性失败，与此前完全一致）。
+
+## 37. A-03 二阶段 + F-06 三阶段（P1/P2 ✅）
+
+- **A-03 内存限额（可选）**：`ChildJob::create_with_memory_limit(mb)`（`JOB_OBJECT_LIMIT_PROCESS_MEMORY`）；`settings.bash_memory_limit_mb`（默认 None——cargo/rustc 重构建可能合法超限，不开启限额）；run_shell 接线 + 设置页输入框。
+- **F-06 摘要角色路由**：`settings.summary_model`——上下文压缩摘要用更便宜的小模型（留空跟随会话模型）；`summarize_history` 接线 + 设置页输入框。
+- 工程事故记录：批处理脚本尾部一个错误的恒等写回把 `tools.rs` 截断为 0 字节，**已从上一提交 git checkout 恢复并重放补丁**（无损失；教训：脚本禁止用 'w' 模式做恒等写回）。
+
+## 38. Q-02 + 本批验证
+
+- Rust 新增 3 项：`is_fallback_eligible` 分类（5xx/429/传输 vs 4xx）、`body_with_model` 覆盖、`resolve_fallback_chain` 跳过规则（本地入链/无 Key 云端跳过/主端点排除/缺失 id 跳过）。
+- 前端 15/15、Rust 51/51、ui build、全绿。
+
+```
+cargo test  -p wth-desktop → 51/51
+cargo test  -p xai-grok-tools --lib → 2519 通过（预存失败 -1）
+npm run build (ui) → ✓
+```

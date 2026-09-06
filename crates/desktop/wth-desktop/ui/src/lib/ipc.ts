@@ -157,6 +157,8 @@ export interface DesktopSettings {
   verify_max_rounds?: number;
   searxng_url?: string | null;
   fallback_provider_ids?: string[];
+  summary_model?: string | null;
+  bash_memory_limit_mb?: number | null;
   usage_stats: UsageStats;
   subagents?: SubagentConfig[];
   /** 快捷键映射（action → 按键组合） */

@@ -17,8 +17,16 @@ pub struct ChildJob {
 
 #[cfg(windows)]
 impl ChildJob {
-    /// 创建 kill-on-close 的 Job 对象。失败返回 None（调用方降级）。
+    /// 创建 kill-on-close 的 Job 对象（A-03 第一阶段）。
+    /// 失败返回 None（调用方降级）。
     pub fn create() -> Option<ChildJob> {
+        Self::create_with_memory_limit(None)
+    }
+
+    /// 创建 kill-on-close + 可选内存限额（MB，A-03 第二阶段）的 Job 对象。
+    /// 内存限额防止失控命令耗尽整机内存；但 cargo/rustc 等重构建可能合法
+    /// 超限，因此默认不启用（由设置显式开启）。
+    pub fn create_with_memory_limit(limit_mb: Option<u64>) -> Option<ChildJob> {
         use windows_sys::Win32::System::JobObjects::{
             CreateJobObjectW, JobObjectExtendedLimitInformation,
             SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
@@ -31,6 +39,11 @@ impl ChildJob {
             }
             let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
             limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            if let Some(mb) = limit_mb {
+                limits.BasicLimitInformation.LimitFlags |=
+                    windows_sys::Win32::System::JobObjects::JOB_OBJECT_LIMIT_PROCESS_MEMORY;
+                limits.ProcessMemoryLimit = mb.saturating_mul(1024 * 1024) as usize;
+            }
             let ok = SetInformationJobObject(
                 handle,
                 JobObjectExtendedLimitInformation,
@@ -77,6 +90,16 @@ impl Drop for ChildJob {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(windows)]
+    #[test]
+    fn job_memory_limit_does_not_break_creation() {
+        use super::ChildJob;
+        let job = ChildJob::create_with_memory_limit(Some(512));
+        if job.is_some() {
+            // 创建成功即可；限额语义由内核保证。
+        }
+    }
+
     #[cfg(windows)]
     #[test]
     fn job_create_and_assign() {

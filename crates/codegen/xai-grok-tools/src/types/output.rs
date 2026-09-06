@@ -630,6 +630,7 @@ pub enum ToolOutput {
     ListDir(ListDirOutput),
     SearchReplace(SearchReplaceOutput),
     Todo(TodoWriteOutput),
+    DeployApp(crate::implementations::grok_build::deploy_app::DeployAppOutput),
     Git(GitToolOutput),
     WebSearch(WebSearchOutput),
     WebFetch(WebFetchOutput),
@@ -983,6 +984,9 @@ impl ToolOutput {
             ToolOutput::ImageToVideo(m) => m.prompt_text("Video generated"),
             ToolOutput::ReferenceToVideo(m) => m.prompt_text("Video generated"),
             ToolOutput::ImageEdit(m) => m.prompt_text("Image edited"),
+            ToolOutput::DeployApp(crate::implementations::grok_build::deploy_app::DeployAppOutput::Error(e)) => {
+                format!("Error: {e}")
+            }
             ToolOutput::Git(o) => match o {
                 crate::implementations::grok_build::git::GitToolOutput::Content(c) => c.clone(),
                 crate::implementations::grok_build::git::GitToolOutput::Error(e) => {

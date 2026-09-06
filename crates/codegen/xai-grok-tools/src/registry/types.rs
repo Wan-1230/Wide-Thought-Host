@@ -683,6 +683,8 @@ impl ToolRegistryBuilder {
         b.register::<grok_build::TaskTool>();
         b.register::<grok_build::WebSearchTool>();
         b.register_with_params::<grok_build::WebFetchTool, grok_build::web_fetch::WebFetchParams>();
+        // F-12: deploy 占位工具——Disabled 状态下注册，保证 toolset 引用可 finalize
+        b.register::<grok_build::deploy_app::DeployAppStubTool>();
         b.register::<grok_build::LspTool>();
         b.register::<grok_build::ImageGenTool>();
         b.register::<grok_build::ImageEditTool>();

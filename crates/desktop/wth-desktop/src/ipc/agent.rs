@@ -1385,3 +1385,91 @@ struct RawToolCall {
     arguments: String,
 }
 
+#[cfg(test)]
+mod fallback_tests {
+    // Q-02: F-06 fallback 链的判定与解析单测。
+
+    use super::*;
+
+    #[test]
+    fn fallback_eligibility_classification() {
+        // 传输错误（重试耗尽）→ 降级
+        assert!(is_fallback_eligible("请求失败（已重试 3 次）: connection reset"));
+        // 5xx / 429 → 降级
+        assert!(is_fallback_eligible("API 错误 (500): boom"));
+        assert!(is_fallback_eligible("API 错误 (503): unavailable"));
+        assert!(is_fallback_eligible("API 错误 (429): slow down"));
+        // 4xx（配置/权限类）→ 不降级，直接报错
+        assert!(!is_fallback_eligible("API 错误 (401): bad key"));
+        assert!(!is_fallback_eligible("API 错误 (404): no model"));
+        assert!(!is_fallback_eligible("API 错误 (400): bad request"));
+        // 其他格式 → 不降级
+        assert!(!is_fallback_eligible("未知错误"));
+    }
+
+    #[test]
+    fn body_with_model_overrides_model_field() {
+        let body = json!({ "model": "gpt-4.1", "messages": [] });
+        let out = body_with_model(&body, "deepseek-chat");
+        assert_eq!(out["model"], "deepseek-chat");
+        assert!(out["messages"].is_array());
+        // 原体不被修改
+        assert_eq!(body["model"], "gpt-4.1");
+    }
+
+    #[test]
+    fn resolve_chain_skips_unusable_providers() {
+        use crate::settings::{DesktopSettings, ProviderConfig};
+        let mut settings = DesktopSettings::default();
+        settings.default_provider_id = Some("main".into());
+        // 备用 1：本地模型（无 Key 可用）→ 入链
+        settings.providers.push(ProviderConfig {
+            id: "local-ollama".into(),
+            name: "Ollama".into(),
+            kind: "openai-compatible".into(),
+            base_url: "http://localhost:11434/v1".into(),
+            model: "qwen3:8b".into(),
+            enabled: true,
+            builtin: false,
+            local: true,
+            price_input: None,
+            price_output: None,
+        });
+        // 备用 2：无 Key 的云端 → 跳过
+        settings.providers.push(ProviderConfig {
+            id: "cloud-nokey".into(),
+            name: "Cloud".into(),
+            kind: "openai-compatible".into(),
+            base_url: "https://x.example/v1".into(),
+            model: "m".into(),
+            enabled: true,
+            builtin: false,
+            local: false,
+            price_input: None,
+            price_output: None,
+        });
+        // 备用 3：主端点自身 → 跳过
+        settings.providers.push(ProviderConfig {
+            id: "main".into(),
+            name: "Main".into(),
+            kind: "openai-compatible".into(),
+            base_url: "https://main.example/v1".into(),
+            model: "m".into(),
+            enabled: true,
+            builtin: false,
+            local: false,
+            price_input: None,
+            price_output: None,
+        });
+        settings.fallback_provider_ids = vec![
+            "local-ollama".into(),
+            "cloud-nokey".into(),
+            "main".into(),
+            "missing".into(),
+        ];
+        let chain = resolve_fallback_chain(&settings, "main").unwrap();
+        assert_eq!(chain.len(), 1, "只有本地备用入链");
+        assert_eq!(chain[0].model, "qwen3:8b");
+        assert_eq!(chain[0].api_key, "");
+    }
+}
