@@ -24,7 +24,7 @@
 
 | 领域 | 能力 |
 |------|------|
-| **多后端 LLM** | OpenAI 兼容 API、Anthropic Claude、DeepSeek、本地模型（Ollama / vLLM），可插拔自定义 |
+| **多后端 LLM** | OpenAI 兼容 API、Anthropic Claude、DeepSeek，桌面端一键检测本地模型（Ollama / vLLM，无需 API Key），可插拔自定义 |
 | **桌面 GUI** | Tauri v2 多会话聊天、文件树、内置终端、系统托盘、Windows 安装包（中英双语） |
 | **全屏 TUI** | ratatui 终端界面：鼠标支持、语法高亮 Diff、多面板布局、自定义主题 |
 | **工具生态** | Shell/Bash、文件操作、LSP 集成、Git、MCP 协议、Web 搜索，全部带细粒度权限控制 |
@@ -200,7 +200,9 @@ API Key 无效或额度用尽。在设置页重新填写该模型的 API Key（�
 
 ### 如何添加自定义模型？
 
-**设置 → 模型与 API → 添加模型**，填写名称、模型 ID、Base URL 与 API Key（如 OpenAI、DeepSeek、Ollama 等 OpenAI 兼容端点），点击"设为默认"。
+**设置 → 模型与 API → 添加模型**，填写名称、模型 ID、Base URL 与 API Key（如 OpenAI、DeepSeek 等 OpenAI 兼容端点），点击"设为默认"。
+
+**用本地模型？** 点击同一页的**「检测本地模型」**，自动发现本机 Ollama（11434）或 vLLM（8000）并加入模型列表——本地模型无需 API Key，数据不出本机。
 
 ### 如何安装技能或插件？
 
@@ -209,7 +211,7 @@ API Key 无效或额度用尽。在设置页重新填写该模型的 API Key（�
 
 ### 桌面端与 CLI 的关系？
 
-两者共享同一套 Agent 内核（`wth-agent`）。桌面端是多后端聊天客户端（流式）；完整 Agent 工具循环（Shell、文件编辑、MCP、子代理、权限控制）在 CLI/TUI 中同样可用。
+当前两者是**独立实现**：桌面端是带工具调用与审批的多后端聊天客户端（文件读写、终端、MCP、子智能体、DAG 工作流、技能）；CLI/TUI 承载完整 Agent 工具生态（沙箱、LSP、计划模式、Hooks、插件市场）。桌面端经 ACP 接入 CLI 统一内核在优化路线图 v1.2 推进，详见 [`docs/WTH-优化PRD.md`](docs/WTH-优化PRD.md) A-01。
 
 ### 数据会发送到哪里？
 
