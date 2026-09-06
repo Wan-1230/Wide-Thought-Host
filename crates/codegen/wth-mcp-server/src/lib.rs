@@ -28,7 +28,7 @@ pub struct ServerState {
 }
 
 /// 工具清单（tools/list 返回，与执行分发共用同一张表）。
-pub const TOOL_NAMES: &[&str] = &["wth_read_file", "wth_list_dir", "wth_grep"];
+pub const TOOL_NAMES: &[&str] = &["wth_read_file", "wth_list_dir", "wth_ask", "wth_grep"];
 
 /// 解析单条入站消息。返回 `None` 表示无需响应（通知/解析失败静默丢弃）。
 pub fn handle_message(msg: &Value, state: &ServerState) -> Option<Value> {
@@ -95,6 +95,18 @@ pub fn tool_definitions() -> Vec<Value> {
             },
         }),
         json!({
+            "name": "wth_ask",
+            "description": "把一个问题交给 WTH Agent 在工作区上下文中回答（headless 运行，只读分析；耗时可能数十秒）。适合让调用方 Agent 借助 WTH 的完整工具生态（代码检索/执行/子代理）获取带依据的答案。",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "prompt": { "type": "string", "description": "要交给 WTH Agent 的问题" },
+                    "timeout_secs": { "type": "integer", "description": "超时秒数（默认 300）" },
+                },
+                "required": ["prompt"],
+            },
+        }),
+        json!({
             "name": "wth_grep",
             "description": "在工作区内做大小写不敏感的子串文本检索（跳过 .git/target/node_modules 与二进制文件），返回命中文件与行。",
             "inputSchema": {
@@ -116,6 +128,7 @@ pub fn call_tool(state: &ServerState, name: &str, args: &Value) -> Value {
         "wth_read_file" => tool_read_file(state, args),
         "wth_list_dir" => tool_list_dir(state, args),
         "wth_grep" => tool_grep(state, args),
+        "wth_ask" => tool_wth_ask(state, args),
         _ => Err(format!("未知工具: {name}（可用: {}）", TOOL_NAMES.join(", "))),
     };
     match text {
@@ -271,6 +284,67 @@ fn tool_grep(state: &ServerState, args: &Value) -> Result<String, String> {
         format!("未命中（已扫描 {files_scanned} 个文件）")
     } else {
         hits.join("\n")
+    })
+}
+
+/// `wth_ask` 可执行文件解析顺序：`WTH_ASK_BIN` env（测试/定制）→ PATH 上的 `wth`。
+fn ask_binary() -> String {
+    std::env::var("WTH_ASK_BIN").unwrap_or_else(|_| "wth".to_string())
+}
+
+const ASK_DEFAULT_TIMEOUT_SECS: u64 = 300;
+const ASK_OUTPUT_CHARS: usize = 8_000;
+
+/// F-07 二阶段: 会话级工具——把 prompt 交给 WTH Agent headless 运行
+/// （`wth -p <prompt>`，工作区根为 cwd），返回其输出。
+fn tool_wth_ask(state: &ServerState, args: &Value) -> Result<String, String> {
+    let prompt = args
+        .get("prompt")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .ok_or("缺少 prompt 参数")?;
+    let timeout = args
+        .get("timeout_secs")
+        .and_then(Value::as_u64)
+        .unwrap_or(ASK_DEFAULT_TIMEOUT_SECS)
+        .clamp(10, 1800);
+    let bin = ask_binary();
+    let mut child = std::process::Command::new(&bin)
+        .arg("-p")
+        .arg(prompt)
+        .current_dir(&state.root)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("无法启动 {bin}: {e}（请确认 wth 在 PATH 中，或设置 WTH_ASK_BIN）"))?;
+    // 等待线程：wait_with_output 需要所有权；主循环用 recv_timeout 控制超时。
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(child.wait_with_output());
+    });
+    let output = rx
+        .recv_timeout(std::time::Duration::from_secs(timeout))
+        .map_err(|_| {
+            tracing::warn!("wth_ask 超时（>{timeout}s）；子进程继续运行至自然结束");
+            format!("WTH Agent 运行超时（>{timeout}s）")
+        })?
+        .map_err(|e| format!("WTH Agent 等待失败: {e}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "WTH Agent 退出码 {:?}: {}",
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr).chars().take(500).collect::<String>()
+        ));
+    }
+    let text: String = String::from_utf8_lossy(&output.stdout)
+        .chars()
+        .take(ASK_OUTPUT_CHARS)
+        .collect();
+    Ok(if text.is_empty() {
+        "(WTH Agent 无输出)".to_string()
+    } else {
+        text
     })
 }
 

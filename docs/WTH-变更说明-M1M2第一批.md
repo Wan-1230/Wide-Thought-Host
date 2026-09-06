@@ -431,3 +431,33 @@ npm run build (ui) → ✓
 - **迁移中修复的三类隐藏引用形式与 2 处历史笔误**：点语法（`xai-tool-types.workspace = true`——且为指向不存在包名的既有笔误）、段式声明（`[dependencies.xai-ratatui-textarea]`）、feature 跨包引用（`"xai-grok-sandbox/enforce"`）与 `dep:xai-*` 语法。
 - **验证**：`cargo check --workspace` 86 crate 零错误；关键套件新包名下全绿（22+70+6+51+79）。
 - 至此 Q-01（基线风险 R9"命名双轨混乱"）**整体关闭**；`grep xai- --include=Cargo.toml` 仅剩 vendor 保留集与目录路径。
+
+---
+
+# 第十批变更（F-07 二阶段 wth_ask + Q-04 贡献者环境文档）
+
+> 日期：2026-09-05
+
+## 40. F-07 二阶段 · `wth_ask` 会话级工具（P1 ✅）
+
+- `wth mcp-serve` 新增第四个工具 **`wth_ask`**：把 prompt 交给 WTH Agent
+  headless 运行（`wth -p <prompt>`，cwd=工作区根，默认超时 300s 可调），
+  让调用方 Agent（VS Code / Claude Desktop）借助 WTH 完整工具生态获取
+  带依据的答案——MCP 服务器从"文件窗口"升级为"通往完整 Agent 的桥梁"。
+- 同步实现 + 线程超时（`WTH_ASK_BIN` env 可覆盖二进制，测试/定制友好）；
+  输出 8000 字符截断。
+- README FAQ 新增 MCP 接入指引。
+
+## 41. Q-04 · 贡献者环境文档（P2 ✅ 部分）
+
+CONTRIBUTING.md 新增「Windows 中文用户名环境（已知问题）」：GNU ld/dlltool/ar
+无法处理非 ASCII 路径、Git Bash `link` 遮蔽 MSVC link.exe 的完整解法
+（RUSTUP_HOME/CARGO_HOME/TMP 迁 ASCII 路径 + MSYS2 binutils/cmake/nasm +
+环境变量清单）——来自本会话真实踩坑记录。
+
+## 42. 第十批验证
+
+```
+cargo test  -p wth-mcp-server → 6/6（TOOL_NAMES 与定义表一致性锁定）
+cargo check --workspace       → 全绿
+```

@@ -209,6 +209,14 @@ API Key 无效或额度用尽。在设置页重新填写该模型的 API Key（�
 - **技能**：将 `SKILL.md` 放入 `~/.wth/skills/<技能名>/`，重启后在输入框键入 `/` 即可作为斜杠命令调用。
 - **插件**：放入 `~/.wth/plugins/<插件名>/`（含 `plugin.json`），或在设置页从远程插件市场一键安装。
 
+### 如何把 WTH 工作区接入其他 AI 工具（MCP）？
+
+运行 `wth mcp-serve --root <工作区路径>`，即可把工作区以 **MCP 服务器**
+（stdio，2025-06-18 规范）暴露给 VS Code、Claude Desktop 或任何 MCP 客户端：
+提供 `wth_read_file` / `wth_list_dir` / `wth_grep` 只读工具与
+`wth_ask`（把问题交给 WTH Agent 完整工具生态回答）。所有路径访问严格
+限制在工作区内。
+
 ### 桌面端与 CLI 的关系？
 
 当前两者是**独立实现**：桌面端是带工具调用与审批的多后端聊天客户端（文件读写、终端、MCP、子智能体、DAG 工作流、技能）；CLI/TUI 承载完整 Agent 工具生态（沙箱、LSP、计划模式、Hooks、插件市场）。桌面端经 ACP 接入 CLI 统一内核在优化路线图 v1.2 推进，详见 [`docs/WTH-优化PRD.md`](docs/WTH-优化PRD.md) A-01。

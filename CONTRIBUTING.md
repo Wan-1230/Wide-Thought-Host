@@ -116,3 +116,20 @@ When porting an upstream fix:
 Open a GitHub Discussion or issue with the `question` label if unsure how to
 proceed. For license questions, start from [`LICENSE`](LICENSE) and
 [`NOTICE`](NOTICE).
+
+## Windows 中文用户名环境（已知问题）
+
+Windows 用户目录含非 ASCII 字符（如 `C:\Users\刘克凡\`）时，GNU 工具链的
+`ld`/`dlltool`/`ar` 无法处理其中的路径，MSVC 路径则可能被 Git Bash 自带的
+GNU `link` 工具遮蔽。本地搭建 windows-gnu 构建环境（与 CI
+`build-wth-windows` 一致）的可行做法：
+
+1. 安装 rustup 后设置 `RUSTUP_HOME` 与 `CARGO_HOME` 指向**纯 ASCII 路径**
+   （如 `D:\rustup-home`、`D:\cargo-home`），并安装
+   `stable-x86_64-pc-windows-gnu` 工具链；
+2. 安装完整 MinGW binutils 与 `cmake`/`nasm`（MSYS2:
+   `pacman -S mingw-w64-x86_64-toolchain mingw-w64-x86_64-nasm mingw-w64-x86_64-cmake`），
+   并把 `mingw64\bin` 置于 PATH 前部；
+3. 同时设置 `TMP`/`TEMP` 指向 ASCII 路径（cc/dlltool 临时文件需要）；
+4. 每次构建前导出上述环境变量
+   （`RUSTUP_HOME` / `RUSTUP_TOOLCHAIN` / `CARGO_HOME` / `PATH` / `TMP` / `TEMP`）。
