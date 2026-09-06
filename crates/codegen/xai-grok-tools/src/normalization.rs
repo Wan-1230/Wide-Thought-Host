@@ -97,6 +97,13 @@ pub fn canonical_input(input: &ToolInput) -> Option<serde_json::Value> {
             (field::PATTERN, req(&g.pattern)),
             (field::PATH, opt(g.path.as_ref())),
         ]),
+        ToolInput::GitStatus(g) => obj([("path", opt(g.path.as_ref()))]),
+        ToolInput::GitDiff(g) => obj([
+            ("staged", opt(g.staged)),
+            ("path", opt(g.path.as_ref())),
+        ]),
+        ToolInput::GitLog(g) => obj([("limit", opt(g.limit))]),
+        ToolInput::GitCommit(g) => obj([("message", req(&g.message))]),
         ToolInput::TodoWrite(_)
         | ToolInput::Skill(_)
         | ToolInput::MCPTool(_)

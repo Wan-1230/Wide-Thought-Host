@@ -18,6 +18,7 @@ use crate::implementations::codex::read_file::tool::CodexReadFileInput;
 use crate::implementations::grok_build::ask_user_question::AskUserQuestionInput;
 use crate::implementations::grok_build::enter_plan_mode::EnterPlanModeInput;
 use crate::implementations::grok_build::exit_plan_mode::ExitPlanModeInput;
+use crate::implementations::grok_build::git::{GitCommitInput, GitDiffInput, GitLogInput, GitStatusInput};
 use crate::implementations::grok_build::grep::GrepSearchInput;
 use crate::implementations::grok_build::image_edit::ImageEditInput;
 use crate::implementations::grok_build::image_gen::ImageGenInput;
@@ -61,6 +62,10 @@ pub enum ToolInput {
     ReadFile(ReadFileInput),
     SearchReplace(SearchReplaceInput),
     Bash(BashToolInput),
+    GitStatus(GitStatusInput),
+    GitDiff(GitDiffInput),
+    GitLog(GitLogInput),
+    GitCommit(GitCommitInput),
     Grep(GrepSearchInput),
     ListDir(ListDirInput),
     TodoWrite(TodoWriteInput),

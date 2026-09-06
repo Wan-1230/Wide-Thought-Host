@@ -122,6 +122,7 @@ impl MediaGenOutput {
         .to_string()
     }
 }
+use crate::implementations::grok_build::git::GitToolOutput;
 use crate::implementations::grok_build::todo::{TodoItem, TodoState};
 use crate::implementations::skills::skill::SkillOutput;
 use crate::util::truncate::{DEFAULT_SOFT_WRAP_WIDTH, soft_wrap_lines};
@@ -629,6 +630,7 @@ pub enum ToolOutput {
     ListDir(ListDirOutput),
     SearchReplace(SearchReplaceOutput),
     Todo(TodoWriteOutput),
+    Git(GitToolOutput),
     WebSearch(WebSearchOutput),
     WebFetch(WebFetchOutput),
     MCP(MCPOutput),
@@ -981,6 +983,12 @@ impl ToolOutput {
             ToolOutput::ImageToVideo(m) => m.prompt_text("Video generated"),
             ToolOutput::ReferenceToVideo(m) => m.prompt_text("Video generated"),
             ToolOutput::ImageEdit(m) => m.prompt_text("Image edited"),
+            ToolOutput::Git(o) => match o {
+                crate::implementations::grok_build::git::GitToolOutput::Content(c) => c.clone(),
+                crate::implementations::grok_build::git::GitToolOutput::Error(e) => {
+                    format!("Error: {e}")
+                }
+            },
         }
     }
 }

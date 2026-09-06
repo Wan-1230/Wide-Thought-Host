@@ -668,6 +668,11 @@ impl ToolRegistryBuilder {
             >();
         b.register_with_params::<grok_build::ListDirTool, grok_build::list_dir::ListDirParams>();
         b.register_with_params::<grok_build::GrepTool, grok_build::grep::GrepParams>();
+        // F-04: git 一等公民工具集（status/diff/log 只读；commit 走审批）
+        b.register::<grok_build::git::GitStatusTool>();
+        b.register::<grok_build::git::GitDiffTool>();
+        b.register::<grok_build::git::GitLogTool>();
+        b.register::<grok_build::git::GitCommitTool>();
         b.register::<grok_build::KillTaskTool>();
         b.register::<grok_build::KillTerminalCommandTool>();
         b.register::<grok_build::TodoWriteTool>();

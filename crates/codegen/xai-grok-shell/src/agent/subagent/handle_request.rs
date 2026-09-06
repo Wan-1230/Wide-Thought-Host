@@ -402,16 +402,17 @@ pub(crate) async fn handle_subagent_request(
         );
     }
     {
-        use xai_grok_tools::implementations::grok_build::task::MAX_SUBAGENT_DEPTH;
+        use xai_grok_tools::implementations::grok_build::task::max_subagent_depth;
         use xai_grok_tools::types::tool::ToolKind;
         let child_depth = ctx.parent_depth + 1;
-        if child_depth >= MAX_SUBAGENT_DEPTH {
+        let max_depth = max_subagent_depth();
+        if child_depth >= max_depth {
             let before = definition.tool_config.tools.len();
             definition.tool_config.tools.retain(|tc| tc.kind != Some(ToolKind::Task));
             if definition.tool_config.tools.len() < before {
                 tracing::info!(
                     subagent_id = % request.id, child_depth, max_depth =
-                    MAX_SUBAGENT_DEPTH, "Stripped task tool from child at max depth"
+                    max_depth, "Stripped task tool from child at max depth"
                 );
             }
             prune_orphaned_background_task_tools(&mut definition.tool_config);

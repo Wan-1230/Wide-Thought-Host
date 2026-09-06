@@ -268,6 +268,11 @@ fn default_grok_build_toolset() -> ToolServerConfig {
             (&grok_build::SearchReplaceTool).into(),
             (&grok_build::ListDirTool).into(),
             (&grok_build::GrepTool).into(),
+            // F-04: git 一等公民工具集（status/diff/log 只读，commit 走审批）
+            (&grok_build::git::GitStatusTool).into(),
+            (&grok_build::git::GitDiffTool).into(),
+            (&grok_build::git::GitLogTool).into(),
+            (&grok_build::git::GitCommitTool).into(),
             kill_task_tool_config(),
             (&grok_build::TodoWriteTool).into(),
             task_output_tool_config(),

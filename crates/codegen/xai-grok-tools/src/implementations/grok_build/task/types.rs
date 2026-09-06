@@ -758,7 +758,7 @@ pub struct SubagentListActiveRequest {
 /// Tracks nesting depth. Injected into child's Resources with depth+1.
 ///
 /// Top-level sessions start at depth 0. Each child increments by 1.
-/// `TaskTool` rejects spawns when `depth >= MAX_SUBAGENT_DEPTH`.
+/// `TaskTool` rejects spawns when `depth >= max_subagent_depth()`.
 #[derive(Debug, Clone)]
 pub struct SubagentDepthCounter(pub u32);
 

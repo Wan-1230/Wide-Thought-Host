@@ -26,9 +26,41 @@ use crate::types::resources::SharedResources;
 use crate::types::tool::{ToolKind, ToolNamespace};
 use xai_tool_types::{SubagentCompletedOutput, SubagentIsolationMode, TaskToolInput};
 
-/// Maximum nesting depth for subagents. A top-level session is depth 0;
-/// the first subagent is depth 1. Subagents cannot spawn further subagents.
-pub const MAX_SUBAGENT_DEPTH: u32 = 1;
+/// Default maximum nesting depth for subagents. A top-level session is
+/// depth 0; the first subagent is depth 1.
+///
+/// Configurable via `WTH_MAX_SUBAGENT_DEPTH` (or the legacy
+/// `GROK_MAX_SUBAGENT_DEPTH`). Parsed values are clamped to `1..=8` so a
+/// typo cannot disable the limit entirely; the default of 2 lets a
+/// subagent orchestrate one further level of delegation (deep dives,
+/// review panels) while still bounding recursive fan-out.
+pub const DEFAULT_MAX_SUBAGENT_DEPTH: u32 = 2;
+
+/// Maximum nesting depth hard ceiling for [`max_subagent_depth`].
+const MAX_SUBAGENT_DEPTH_CEILING: u32 = 8;
+
+/// Effective maximum nesting depth for subagents (cached per process).
+pub fn max_subagent_depth() -> u32 {
+    static CACHED: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+    *CACHED.get_or_init(|| {
+        let raw = std::env::var("WTH_MAX_SUBAGENT_DEPTH")
+            .or_else(|_| std::env::var("GROK_MAX_SUBAGENT_DEPTH"))
+            .ok();
+        parse_max_subagent_depth(raw.as_deref())
+    })
+}
+
+/// Parse a raw depth override (shared by [`max_subagent_depth`] and tests;
+/// does not touch the environment).
+fn parse_max_subagent_depth(raw: Option<&str>) -> u32 {
+    match raw.map(str::trim).filter(|s| !s.is_empty()) {
+        Some(s) => s
+            .parse::<u32>()
+            .unwrap_or(DEFAULT_MAX_SUBAGENT_DEPTH)
+            .clamp(1, MAX_SUBAGENT_DEPTH_CEILING),
+        None => DEFAULT_MAX_SUBAGENT_DEPTH,
+    }
+}
 
 // ───────────────────────────────────────────────────────────────────────────
 // Tool implementation
@@ -154,9 +186,10 @@ impl xai_tool_runtime::Tool for TaskTool {
             )
         };
 
-        if depth >= MAX_SUBAGENT_DEPTH {
+        let max_depth = max_subagent_depth();
+        if depth >= max_depth {
             return Err(xai_tool_runtime::ToolError::invalid_arguments(format!(
-                "Subagent depth limit exceeded (current depth: {depth}, max: {MAX_SUBAGENT_DEPTH}). \
+                "Subagent depth limit exceeded (current depth: {depth}, max: {max_depth}). \
                  Cannot spawn further nested subagents."
             )));
         }
@@ -500,7 +533,7 @@ mod tests {
         let (backend, _rx) = make_backend();
         let mut resources = Resources::new();
         resources.insert(backend);
-        resources.insert(SubagentDepthCounter(MAX_SUBAGENT_DEPTH)); // at limit
+        resources.insert(SubagentDepthCounter(max_subagent_depth())); // at limit
         resources.insert(SessionIdResource("test-session".to_string()));
         resources.insert(CurrentPromptIdResource("prompt-123".to_string()));
 
@@ -533,7 +566,7 @@ mod tests {
         let (backend, _rx) = make_backend();
         let mut resources = Resources::new();
         resources.insert(backend);
-        resources.insert(SubagentDepthCounter(1)); // first-level subagent
+        resources.insert(SubagentDepthCounter(max_subagent_depth()) /* first-level subagent */);
         resources.insert(SessionIdResource("child-session".to_string()));
         resources.insert(CurrentPromptIdResource("prompt-456".to_string()));
 
@@ -559,7 +592,37 @@ mod tests {
         let err = result.unwrap_err().to_string();
         assert!(
             err.contains("depth limit exceeded"),
-            "subagent at depth 1 must not spawn: {err}"
+            "subagent at the depth limit must not spawn: {err}"
+        );
+    }
+
+    #[test]
+    fn parse_max_subagent_depth_defaults_and_clamps() {
+        // Absent / blank / garbage → default.
+        assert_eq!(
+            parse_max_subagent_depth(None),
+            DEFAULT_MAX_SUBAGENT_DEPTH
+        );
+        assert_eq!(
+            parse_max_subagent_depth(Some("")),
+            DEFAULT_MAX_SUBAGENT_DEPTH
+        );
+        assert_eq!(
+            parse_max_subagent_depth(Some("  ")),
+            DEFAULT_MAX_SUBAGENT_DEPTH
+        );
+        assert_eq!(
+            parse_max_subagent_depth(Some("not-a-number")),
+            DEFAULT_MAX_SUBAGENT_DEPTH
+        );
+        // Explicit values pass through, clamped to the sane range.
+        assert_eq!(parse_max_subagent_depth(Some("1")), 1);
+        assert_eq!(parse_max_subagent_depth(Some("4")), 4);
+        assert_eq!(parse_max_subagent_depth(Some("0")), 1, "clamped to >= 1");
+        assert_eq!(
+            parse_max_subagent_depth(Some("999")),
+            MAX_SUBAGENT_DEPTH_CEILING,
+            "clamped to the ceiling"
         );
     }
 
