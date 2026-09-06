@@ -42,7 +42,7 @@ import {
 import { THINKING_MESSAGE, useChatStore } from "@/stores/chat";
 import { useWorkbenchStore } from "@/stores/workbench";
 import { useUiStore } from "@/stores/ui";
-import { agentSend, agentAbort, agentApproveTool, agentDenyTool, fileList, listSlashCommands, resolveSkill, subagentList, subagentRun, memoryWrite, sessionCreate, workspaceSearch, settingsGet, workspaceGet } from "@/lib/ipc";
+import { agentSend, agentAbort, agentApproveTool, agentDenyTool, fileList, listSlashCommands, resolveSkill, subagentList, subagentRun, memoryWrite, sessionCreate, sessionSaveMessages, workspaceSearch, settingsGet, workspaceGet } from "@/lib/ipc";
 import type { ChatMessage, ToolCall } from "@/stores/chat";
 import type { FileEntry, HistoryMessage, PromptTemplate, SlashCommandInfo, SubagentConfig, WorkspaceSearchHit } from "@/lib/ipc";
 import wthBanner from "@/assets/wth-banner.png";
@@ -1102,15 +1102,22 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
     await runAgentRequest(userMsg.content, history, []);
   };
 
-  /** 从此处分支：以该条之前的上下文为新会话前缀。 */
+  /** 从此处分支：以该条之前的上下文为新会话前缀（U-01）。 */
   const forkFrom = async (target: ChatMessage) => {
     if (!activeSessionId) return;
     const msgs = sessionMessages;
     const idx = msgs.findIndex((m) => m.id === target.id);
     const prefix = idx >= 0 ? msgs.slice(0, idx) : msgs;
     try {
-      const session = await sessionCreate("分支会话", "");
+      // 源会话标题继承，便于在侧栏识别分支来源
+      const sourceTitle =
+        useChatStore.getState().sessions.find((s) => s.id === activeSessionId)?.title ?? "会话";
+      const session = await sessionCreate(`${sourceTitle}（分支）`, "");
       setMessages(session.id, prefix.map((m) => ({ ...m })));
+      // U-01 修复：立即持久化分支消息——此前仅写内存，重启后分支内容丢失
+      if (prefix.length > 0) {
+        await sessionSaveMessages(session.id, prefix).catch(() => {});
+      }
       upsertSession(session);
       setActiveSession(session.id);
     } catch (err) {

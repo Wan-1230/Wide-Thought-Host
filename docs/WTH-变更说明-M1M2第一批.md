@@ -276,3 +276,43 @@ npm run build (ui)            → ✓ built（模型页 fallback 编辑器 + 单
 - U-01 桌面会话增强（rewind/分支）；Q-02 前端测试补强
 - F-07 `wth mcp-serve`；F-10 语义索引统一；A-03 Windows 沙箱第一阶段
 - A-01 步骤 2/3 与端到端联调；A-02 子代理 token 预算继承
+
+---
+
+# 第五批变更（模块化提交 + U-01 分支修复）
+
+> 日期：2026-09-05
+
+## 25. 模块化提交（7 个 commit）
+
+四批累计变更已按模块拆分入库（工作区清零）：
+
+| commit | 内容 |
+|---|---|
+| `chore(security)` | S-01 密钥扫描门禁与历史豁免基线 |
+| `feat(metrics)` | F-02 模型族 tokenizer 与 CJK 感知计量（22 测试） |
+| `feat(resilience)` | F-03 采样路径熔断（157 测试） |
+| `feat(kernel)` | A-02 子代理深度 + F-04 Git 工具集（79 task 测试） |
+| `feat(leader)` | A-01 服务侧 WTH_LEADER_BIN 覆盖 |
+| `docs` | 基线/对标/PRD/变更说明 + README 对齐（S-02） |
+| `feat(desktop)` | 桌面端整合批次（A-01 桥接/F-01/F-05/U-02/F-06/F-08/F-09/E-01，46 测试） |
+
+> 说明：桌面端各特性经由共享的 settings/agent.rs/Settings.tsx 深度交织，
+> 为保证可审查性合并为一个提交；模块级说明以 docs/变更说明 §1-24 为准。
+> bisect 粒度受此限制。
+
+## 26. U-01 会话分支——审计与缺陷修复（P1 ✅）
+
+**审计结论**：桌面端会话增强的主体（G4 对话内/全局检索、"重新生成"就地回滚重放、"从此处分支"forkFrom）在 v0.2/v0.3 已实现，PRD U-01 的真实缺口是一个**数据丢失缺陷**：
+
+- **forkFrom 不持久化**：`setMessages` 仅写 zustand 内存态（stores/chat.ts:166 无自动落盘），新建分支会话的消息文件从未写入——应用重启后分支内容全部丢失（对比"复制会话"手动调用了 `sessionSaveMessages`）。
+- 分支标题固定为"分支会话"，侧栏无法识别来源。
+
+**修复**（ChatView.tsx forkFrom）：① 分支创建后立即 `sessionSaveMessages` 持久化（并同步 message_count）；② 标题改为 `{源会话标题}（分支）`。
+**效果验证**：`npm run build` ✅ + `cargo test -p wth-desktop` 46/46 ✅。rewind 场景由既有"重新生成"（截断+重放）与"从此处分支"（保留原会话）共同覆盖，U-01 就此关闭。
+
+## 27. M3/M4 余量（最终盘点）
+
+- F-06 二阶段（子代理 fallback、按任务角色路由）；F-07 `wth mcp-serve`；F-10 语义索引统一；A-03 Windows 沙箱；Q-02 前端测试补强
+- A-01 步骤 2/3（记忆/存储统一）与端到端联调；A-02 子代理 token 预算
+- 硬编码 Key 服务端吊销（维护者操作）；B0 包名迁移提交（方案已定稿）
