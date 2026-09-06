@@ -1,9 +1,12 @@
 [package]
 license = "Apache-2.0"
-name = "xai-grok-workspace-client"
+name = "wth-workspace-client"
 version = "0.1.0"
 edition.workspace = true
 description = "Lightweight typed client for hub-proxied workspace.* RPCs (shared by xai-grok-shell proxy mode and other consumers)"
+
+[lib]
+name = "xai_grok_workspace_client"
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
@@ -12,9 +15,9 @@ thiserror = { workspace = true }
 tokio = { workspace = true, features = ["time"] }
 tracing = { workspace = true }
 xai-computer-hub-sdk = { workspace = true }
-xai-grok-workspace-types = { workspace = true }
-xai-tool-protocol = { workspace = true }
-xai-tool-runtime = { workspace = true }
+wth-workspace-types = { workspace = true }
+wth-tool-protocol = { workspace = true }
+wth-tool-runtime = { workspace = true }
 
 [features]
 default = []
@@ -22,7 +25,7 @@ default-bazel = []
 [dev-dependencies]
 schemars = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "test-util"] }
-xai-tool-types = { workspace = true }
+wth-tool-types = { workspace = true }
 
 [lints]
 workspace = true

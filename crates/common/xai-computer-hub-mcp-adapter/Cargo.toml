@@ -17,9 +17,9 @@ tokio = { workspace = true, features = ["sync"] }
 tracing = { workspace = true }
 prometheus = { workspace = true, optional = true }
 
-xai-tool-protocol = { workspace = true }
-xai-tool-runtime = { workspace = true }
-xai-tool-types = { workspace = true }
+wth-tool-protocol = { workspace = true }
+wth-tool-runtime = { workspace = true }
+wth-tool-types = { workspace = true }
 xai-computer-hub-sdk = { workspace = true }
 
 [dev-dependencies]

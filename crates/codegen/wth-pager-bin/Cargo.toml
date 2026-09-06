@@ -21,19 +21,19 @@ path = "src/main.rs"
 
 [dependencies]
 # The pager library (all application logic + the public API main.rs drives).
-xai-grok-pager = { path = "../wth-pager" }
+wth-pager = { path = "../wth-pager" }
 wth-mcp-server = { path = "../wth-mcp-server" }
 # Optional scrollback-native render mode, wired in via the fn-pointer seam.
-xai-grok-pager-minimal = { path = "../xai-grok-pager-minimal" }
+wth-pager-minimal = { path = "../xai-grok-pager-minimal" }
 
 # Agent runtime + leader/stdio/headless entry points.
-xai-grok-shell = { workspace = true }
-xai-grok-update = { path = "../xai-grok-update" }
-xai-grok-version = { workspace = true }
-xai-grok-telemetry = { workspace = true }
-xai-grok-workspace = { workspace = true }
-xai-crash-handler = { path = "../xai-crash-handler" }
-xai-acp-lib = { workspace = true }
+wth-shell = { workspace = true }
+wth-update = { path = "../xai-grok-update" }
+wth-version = { workspace = true }
+wth-telemetry = { workspace = true }
+wth-workspace = { workspace = true }
+wth-crash-handler = { path = "../xai-crash-handler" }
+wth-acp-lib = { workspace = true }
 
 # Async runtime + misc.
 tokio = { workspace = true, features = [
@@ -52,9 +52,9 @@ tracing-subscriber = { workspace = true }
 serde_json = { workspace = true }
 dunce = { workspace = true }
 semver = { workspace = true }
-xai-tty-utils = { workspace = true }
-xai-grok-config = { workspace = true }
-xai-grok-sandbox = { path = "../xai-grok-sandbox", default-features = false }
+wth-tty-utils = { workspace = true }
+wth-config = { workspace = true }
+wth-sandbox = { path = "../xai-grok-sandbox", default-features = false }
 rustls = { version = "0.23", default-features = false, features = [
     "ring",
     "logging",
@@ -98,5 +98,5 @@ default-bazel = [
     ]
 jemalloc = ["dep:tikv-jemallocator", "dep:tikv-jemalloc-sys", "dep:tikv-jemalloc-ctl"]
 # Forward the sandbox-enforcement feature to the library.
-sandbox-enforce = ["xai-grok-pager/sandbox-enforce"]
-release-dist = ["xai-grok-pager/release-dist"]
+sandbox-enforce = ["wth-pager/sandbox-enforce"]
+release-dist = ["wth-pager/release-dist"]

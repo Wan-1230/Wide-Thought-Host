@@ -1,13 +1,16 @@
 [package]
-name = "xai-grok-pager-render"
+name = "wth-pager-render"
 version = "0.1.0"
 edition.workspace = true
 license = "Apache-2.0"
 
+[lib]
+name = "xai_grok_pager_render"
+
 [dependencies]
 # TTY safety
 dunce = { workspace = true }
-xai-tty-utils = { workspace = true }
+wth-tty-utils = { workspace = true }
 
 # Rendering
 ratatui = { workspace = true, features = [
@@ -25,7 +28,7 @@ linkify = { workspace = true }
 tui-scrollbar = { workspace = true }
 
 # Markdown / syntax highlighting
-xai-grok-markdown = { workspace = true }
+wth-markdown = { workspace = true }
 syntect = { workspace = true }
 anstyle = { workspace = true }
 supports-color = { workspace = true }
@@ -57,17 +60,17 @@ tokio = { workspace = true, features = [
 tracing = { workspace = true }
 
 # Prompt text input
-xai-ratatui-textarea = { workspace = true }
-xai-ratatui-inline = { workspace = true }
+wth-ratatui-textarea = { workspace = true }
+wth-ratatui-inline = { workspace = true }
 
 # ACP
 agent-client-protocol = { workspace = true }
-xai-grok-config = { workspace = true }
-xai-grok-shared = { workspace = true }
-xai-grok-workspace = { workspace = true }
-xai-grok-telemetry = { workspace = true }
-xai-grok-tools = { workspace = true }
-xai-grok-paths = { path = "../xai-grok-paths" }
+wth-config = { workspace = true }
+wth-shared = { workspace = true }
+wth-workspace = { workspace = true }
+wth-telemetry = { workspace = true }
+wth-tools = { workspace = true }
+wth-paths = { path = "../xai-grok-paths" }
 
 # Base64 encoding for image data
 base64 = { workspace = true }

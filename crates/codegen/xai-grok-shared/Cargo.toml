@@ -1,7 +1,10 @@
 [package]
 license = "Apache-2.0"
-name = "xai-grok-shared"
+name = "wth-shared"
 edition.workspace = true
+
+[lib]
+name = "xai_grok_shared"
 
 [dependencies]
 agent-client-protocol = { workspace = true }
@@ -19,10 +22,10 @@ tempfile = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 urlencoding = { workspace = true }
-xai-grok-config-types = { workspace = true }
+wth-config-types = { workspace = true }
 wth-models = { workspace = true }
-xai-grok-tools = { workspace = true }
-xai-tty-utils = { workspace = true }
+wth-tools = { workspace = true }
+wth-tty-utils = { workspace = true }
 
 [dev-dependencies]
 uuid = { workspace = true, features = ["v4"] }

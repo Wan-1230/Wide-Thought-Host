@@ -1,9 +1,12 @@
 [package]
 license = "Apache-2.0"
-name = "xai-test-utils"
+name = "wth-test-utils"
 version = "0.1.0"
 edition.workspace = true
 description = "Shared test utilities: hermetic git, optional runfiles helpers"
+
+[lib]
+name = "xai_test_utils"
 
 [features]
 # Enable Bazel runfiles support when building under that toolchain. Under

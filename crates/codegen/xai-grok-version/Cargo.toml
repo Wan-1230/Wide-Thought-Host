@@ -1,9 +1,12 @@
 [package]
 license = "Apache-2.0"
-name = "xai-grok-version"
+name = "wth-version"
 version = "0.2.0-dev"
 edition.workspace = true
 description = "Lockstepped WTH Build CLI version and privacy-build constants."
+
+[lib]
+name = "xai_grok_version"
 
 [dependencies]
 semver = { workspace = true }

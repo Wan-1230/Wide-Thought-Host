@@ -1,9 +1,12 @@
 [package]
 license = "Apache-2.0"
 edition.workspace = true
-name = "xai-grok-tools"
+name = "wth-tools"
 version = "0.1.220-alpha.4"
 description = "Grok tools library"
+
+[lib]
+name = "xai_grok_tools"
 
 [dependencies]
 anyhow = { workspace = true }
@@ -14,12 +17,12 @@ dunce = { workspace = true }
 fs2 = { workspace = true }
 educe = { workspace = true, features = ["Debug"] }
 async-openai = { workspace = true }
-xai-tty-utils = { workspace = true }
-xai-grok-config = { path = "../wth-config" }
-xai-grok-tools-api = { path = "../xai-grok-tools-api" }
-xai-grok-workspace-types = { path = "../xai-grok-workspace-types" }
-xai-grok-version = { workspace = true }
-xai-interjection-core = { workspace = true }
+wth-tty-utils = { workspace = true }
+wth-config = { path = "../wth-config" }
+wth-tools-api = { path = "../xai-grok-tools-api" }
+wth-workspace-types = { path = "../xai-grok-workspace-types" }
+wth-version = { workspace = true }
+wth-interjection-core = { workspace = true }
 wth-token-estimation = { workspace = true }
 async-lsp = { workspace = true }
 async-stream = { workspace = true }
@@ -49,9 +52,9 @@ schemars = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_path_to_error = { workspace = true }
-xai-tool-runtime = { workspace = true }
-xai-tool-types = { workspace = true }
-xai-tool-protocol = { workspace = true }
+wth-tool-runtime = { workspace = true }
+wth-tool-types = { workspace = true }
+wth-tool-protocol = { workspace = true }
 xai-computer-hub-core = { workspace = true }
 xai-computer-hub-sdk = { workspace = true }
 
@@ -74,7 +77,7 @@ tonic = { workspace = true }
 tracing = { workspace = true }
 url = { workspace = true }
 uuid = { workspace = true, features = ["v7"] }
-xai-grok-env = { workspace = true }
+wth-env = { workspace = true }
 serde_yaml = { workspace = true }
 shellexpand = "3.1"
 tempfile = { workspace = true }
@@ -82,8 +85,8 @@ which = { workspace = true }
 
 chrono = { workspace = true }
 futures-util = { workspace = true }
-xai-grok-sandbox = { path = "../xai-grok-sandbox", default-features = false }
-xai-file-utils = { path = "../xai-file-utils" }
+wth-sandbox = { path = "../xai-grok-sandbox", default-features = false }
+wth-file-utils = { path = "../xai-file-utils" }
 
 [target.'cfg(unix)'.dependencies]
 command-fds = { version = "0.3", features = ["tokio"] }
@@ -103,7 +106,7 @@ dirs = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
 tracing-subscriber = { workspace = true, features = ["fmt"] }
 wiremock = { workspace = true }
-xai-test-utils = { workspace = true }
+wth-test-utils = { workspace = true }
 
 [build-dependencies]
 reqwest = { workspace = true, features = ["blocking", "rustls-tls"] }

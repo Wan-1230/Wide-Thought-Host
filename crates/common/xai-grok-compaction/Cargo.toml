@@ -1,9 +1,12 @@
 [package]
 license = "Apache-2.0"
-name = "xai-grok-compaction"
+name = "wth-compaction"
 version = "0.1.0"
 edition.workspace = true
 description = "Shared, transport-agnostic compaction engine for Grok chat and Grok Build."
+
+[lib]
+name = "xai_grok_compaction"
 
 [dependencies]
 anyhow = { workspace = true }

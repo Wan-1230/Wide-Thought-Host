@@ -1,9 +1,12 @@
 [package]
 license = "Apache-2.0"
-name = "xai-gix-status"
+name = "wth-gix-status"
 version = "0.1.0"
 edition.workspace = true
 description = "Shared gix status helpers: thread budget under RLIMIT_NPROC so produce-worker spawn cannot abort under panic=abort"
+
+[lib]
+name = "xai_gix_status"
 
 [dependencies]
 gix = { workspace = true, features = ["status", "parallel"] }
@@ -13,7 +16,7 @@ libc = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
-xai-test-utils = { workspace = true }
+wth-test-utils = { workspace = true }
 
 [lints]
 workspace = true

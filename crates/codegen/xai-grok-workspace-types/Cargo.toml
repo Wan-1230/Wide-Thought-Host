@@ -1,9 +1,12 @@
 [package]
 license = "Apache-2.0"
-name = "xai-grok-workspace-types"
+name = "wth-workspace-types"
 version = "0.1.0"
 edition.workspace = true
 description = "Wire types for the workspace API (request/chunk/event enums shared by client and server)"
+
+[lib]
+name = "xai_grok_workspace_types"
 
 [dependencies]
 base64 = { workspace = true }

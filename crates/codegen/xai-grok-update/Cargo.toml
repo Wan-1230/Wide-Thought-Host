@@ -1,8 +1,11 @@
 [package]
 license = "Apache-2.0"
-name = "xai-grok-update"
+name = "wth-update"
 version = "0.1.220-alpha.4"
 edition.workspace = true
+
+[lib]
+name = "xai_grok_update"
 
 [features]
 default = []
@@ -23,9 +26,9 @@ thiserror = { workspace = true }
 time = { workspace = true, features = ["serde"] }
 tokio = { workspace = true, features = ["fs", "process", "io-util", "macros", "time"] }
 tracing = { workspace = true }
-xai-grok-shell = { workspace = true }
-xai-grok-tools = { workspace = true }
-xai-grok-version = { workspace = true }
+wth-shell = { workspace = true }
+wth-tools = { workspace = true }
+wth-version = { workspace = true }
 
 [dev-dependencies]
 semver = { workspace = true }

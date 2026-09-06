@@ -1,9 +1,12 @@
 [package]
 license = "Apache-2.0"
-name = "xai-tool-types"
+name = "wth-tool-types"
 version = "0.1.0"
 edition.workspace = true
 description = "Canonical tool-description types for the agent tool platform"
+
+[lib]
+name = "xai_tool_types"
 
 [features]
 # Enables `BuiltinSubagent::render_prompt` (MiniJinja rendering of the

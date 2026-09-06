@@ -1,5 +1,5 @@
 [package]
-name = "xai-grok-pager-pty-harness"
+name = "wth-pager-pty-harness"
 version = "0.1.0"
 edition.workspace = true
 license = "Apache-2.0"
@@ -10,6 +10,9 @@ publish = false
 # Not imported into the production pager binary — the pager's Cargo.toml
 # only references this crate via [dev-dependencies], so `cargo build -p
 # xai-grok-pager` never compiles any of this.
+
+[lib]
+name = "xai_grok_pager_pty_harness"
 
 [dependencies]
 # Headless PTY controller with alacritty_terminal-based terminal emulation,
@@ -29,7 +32,7 @@ alacritty_terminal = { workspace = true }
 
 # Shared mock inference server used to drive content into the pager
 # during scenarios (content.rs wraps it).
-xai-grok-test-support = { workspace = true }
+wth-test-support = { workspace = true }
 
 # Async runtime + common helpers shared with the pager.
 tokio = { workspace = true, features = [
@@ -50,7 +53,7 @@ serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 image = { workspace = true, features = ["png"] }
 tempfile = { workspace = true }
-xai-tty-utils = { workspace = true }
+wth-tty-utils = { workspace = true }
 
 clap = { workspace = true, features = ["derive"] }
 

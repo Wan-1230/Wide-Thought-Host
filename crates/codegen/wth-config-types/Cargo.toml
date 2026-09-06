@@ -1,9 +1,12 @@
 [package]
 license = "Apache-2.0"
-name = "xai-grok-config-types"
+name = "wth-config-types"
 version = "0.1.0"
 edition.workspace = true
 description = "Leaf configuration value types for the grok CLI, extracted from xai-grok-shell for dependency inversion."
+
+[lib]
+name = "xai_grok_config_types"
 
 [dependencies]
 agent-client-protocol = { workspace = true }
@@ -13,8 +16,8 @@ serde_json = { workspace = true }
 strum = { workspace = true }
 tracing = { workspace = true }
 xai-grok-announcements = { workspace = true }
-xai-grok-config = { workspace = true }
-xai-grok-mcp = { workspace = true }
+wth-config = { workspace = true }
+wth-mcp = { workspace = true }
 
 [features]
 default-bazel = []

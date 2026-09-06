@@ -11,9 +11,9 @@ chrono = { workspace = true }
 futures = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
-xai-tool-protocol = { workspace = true }
-xai-tool-runtime = { workspace = true }
-xai-tool-types = { workspace = true }
+wth-tool-protocol = { workspace = true }
+wth-tool-runtime = { workspace = true }
+wth-tool-types = { workspace = true }
 
 [dev-dependencies]
 dashmap = { workspace = true }

@@ -1,15 +1,18 @@
 [package]
 license = "Apache-2.0"
-name = "xai-grok-agent"
+name = "wth-agent"
 version = "0.1.0"
 edition.workspace = true
 description = "Agent builder, definition parsing, and system prompt assembly"
 
+[lib]
+name = "xai_grok_agent"
+
 [dependencies]
 dunce = { workspace = true }
-xai-grok-hooks = { path = "../xai-grok-hooks" }
-xai-grok-sampling-types = { path = "../xai-grok-sampling-types" }
-xai-grok-tools = { path = "../xai-grok-tools" }
+wth-hooks = { path = "../xai-grok-hooks" }
+wth-sampling-types = { path = "../xai-grok-sampling-types" }
+wth-tools = { path = "../xai-grok-tools" }
 wth-token-estimation = { workspace = true }
 minijinja = { version = "2", features = ["custom_syntax"] }
 git2 = { version = "0.20", default-features = false, features = ["vendored-libgit2"] }
@@ -22,12 +25,12 @@ tracing = { workspace = true }
 chrono = { workspace = true }
 ignore = { workspace = true }
 dirs = "6"
-xai-grok-config = { workspace = true }
+wth-config = { workspace = true }
 sha2 = { workspace = true }
 strum = { workspace = true }
 thiserror = { workspace = true }
 zeroize = "1"
-xai-tool-types.workspace = true
+wth-tool-types.workspace = true
 
 [features]
 default = []

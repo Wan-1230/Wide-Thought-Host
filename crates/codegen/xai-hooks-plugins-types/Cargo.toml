@@ -1,9 +1,12 @@
 [package]
 license = "Apache-2.0"
 edition.workspace = true
-name = "xai-hooks-plugins-types"
+name = "wth-hooks-plugins-types"
 version = "0.1.0"
 description = "Shared DTO types for hooks/plugins ACP extensions (wire format only)"
+
+[lib]
+name = "xai_hooks_plugins_types"
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }

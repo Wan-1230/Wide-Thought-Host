@@ -1,10 +1,13 @@
 [package]
 license = "Apache-2.0"
-name = "xai-grok-telemetry"
+name = "wth-telemetry"
 version = "0.1.0"
 edition.workspace = true
 description = "Telemetry engine for WTH Build (product analytics hard-off; optional user Sentry via SENTRY_DSN)"
 authors = ["WTH Build contributors"]
+
+[lib]
+name = "xai_grok_telemetry"
 
 [features]
 default = []
@@ -31,11 +34,11 @@ git2 = { version = "0.20", default-features = false, features = [
 ] }
 reqwest = { workspace = true }
 url = { workspace = true }
-xai-grok-env = { workspace = true }
-xai-grok-secrets = { workspace = true }
+wth-env = { workspace = true }
+wth-secrets = { workspace = true }
 xai-mixpanel = { workspace = true }
-xai-grok-config = { workspace = true }
-xai-grok-sampler = { workspace = true }
+wth-config = { workspace = true }
+wth-sampler = { workspace = true }
 wth-token-estimation = { workspace = true }
 dirs = { workspace = true }
 sentry = { version = "0.42.0", default-features = false, features = [
@@ -52,7 +55,7 @@ sentry = { version = "0.42.0", default-features = false, features = [
 # `xai_file_utils::events::types::ToolOutcome` so the local event log and
 # the product telemetry event share the same enum surface. Semantically this enum
 # lives with the events module in data-collector; not worth a third crate.
-xai-file-utils = { path = "../xai-file-utils" }
+wth-file-utils = { path = "../xai-file-utils" }
 # `session_metrics::TraceUploadReason::from_upload_method` matches on the shared
 # `UploadMethod` enum (small, dependency-light types crate) so the reason->wire
 # mapping lives next to the trace-upload lifecycle events it labels.
@@ -62,7 +65,7 @@ obfstr = { workspace = true, optional = true }
 mid = "4.0.0"
 tokio = { workspace = true, features = ["macros", "sync", "rt"] }
 parking_lot = { workspace = true }
-xai-grok-auth = { workspace = true }
+wth-auth = { workspace = true }
 opentelemetry = { workspace = true }
 opentelemetry_sdk = { workspace = true, features = [
     "experimental_logs_batch_log_processor_with_async_runtime",

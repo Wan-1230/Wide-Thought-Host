@@ -1,9 +1,12 @@
 [package]
 license = "Apache-2.0"
-name = "xai-grok-workspace"
+name = "wth-workspace"
 version = "0.1.220-alpha.4"
 edition.workspace = true
 description = "Core host-local workspace library (FS, VCS, execution, discovery) for xai-grok-shell and remote sampler"
+
+[lib]
+name = "xai_grok_workspace"
 
 [dependencies]
 anyhow = { workspace = true }
@@ -12,7 +15,7 @@ arc-swap = { workspace = true }
 # workspace version already used by the sibling preview proxy.
 axum = { workspace = true }
 dunce = { workspace = true }
-xai-grok-version = { workspace = true }
+wth-version = { workspace = true }
 async-stream = { workspace = true }
 async-trait = { workspace = true }
 futures = { workspace = true }
@@ -38,20 +41,20 @@ tokio = { workspace = true, features = [
 ] }
 tracing = { workspace = true }
 uuid = { workspace = true, features = ["v4", "v5", "v7"] }
-xai-grok-agent = { path = "../wth-agent" }
-xai-grok-tools = { path = "../xai-grok-tools" }
-xai-grok-tools-api = { path = "../xai-grok-tools-api" }
-xai-grok-workspace-client = { path = "../xai-grok-workspace-client" }
-xai-grok-workspace-types = { path = "../xai-grok-workspace-types" }
-xai-grok-config = { workspace = true }
+wth-agent = { path = "../wth-agent" }
+wth-tools = { path = "../xai-grok-tools" }
+wth-tools-api = { path = "../xai-grok-tools-api" }
+wth-workspace-client = { path = "../xai-grok-workspace-client" }
+wth-workspace-types = { path = "../xai-grok-workspace-types" }
+wth-config = { workspace = true }
 # Leaf config value types (RemoteSettings, BoolFlag) for the folder-trust decision.
-xai-grok-config-types = { workspace = true }
+wth-config-types = { workspace = true }
 toml = { workspace = true, features = ["preserve_order"] }
 dashmap = { workspace = true }
 agent-client-protocol = { workspace = true }
-xai-acp-lib = { workspace = true }
-xai-codebase-graph = { path = "../xai-codebase-graph" }
-xai-grok-paths = { path = "../xai-grok-paths" }
+wth-acp-lib = { workspace = true }
+wth-codebase-graph = { path = "../xai-codebase-graph" }
+wth-paths = { path = "../xai-grok-paths" }
 base64 = { workspace = true }
 infer = { workspace = true }
 sha2 = { workspace = true, features = ["force-soft"] }
@@ -66,39 +69,39 @@ chrono = { workspace = true }
 tree-sitter = "0.25.10"
 tree-sitter-bash = "0.25"
 url = { workspace = true }
-xai-grok-env = { workspace = true }
+wth-env = { workspace = true }
 humantime-serde = { workspace = true }
 prometheus = { workspace = true }
 glob = "0.3"
-xai-grok-sandbox = { path = "../xai-grok-sandbox", default-features = false }
-xai-grok-hooks = { path = "../xai-grok-hooks" }
-xai-hunk-tracker = { path = "../xai-hunk-tracker" }
+wth-sandbox = { path = "../xai-grok-sandbox", default-features = false }
+wth-hooks = { path = "../xai-grok-hooks" }
+wth-hunk-tracker = { path = "../xai-hunk-tracker" }
 # `metrics` enables the SDK's metric-donation client (periodic Prometheus
 # registry gather → OTLP → hub donation pump); see metric_donation_reporter.
 xai-computer-hub-sdk = { workspace = true, features = ["metrics"] }
 xai-computer-hub-mcp-adapter = { path = "../../common/xai-computer-hub-mcp-adapter" }
-xai-grok-mcp = { path = "../xai-grok-mcp" }
-xai-file-utils = { path = "../xai-file-utils" }
-xai-grok-auth = { path = "../xai-grok-auth" }
-xai-grok-telemetry = { workspace = true }
-xai-tty-utils = { workspace = true }
-xai-sqlite-journal = { workspace = true }
+wth-mcp = { path = "../xai-grok-mcp" }
+wth-file-utils = { path = "../xai-file-utils" }
+wth-auth = { path = "../xai-grok-auth" }
+wth-telemetry = { workspace = true }
+wth-tty-utils = { workspace = true }
+wth-sqlite-journal = { workspace = true }
 reqwest = { workspace = true }
-xai-tool-protocol = { workspace = true }
-xai-tool-runtime = { workspace = true }
-xai-tool-types = { workspace = true }
+wth-tool-protocol = { workspace = true }
+wth-tool-runtime = { workspace = true }
+wth-tool-types = { workspace = true }
 tokio-util = { workspace = true, features = ["rt"] }
 urlencoding = "2"
-xai-fast-worktree = { path = "../xai-fast-worktree", features = ["metadata"] }
+wth-fast-worktree = { path = "../xai-fast-worktree", features = ["metadata"] }
 # tonic stays for `tonic::Status`/`Code` mapping in workspace_ops deploy errors.
 tonic = { workspace = true }
 
-xai-fsnotify = { path = "../xai-fsnotify" }
+wth-fsnotify = { path = "../xai-fsnotify" }
 clap = { workspace = true }
 tracing-subscriber = { workspace = true }
 # "enable" required for the SDK's spans to record at all.
 fastrace = { workspace = true, features = ["enable"] }
-xai-tracing = { workspace = true }
+wth-tracing = { workspace = true }
 rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "std", "tls12"] }
 tokio-tungstenite = { workspace = true, features = ["rustls-tls-webpki-roots"] }
 tempfile = { workspace = true }
@@ -123,7 +126,7 @@ path = "src/bin/workspace_server_probe.rs"
 [features]
 default = ["sandbox-enforce"]
 compression = []
-sandbox-enforce = ["xai-grok-sandbox/enforce"]
+sandbox-enforce = ["wth-sandbox/enforce"]
 default-bazel = [
     "sandbox-enforce",
     ]
@@ -132,7 +135,7 @@ default-bazel = [
 filetime = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }
-xai-test-utils = { path = "../../common/xai-test-utils" }
+wth-test-utils = { path = "../../common/xai-test-utils" }
 # Decode tar.gz archives produced by workspace upload helpers in tests.
 flate2 = { workspace = true }
 tar = { workspace = true }

@@ -1,9 +1,12 @@
 [package]
 license = "Apache-2.0"
-name = "xai-tool-runtime"
+name = "wth-tool-runtime"
 version = "0.1.0"
 edition.workspace = true
 description = "Unified Tool trait, dispatch trait, error taxonomy, notifications, and search index for the Computer Hub"
+
+[lib]
+name = "xai_tool_runtime"
 
 [dependencies]
 anyhow = { workspace = true }
@@ -13,9 +16,9 @@ schemars = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tokio-util = { workspace = true }
-xai-grok-tools-api = { workspace = true }
-xai-tool-protocol = { workspace = true }
-xai-tool-types = { workspace = true }
+wth-tools-api = { workspace = true }
+wth-tool-protocol = { workspace = true }
+wth-tool-types = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros", "test-util"] }

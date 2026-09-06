@@ -1,9 +1,12 @@
 [package]
 license = "Apache-2.0"
-name = "xai-sqlite-journal"
+name = "wth-sqlite-journal"
 version = "0.1.0"
 edition.workspace = true
 description = "Filesystem-aware SQLite journal-mode selection: WAL on local disks, rollback journal on network mounts where WAL's mmap'd -shm is unsafe"
+
+[lib]
+name = "xai_sqlite_journal"
 
 [dependencies]
 # Matches the pinned rusqlite of every consumer (bundled = self-contained SQLite).

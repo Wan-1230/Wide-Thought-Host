@@ -1,15 +1,18 @@
 [package]
 license = "Apache-2.0"
-name = "xai-grok-sampler"
+name = "wth-sampler"
 version = "0.1.0"
 edition.workspace = true
 description = "Actor-based sampling/inference layer for the WTH Build sampling stack (HTTP streaming + retry, no shell coupling)"
 
+[lib]
+name = "xai_grok_sampler"
+
 [dependencies]
 # Internal
-xai-grok-sampling-types = { path = "../xai-grok-sampling-types" }
-xai-grok-version = { workspace = true }
-xai-circuit-breaker = { workspace = true }
+wth-sampling-types = { path = "../xai-grok-sampling-types" }
+wth-version = { workspace = true }
+wth-circuit-breaker = { workspace = true }
 
 # External
 async-openai = { workspace = true }
@@ -30,9 +33,9 @@ uuid = { workspace = true, features = ["v4"] }
 # Mock HTTP server for actor / request_task integration tests.
 axum = { workspace = true }
 # Shared SSE generators for the happy-path mock payloads.
-xai-grok-test-support = { workspace = true }
+wth-test-support = { workspace = true }
 # Breaker test hooks (MockClock) for the sampler breaker integration tests.
-xai-circuit-breaker = { workspace = true, features = ["test-hooks"] }
+wth-circuit-breaker = { workspace = true, features = ["test-hooks"] }
 # `start_paused = true` for deterministic timeout testing; `net` for
 # `TcpListener::bind` in the mock server harness.
 tokio = { workspace = true, features = [

@@ -1,9 +1,12 @@
 [package]
 license = "Apache-2.0"
-name = "xai-chat-state"
+name = "wth-chat-state"
 version = "0.1.0"
 edition.workspace = true
 description = "Actor-based chat state management for WTH Build agents"
+
+[lib]
+name = "xai_chat_state"
 
 [features]
 default-bazel = []
@@ -17,8 +20,8 @@ strum = { workspace = true }
 tokio = { workspace = true, features = ["sync", "rt", "macros"] }
 tokio-util = { workspace = true }
 tracing = { workspace = true }
-xai-grok-compaction = { path = "../../common/xai-grok-compaction" }
-xai-grok-sampling-types = { path = "../xai-grok-sampling-types" }
+wth-compaction = { path = "../../common/xai-grok-compaction" }
+wth-sampling-types = { path = "../xai-grok-sampling-types" }
 wth-token-estimation = { workspace = true }
 
 [dev-dependencies]

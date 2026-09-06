@@ -1,9 +1,12 @@
 [package]
 license = "Apache-2.0"
-name = "xai-grok-hooks"
+name = "wth-hooks"
 version = "0.1.0"
 edition.workspace = true
 description = "Runtime hook system for Grok — file-based discovery, command execution, and policy enforcement"
+
+[lib]
+name = "xai_grok_hooks"
 
 [dependencies]
 fastrand = { workspace = true }
@@ -16,8 +19,8 @@ thiserror = { workspace = true }
 tokio = { workspace = true, features = ["process", "rt", "macros", "time"] }
 tracing = { workspace = true }
 url = { workspace = true }
-xai-grok-config = { workspace = true }
-xai-grok-tools = { workspace = true }
+wth-config = { workspace = true }
+wth-tools = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

@@ -1,9 +1,12 @@
 [package]
 license = "Apache-2.0"
-name = "xai-tracing-macros"
+name = "wth-tracing-macros"
 version = "0.1.0"
 edition.workspace = true
 description = "Tracing-based utility macros for timestamped logging and timing"
+
+[lib]
+name = "xai_tracing_macros"
 
 [dependencies]
 

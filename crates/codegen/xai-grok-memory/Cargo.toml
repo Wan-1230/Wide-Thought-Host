@@ -1,8 +1,11 @@
 [package]
 license = "Apache-2.0"
-name = "xai-grok-memory"
+name = "wth-memory"
 version = "0.1.0"
 edition.workspace = true
+
+[lib]
+name = "xai_grok_memory"
 
 [features]
 
@@ -28,13 +31,13 @@ sqlite-vec = "=0.1.7-alpha.2"
 tar = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "time"] }
 tracing = { workspace = true }
-xai-grok-auth = { workspace = true }
-xai-grok-config-types = { workspace = true }
-xai-grok-http = { workspace = true }
-xai-grok-telemetry = { workspace = true }
-xai-grok-tools = { workspace = true }
-xai-grok-version = { workspace = true }
-xai-sqlite-journal = { workspace = true }
+wth-auth = { workspace = true }
+wth-config-types = { workspace = true }
+wth-http = { workspace = true }
+wth-telemetry = { workspace = true }
+wth-tools = { workspace = true }
+wth-version = { workspace = true }
+wth-sqlite-journal = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
 nix = { workspace = true }

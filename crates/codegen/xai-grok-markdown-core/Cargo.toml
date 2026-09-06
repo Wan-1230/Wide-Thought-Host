@@ -1,9 +1,12 @@
 [package]
 license = "Apache-2.0"
-name = "xai-grok-markdown-core"
+name = "wth-markdown-core"
 version = "0.1.0"
 edition.workspace = true
 description = "Headless markdown analysis sharing Grok Build's exact pulldown-cmark config."
+
+[lib]
+name = "xai_grok_markdown_core"
 
 [dependencies]
 pulldown-cmark = { workspace = true }

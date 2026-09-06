@@ -13,7 +13,7 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 
-[dependencies.xai-grok-markdown]
+[dependencies.wth-markdown]
 path = ".."
 
 # All render modes: pretty/non-pretty × syntect/no-syntect × full/streaming

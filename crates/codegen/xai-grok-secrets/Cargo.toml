@@ -1,9 +1,12 @@
 [package]
 license = "Apache-2.0"
 edition.workspace = true
-name = "xai-grok-secrets"
+name = "wth-secrets"
 version = "0.1.0"
 description = "Regex sanitizer for Grok Build outbound data (Sentry / Mixpanel / product-event scrubbing)"
+
+[lib]
+name = "xai_grok_secrets"
 
 [dependencies]
 regex = { workspace = true }

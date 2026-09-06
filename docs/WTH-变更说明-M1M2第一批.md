@@ -417,3 +417,17 @@ cargo test  -p wth-desktop → 51/51
 cargo test  -p xai-grok-tools --lib → 2519 通过（预存失败 -1）
 npm run build (ui) → ✓
 ```
+
+---
+
+# 第九批变更（Q-01 B1–B6 全量包名迁移）
+
+> 日期：2026-09-05
+
+## 39. Q-01 B1–B6 · 其余 62 个 `xai-*` 包全量迁移为 `wth-*`（P2 ✅）
+
+- **范围**：除 B0 两包与 7 个保留 vendor/上游组件（computer-hub 三件套、voice、announcements、mixpanel、proto-build）外的全部 workspace 成员——含 pager 全家（414 文件的最大 crate）、shell、tools、sampler、markdown 系、ratatui 系等。
+- **方法**：与 B0 相同的 lib.name 固定策略——**全部 `use` 语句与代码零改动**，纯清单操作。
+- **迁移中修复的三类隐藏引用形式与 2 处历史笔误**：点语法（`xai-tool-types.workspace = true`——且为指向不存在包名的既有笔误）、段式声明（`[dependencies.xai-ratatui-textarea]`）、feature 跨包引用（`"xai-grok-sandbox/enforce"`）与 `dep:xai-*` 语法。
+- **验证**：`cargo check --workspace` 86 crate 零错误；关键套件新包名下全绿（22+70+6+51+79）。
+- 至此 Q-01（基线风险 R9"命名双轨混乱"）**整体关闭**；`grep xai- --include=Cargo.toml` 仅剩 vendor 保留集与目录路径。

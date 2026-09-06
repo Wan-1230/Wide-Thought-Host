@@ -1,9 +1,12 @@
 [package]
 license = "Apache-2.0"
 edition.workspace = true
-name = "xai-crash-handler"
+name = "wth-crash-handler"
 version = "0.1.0"
 description = "Cross-platform crash handler (Unix signals + Windows SEH) with startup crash detection"
+
+[lib]
+name = "xai_crash_handler"
 
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }

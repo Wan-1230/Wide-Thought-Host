@@ -1,9 +1,12 @@
 [package]
 license = "Apache-2.0"
 edition.workspace = true
-name = "xai-grok-paths"
+name = "wth-paths"
 version = "0.1.0"
 description = "Type-safe path wrappers for absolute and relative UTF-8 paths"
+
+[lib]
+name = "xai_grok_paths"
 
 [dependencies]
 camino = { workspace = true }

@@ -1,9 +1,12 @@
 [package]
 license = "Apache-2.0"
-name = "xai-codebase-graph"
+name = "wth-codebase-graph"
 version = "0.1.0"
 edition.workspace = true
 description = "High-performance code graph generation using tree-sitter queries"
+
+[lib]
+name = "xai_codebase_graph"
 
 [features]
 default = []
@@ -23,7 +26,7 @@ path = "src/bin/bench_file_listing.rs"
 [dependencies]
 # Path utilities
 dunce = { workspace = true }
-xai-grok-paths = { path = "../xai-grok-paths" }
+wth-paths = { path = "../xai-grok-paths" }
 # Graph generation
 petgraph = { workspace = true }
 serde = { workspace = true, features = ["rc"] }

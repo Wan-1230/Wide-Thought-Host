@@ -1,12 +1,15 @@
 [package]
 license = "Apache-2.0"
-name = "xai-tool-protocol"
+name = "wth-tool-protocol"
 version = "0.1.0"
 edition.workspace = true
 description = "Wire-protocol types for the Computer Hub"
 
+[lib]
+name = "xai_tool_protocol"
+
 [dependencies]
-xai-tool-types = { workspace = true }
+wth-tool-types = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

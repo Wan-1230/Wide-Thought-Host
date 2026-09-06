@@ -39,11 +39,11 @@ opentelemetry-proto = { workspace = true }
 prost = { workspace = true }
 base64 = { workspace = true }
 
-xai-tool-protocol = { workspace = true }
-xai-tool-runtime = { workspace = true }
-xai-tool-types = { workspace = true }
+wth-tool-protocol = { workspace = true }
+wth-tool-runtime = { workspace = true }
+wth-tool-types = { workspace = true }
 xai-computer-hub-core = { workspace = true }
-xai-tracing = { workspace = true }
+wth-tracing = { workspace = true }
 
 # Integration tests that need heavier backend deps live in a separate sibling crate to keep this dev-dep set minimal.
 [dev-dependencies]
