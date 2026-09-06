@@ -20,6 +20,41 @@ use tokio::sync::{mpsc, oneshot, RwLock};
 use crate::ipc::agent::{AgentStreamChunk, StreamPayload};
 use xai_grok_shell::leader::{connect_or_spawn, ClientCapabilities, ClientMode, LeaderEnvUrls};
 
+/// 事件出口抽象：内核桥接产生的前端事件经此分发。
+/// 生产实现包 tauri::Window；测试实现收集事件供断言。
+pub trait AcpEventSink: Send + Sync + 'static {
+    fn emit_stream(&self, session_id: &str, payload: StreamPayload);
+    fn emit_approval(&self, session_id: &str, tool_id: &str, tool_name: &str, arguments: &Value);
+}
+
+/// 生产实现：透传到 Tauri 窗口事件。
+pub struct WindowSink(pub tauri::Window);
+
+impl AcpEventSink for WindowSink {
+    fn emit_stream(&self, session_id: &str, payload: StreamPayload) {
+        use tauri::Emitter;
+        let _ = self.0.emit(
+            "agent:stream",
+            AgentStreamChunk {
+                session_id: session_id.to_string(),
+                payload,
+            },
+        );
+    }
+    fn emit_approval(&self, session_id: &str, tool_id: &str, tool_name: &str, arguments: &Value) {
+        use tauri::Emitter;
+        let _ = self.0.emit(
+            "agent:approval",
+            json!({
+                "session_id": session_id,
+                "tool_id": tool_id,
+                "tool_name": tool_name,
+                "arguments": arguments,
+            }),
+        );
+    }
+}
+
 /// ACP 协议版本（agent-client-protocol 0.10.x）。
 const ACP_PROTOCOL_VERSION: u32 = 1;
 
@@ -50,10 +85,11 @@ impl AcpKernel {
     /// `kernel_agent_path` 非空时经 `WTH_LEADER_BIN` 传给 leader 二进制
     /// 解析逻辑（shell 侧 A-01 新增），用于指向本机构建的 `wth` 可执行文件。
     pub async fn connect(
-        window: tauri::Window,
+        sink: std::sync::Arc<dyn AcpEventSink>,
         workspace_root: &std::path::Path,
         edit_mode: &str,
         kernel_agent_path: Option<&str>,
+        default_model: Option<String>,
     ) -> Result<AcpKernel, String> {
         if let Some(path) = kernel_agent_path.filter(|p| !p.trim().is_empty()) {
             // SAFETY: 桌面端低频调用（用户在设置里改路径后重连时）；进程内
@@ -72,6 +108,7 @@ impl AcpKernel {
             yolo_mode: edit_mode.eq_ignore_ascii_case("yolo"),
             auto_mode: edit_mode.eq_ignore_ascii_case("auto"),
             client_version: Some(env!("CARGO_PKG_VERSION").to_string()),
+            default_model,
             ..Default::default()
         };
         let mut conn = connect_or_spawn(CLIENT_TYPE, ClientMode::Stdio, &env_urls, capabilities)
@@ -96,7 +133,7 @@ impl AcpKernel {
 
         // 单一 pump 任务独占连接：select! 同时服务出站请求与入站消息。
         {
-            let window = window.clone();
+            let sink = sink.clone();
             let session_id = kernel.session_id.clone();
             let pending = pending.clone();
             let permissions = permissions.clone();
@@ -116,7 +153,7 @@ impl AcpKernel {
                             Some(raw) => {
                                 if !route_message(
                                     &raw,
-                                    &window,
+                                    sink.as_ref(),
                                     &pending,
                                     &permissions,
                                     &session_id,
@@ -246,7 +283,7 @@ impl AcpKernel {
 /// 路由一条入站消息。返回 `false` 表示连接关闭。
 fn route_message(
     raw: &str,
-    window: &tauri::Window,
+    sink: &dyn AcpEventSink,
     pending: &Arc<Mutex<HashMap<u64, oneshot::Sender<Value>>>>,
     permissions: &Arc<Mutex<HashMap<String, PendingPermission>>>,
     session_id: &Arc<RwLock<Option<String>>>,
@@ -265,13 +302,7 @@ fn route_message(
                 .to_string();
             if let Some(update) = msg.pointer("/params/update") {
                 for payload in map_session_update(update) {
-                    let _ = window.emit(
-                        "agent:stream",
-                        AgentStreamChunk {
-                            session_id: sid.clone(),
-                            payload,
-                        },
-                    );
+                    sink.emit_stream(&sid, payload);
                 }
             }
             let _ = session_id;
@@ -290,14 +321,11 @@ fn route_message(
                 .lock()
                 .unwrap()
                 .insert(tool_call_id.clone(), (req_id, params.clone(), tx));
-            let _ = window.emit(
-                "agent:approval",
-                json!({
-                    "session_id": params.get("sessionId").and_then(Value::as_str).unwrap_or(""),
-                    "tool_id": tool_call_id,
-                    "tool_name": params.pointer("/toolCall/title").and_then(Value::as_str).unwrap_or("tool"),
-                    "arguments": params.pointer("/toolCall/rawInput").cloned().unwrap_or(Value::Null),
-                }),
+            sink.emit_approval(
+                params.get("sessionId").and_then(Value::as_str).unwrap_or(""),
+                &tool_call_id,
+                params.pointer("/toolCall/title").and_then(Value::as_str).unwrap_or("tool"),
+                &params.pointer("/toolCall/rawInput").cloned().unwrap_or(Value::Null),
             );
             let _ = request_tx;
             true
@@ -429,22 +457,50 @@ pub async fn ensure_connected(
     state: &crate::state::AppState,
     window: &tauri::Window,
 ) -> Result<Arc<AcpKernel>, String> {
+    let sink: std::sync::Arc<dyn AcpEventSink> = std::sync::Arc::new(WindowSink(window.clone()));
     {
         let guard = state.acp.lock().await;
         if let Some(kernel) = guard.as_ref() {
             return Ok(Arc::new(snapshot_handle(kernel)));
         }
     }
-    let (edit_mode, kernel_agent_path) = {
+    let (edit_mode, kernel_agent_path, default_model, byok_key) = {
         let settings = state.settings.read().map_err(|e| e.to_string())?;
-        (settings.edit_mode.clone(), settings.kernel_agent_path.clone())
+        let provider = settings
+            .default_provider_id
+            .as_deref()
+            .and_then(|id| settings.providers.iter().find(|p| p.id == id && p.enabled))
+            .cloned();
+        // A-01 步骤2: 把 GUI 配置的默认模型与凭据传播给内核 leader——
+        // 内核 BYOK 路径（WTH_API_KEY）在 initialize 时自动选中 API-key
+        // 鉴权方法，session/new 的 auth gate 由此通过。
+        let byok_key = provider.as_ref().filter(|p| !p.local).and_then(|p| {
+            crate::credentials::read_secret("provider", &p.id)
+                .ok()
+                .flatten()
+                .filter(|k| !k.is_empty())
+        });
+        let default_model = provider.as_ref().map(|p| p.model.clone());
+        (
+            settings.edit_mode.clone(),
+            settings.kernel_agent_path.clone(),
+            default_model,
+            byok_key,
+        )
     };
     let workspace_root = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    if let Some(key) = byok_key {
+        // SAFETY: 用户重连时低频调用；内核子进程在其后 spawn，继承该环境。
+        unsafe {
+            std::env::set_var("WTH_API_KEY", key);
+        }
+    }
     let kernel = AcpKernel::connect(
-        window.clone(),
+        sink,
         &workspace_root,
         &edit_mode,
         kernel_agent_path.as_deref(),
+        default_model,
     )
     .await?;
     let handle = Arc::new(kernel);
@@ -569,6 +625,113 @@ mod tests {
     fn unknown_kinds_are_ignored() {
         assert!(map_session_update(&json!({ "sessionUpdate": "plan" })).is_empty());
         assert!(map_session_update(&json!({})).is_empty());
+    }
+
+    // ─── A-01 端到端联调（真实内核进程） ────────────────────────────────
+    // 前置：workspace 下 target/debug/wth.exe（或 WTH_ACP_E2E_BIN 指定）。
+    // 不发起模型调用：验证连接/initialize/session-new/cancel 全链路。
+
+    #[derive(Default)]
+    struct CollectSink {
+        streams: std::sync::Mutex<Vec<(String, StreamPayload)>>,
+        approvals: std::sync::Mutex<Vec<(String, String, String)>>,
+    }
+
+    impl AcpEventSink for CollectSink {
+        fn emit_stream(&self, session_id: &str, payload: StreamPayload) {
+            self.streams
+                .lock()
+                .unwrap()
+                .push((session_id.to_string(), payload));
+        }
+        fn emit_approval(&self, session_id: &str, tool_id: &str, tool_name: &str, _arguments: &Value) {
+            self.approvals
+                .lock()
+                .unwrap()
+                .push((session_id.to_string(), tool_id.to_string(), tool_name.to_string()));
+        }
+    }
+
+    fn locate_wth_binary() -> Option<std::path::PathBuf> {
+        if let Ok(p) = std::env::var("WTH_ACP_E2E_BIN") {
+            let pb = std::path::PathBuf::from(p);
+            if pb.is_file() {
+                return Some(pb);
+            }
+        }
+        // 从本 crate 向上找 workspace 的 target/debug/wth(.exe)
+        let mut dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for _ in 0..4 {
+            let candidate = dir
+                .join("target")
+                .join("debug")
+                .join(if cfg!(windows) { "wth.exe" } else { "wth" });
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+            dir = dir.parent()?.to_path_buf();
+        }
+        None
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn e2e_kernel_connect_initialize_session_new() {
+        let Some(bin) = locate_wth_binary() else {
+            eprintln!("跳过 e2e：未找到 wth 可执行文件（构建 wth-pager-bin 后重试）");
+            return;
+        };
+        // SAFETY: e2e 测试专用路径；其余测试不读取该变量。
+        unsafe {
+            std::env::set_var("WTH_LEADER_BIN", &bin);
+            // BYOK 传播：假 key 仅供 session/new 的鉴权 gate（无模型调用）
+            unsafe {
+                std::env::set_var("WTH_API_KEY", "e2e-test-key");
+            }
+        }
+        // 预清理：历史失败运行可能遗留无 BYOK 环境的 leader（连接时会
+        // 被收养并复用其旧环境，导致鉴权 gate 复现）。先精准清除。
+        kill_leader_processes();
+        let dir = tempfile::tempdir().expect("tempdir");
+        let sink: std::sync::Arc<dyn AcpEventSink> = std::sync::Arc::new(CollectSink::default());
+        let kernel = AcpKernel::connect(sink, dir.path(), "yolo", None, None)
+            .await
+            .expect("连接真实内核并完成握手");
+
+        // session/new 成功 → 会话 id 已建立
+        let sid = kernel.session_id.read().await.clone().expect("session id");
+        assert!(!sid.is_empty(), "ACP 会话 id 非空");
+
+        // leader 注册信息可用（真实进程回执）
+        let version = kernel.leader_version.read().await.clone();
+        eprintln!("leader version: {version:?}; session: {sid}");
+
+        // 中止通知（session/cancel）可发送
+        kernel.cancel().expect("cancel");
+
+        // 清理：leader 是常驻 daemon（设计行为），测试结束按命令行精准
+        // 终止本测试拉起的 `agent leader`，不误伤其他 wth 实例。
+        drop(kernel);
+        kill_leader_processes();
+    }
+
+    /// 按命令行精准终止 `wth agent leader` 进程（跨平台，best-effort）。
+    fn kill_leader_processes() {
+        #[cfg(windows)]
+        {
+            let _ = std::process::Command::new("powershell")
+                .args([
+                    "-NoProfile",
+                    "-Command",
+                    "Get-CimInstance Win32_Process -Filter \"Name='wth.exe'\" |                      Where-Object { $_.CommandLine -like '*agent leader*' } |                      ForEach-Object { Stop-Process -Id $_.ProcessId -Force }",
+                ])
+                .output();
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = std::process::Command::new("pkill")
+                .args(["-f", "agent leader"])
+                .output();
+        }
     }
 
     #[test]

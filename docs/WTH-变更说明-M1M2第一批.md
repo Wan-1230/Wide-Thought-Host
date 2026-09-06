@@ -515,3 +515,28 @@ cargo check --workspace       → 全绿
 3. **硬编码 Key 服务端吊销**——需维护者在 Agnes 平台操作（PRD 风险 RK2）。
 4. **M4 长尾**（跨平台分发/签名/浏览器工具/构建优化）——依赖外部资源。
 5. xai-grok-tools 的 44 个预存环境性测试失败（LSP e2e 需真实语言服务器、终端进程组时序、Windows 路径语义）——非本次改动引入，已逐批核对聚类一致。
+
+---
+
+# 第十一批变更（落地阶段：A-01 端到端联调 + 桥接解耦）
+
+> 日期：2026-09-05
+
+## 46. A-01 端到端联调 —— 真实内核全链路验证（✅ 关键里程碑）
+
+**新增强制型 e2e 测试**（`e2e_kernel_connect_initialize_session_new`，有 wth 可执行文件即运行）：
+- 桌面桥接 `connect` → 拉起真实 `wth agent leader` 子进程 → ACP `initialize` 握手 → `session/new`（BYOK 鉴权 gate 通过）→ `session/cancel` → 按命令行精准清理 leader 进程。
+- **联调发现的两个真实缺口与修复**：
+  1. **BYOK 凭据未传播**：GUI 配置的默认 Provider 凭据此前不传内核——`ensure_connected` 现经内核 BYOK 路径（`WTH_API_KEY` env，auth_method.rs 的 initialize 自动选中逻辑）传播，并把默认模型经 `ClientCapabilities.default_model` 注入 session/new；
+  2. **守护进程收养陷阱**：失败运行遗留的无凭据 leader 会被后续连接收养（复用旧环境），鉴权 gate 复现——测试增加预清理与按命令行精准清理（`Get-CimInstance` 过滤 `agent leader`，不误伤其他 wth 实例）。
+- **架构改进**：事件出口抽为 `AcpEventSink` trait（`WindowSink` 生产实现 / `CollectSink` 测试实现），桥接与 Tauri 解耦——呼应内核 "any host" 设计。
+
+**效果验证**：`cargo test -p wth-desktop` **52/52**（含 e2e，48.55s——含 leader 启动）。
+**边界说明**：模型调用量级的行为（真实对话/工具执行）需用户配置真实 API key 后使用验证；连接/握手/会话生命周期已在真实内核进程上闭环。
+
+## 47. 本批验证
+
+```
+cargo test  -p wth-desktop → 52/52（含 A-01 e2e）
+npm run build (ui)         → ✓
+```
