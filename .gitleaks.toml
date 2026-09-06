@@ -1,0 +1,15 @@
+# gitleaks 基线配置（S-01，PRD v1.1）
+#
+# 历史遗留：提交 abd3978798bab31ae61ce6d7d6ab6afec20fd6bd 曾内置 "Agnes AI"
+# 演示端点的 API Key。该 Key 已于 2026-09 从源码移除（PRD S-01）。
+#
+# ⚠️ 安全提示：该 Key 仍存在于 git 历史中，无法通过删除代码清除。
+# 维护者应在实际服务端吊销该 Key（见 docs/WTH-优化PRD.md 风险 RK2）。
+# 此处仅对历史提交做一次性豁免，防止历史扫描长期阻塞 CI；
+# 新增代码中的任何密钥都会被 secret-scan 工作流拒绝。
+
+[allowlist]
+  description = "历史提交中的已移除内置 Key（需在服务端吊销）"
+  commits = [
+    "abd3978798bab31ae61ce6d7d6ab6afec20fd6bd",
+  ]
