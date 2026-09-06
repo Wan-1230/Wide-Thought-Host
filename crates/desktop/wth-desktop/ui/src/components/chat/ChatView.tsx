@@ -460,6 +460,13 @@ function extractQuickOptions(content: string): string[] {
   return opts;
 }
 
+/// 流式期间稳定不完整的代码围栏：``` 出现奇数次时补一个闭合围栏，
+/// 避免 react-markdown 在半截代码块上反复重解析（内容抖动/嵌套渲染）。
+function stabilizeStreamingMarkdown(src: string): string {
+  const fences = (src.match(/^[ \t]*```/gm) || []).length;
+  return fences % 2 === 1 ? `${src}\n\`\`\`` : src;
+}
+
 /// 渲染单条消息。live=true 表示正在流式输出，此时长消息不自动折叠。
 function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live, onQuickReply, quickReplyDisabled }: { msg: ChatMessage; onContextMenu?: (e: ReactMouseEvent<HTMLElement>) => void; onRegenerate?: () => void; canRegenerate?: boolean; live?: boolean; onQuickReply?: (text: string) => void; quickReplyDisabled?: boolean }) {
   // Hook 必须在任何条件早退之前调用（消息从思考占位 → 正式内容时 hooks 数量不变）
@@ -564,7 +571,7 @@ function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live, 
               },
             }}
           >
-            {msg.content || ""}
+            {live ? stabilizeStreamingMarkdown(msg.content || "") : msg.content || ""}
           </ReactMarkdown>
           {live && <span className="stream-caret" />}
           {isCollapsed && (

@@ -5,6 +5,8 @@ import { useCallback, useMemo } from "react";
 import { Editor } from "@monaco-editor/react";
 import { FileCode2, Save, X } from "lucide-react";
 import { useWorkbenchStore } from "@/stores/workbench";
+import { confirmDialog } from "@/components/common/ConfirmDialog";
+import { toast } from "@/components/common/Toast";
 import { fileWrite } from "@/lib/ipc";
 import "@/lib/monaco";
 
@@ -78,21 +80,31 @@ export function EditorPanel({ theme }: { theme: "dark" | "light" }) {
       await fileWrite(active.path, active.content);
       markSaved(active.path, active.content);
     } catch (error) {
-      window.alert(`保存失败：${String(error)}`);
+      toast(`保存失败：${String(error)}`, "error");
     }
   }, [active, markSaved]);
 
   const handleCloseFile = useCallback(
-    (path: string, dirty: boolean) => {
-      if (dirty && !window.confirm("该文件有未保存的修改，确定关闭吗？")) return;
+    async (path: string, dirty: boolean) => {
+      if (dirty && !(await confirmDialog({
+        title: "关闭文件",
+        message: "该文件有未保存的修改，确定关闭吗？",
+        confirmText: "关闭",
+        danger: true,
+      }))) return;
       closeFile(path);
     },
     [closeFile]
   );
 
-  const handleCloseEditor = useCallback(() => {
+  const handleCloseEditor = useCallback(async () => {
     const dirty = openFiles.some((f) => f.dirty);
-    if (dirty && !window.confirm("有未保存的修改，确定关闭编辑器面板吗？")) return;
+    if (dirty && !(await confirmDialog({
+      title: "关闭编辑器",
+      message: "有未保存的修改，确定关闭编辑器面板吗？",
+      confirmText: "关闭",
+      danger: true,
+    }))) return;
     closeEditor();
   }, [closeEditor, openFiles]);
 

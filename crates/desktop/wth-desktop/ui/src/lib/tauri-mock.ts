@@ -168,6 +168,78 @@ const MOCK_PROVIDERS = [
   },
 ];
 
+// ── 事件回放：让浏览器预览里聊天流式可见 ─────────────────
+// listen() 经由 plugin:event|listen 注册，handler 是 transformCallback 返回的 id。
+const callbacks = new Map<number, (event: unknown) => void>();
+const eventHandlers = new Map<string, number[]>();
+const listenIdToHandler = new Map<number, number>();
+let nextEventSeq = 1;
+
+function emitEvent(name: string, payload: unknown) {
+  const ids = eventHandlers.get(name) ?? [];
+  for (const id of ids) {
+    const cb = callbacks.get(id);
+    if (cb) cb({ event: name, id: nextEventSeq++, payload });
+  }
+}
+
+function sleep(ms: number) {
+  return new Promise((r) => window.setTimeout(r, ms));
+}
+
+/** 模拟一轮真实 Agent 回复：工具调用卡 + Markdown 流式正文 + 用量。 */
+async function simulateReply(sessionId: string, question: string) {
+  await sleep(500);
+  const toolId = `mock-t-${Date.now()}`;
+  emitEvent("agent:stream", {
+    session_id: sessionId,
+    type: "tool_call_start",
+    tool_id: toolId,
+    tool_name: "read_file",
+    arguments: { path: "src/main.tsx" },
+    needs_approval: false,
+  });
+  await sleep(700);
+  emitEvent("agent:stream", {
+    session_id: sessionId,
+    type: "tool_call_end",
+    tool_id: toolId,
+    result: "// 浏览器预览模式：模拟工具结果\nexport const demo = 1;",
+  });
+  await sleep(300);
+  const reply = [
+    `收到，关于「${question.slice(0, 40)}」：`,
+    "",
+    "这是一条**浏览器预览模式的模拟回复**，用于走查流式渲染：",
+    "",
+    "1. 工具调用卡片（上方）带状态图标与参数摘要",
+    "2. 正文支持 Markdown 列表、`行内代码` 与代码块",
+    "3. 流式光标会跟随正文末尾，结束时消失",
+    "",
+    "```rust",
+    "fn main() {",
+    "    println!(\"Wide Thought Host\");",
+    "}",
+    "```",
+    "",
+    "在真实桌面应用中，这里将由 wth 内核逐 token 回传。",
+  ].join("\n");
+  const chunkSize = 24;
+  for (let i = 0; i < reply.length; i += chunkSize) {
+    emitEvent("agent:stream", {
+      session_id: sessionId,
+      type: "text_delta",
+      delta: reply.slice(i, i + chunkSize),
+    });
+    await sleep(28);
+  }
+  emitEvent("agent:stream", {
+    session_id: sessionId,
+    type: "done",
+    usage: { prompt_tokens: 128, completion_tokens: 256, total_tokens: 384 },
+  });
+}
+
 function mockInvoke(cmd: string, args: Record<string, unknown>): Promise<unknown> {
   switch (cmd) {
     case "settings_get":
@@ -192,7 +264,34 @@ function mockInvoke(cmd: string, args: Record<string, unknown>): Promise<unknown
     case "session_load_messages":
       return Promise.resolve(args?.id === "demo-1" ? MOCK_DEMO_MESSAGES : []);
     case "session_save_messages":
-    case "agent_send":
+      return Promise.resolve(null);
+    case "session_delete": {
+      const idx = MOCK_SESSIONS.findIndex((s) => s.id === args?.id);
+      if (idx >= 0) MOCK_SESSIONS.splice(idx, 1);
+      return Promise.resolve(null);
+    }
+    case "session_rename": {
+      const s = MOCK_SESSIONS.find((x) => x.id === args?.id);
+      if (s) {
+        s.title = String(args?.title ?? s.title);
+        s.updated_at = now();
+      }
+      return Promise.resolve(s ?? null);
+    }
+    case "session_set_pinned": {
+      const s = MOCK_SESSIONS.find((x) => x.id === args?.id);
+      if (s) {
+        s.pinned = Boolean(args?.pinned);
+        s.updated_at = now();
+      }
+      return Promise.resolve(s ?? null);
+    }
+    case "agent_send": {
+      // ipc.ts: invoke("agent_send", { message: AgentMessage })
+      const msg = ((args as { message?: unknown })?.message ?? {}) as { session_id?: string; content?: string };
+      if (msg.session_id) void simulateReply(msg.session_id, msg.content || "");
+      return Promise.resolve(null);
+    }
     case "agent_abort":
       return Promise.resolve(null);
     case "workspace_get":
@@ -223,6 +322,8 @@ function mockInvoke(cmd: string, args: Record<string, unknown>): Promise<unknown
     case "mcp_list_servers":
     case "hook_list":
     case "session_search":
+    case "list_slash_commands":
+    case "subagent_list":
     case "workspace_recent_workspaces":
       return Promise.resolve([]);
     case "terminal_spawn":
@@ -237,7 +338,6 @@ export function installTauriBrowserMock(): void {
   const w = window as unknown as Record<string, unknown>;
   if (w.__TAURI_INTERNALS__) return; // 真实 Tauri 环境：不安装
 
-  const callbacks = new Map<number, (event: unknown) => void>();
   let nextCallbackId = 1;
   let nextEventId = 1;
 
@@ -256,14 +356,46 @@ export function installTauriBrowserMock(): void {
     invoke(cmd: string, args: Record<string, unknown> = {}) {
       if (cmd === "plugin:event|listen") {
         const eventId = nextEventId++;
+        const name = String(args?.event ?? "");
+        const handler = Number(args?.handler ?? 0);
+        if (name && handler) {
+          const list = eventHandlers.get(name) ?? [];
+          list.push(handler);
+          eventHandlers.set(name, list);
+          // 记录 listenId → handlerId，unlisten 时精确移除（StrictMode 会挂载两次）
+          listenIdToHandler.set(eventId, handler);
+        }
         return Promise.resolve(eventId);
       }
-      if (cmd === "plugin:event|unlisten") return Promise.resolve(null);
+      if (cmd === "plugin:event|unlisten") {
+        // 注意参数名是 eventId（@tauri-apps/api v2 的 _unlisten 约定）
+        const handlerId = listenIdToHandler.get(Number(args?.eventId ?? 0));
+        if (handlerId !== undefined) {
+          listenIdToHandler.delete(Number(args?.eventId ?? 0));
+          for (const [name, list] of eventHandlers) {
+            const idx = list.indexOf(handlerId);
+            if (idx >= 0) {
+              list.splice(idx, 1);
+              if (list.length === 0) eventHandlers.delete(name);
+            }
+          }
+        }
+        return Promise.resolve(null);
+      }
       return mockInvoke(cmd, args);
     },
     // 浏览器内无法接收 Rust 事件；保留空实现防止崩溃
     postMessage() {},
   };
+  // @tauri-apps/api 的 _unlisten 依赖事件插件初始化脚本注入的内部对象；
+  // 缺失时每次 unlisten 都会在 invoke 前抛 TypeError，导致监听器泄漏
+  // （React StrictMode 下表现为流式内容重复追加）。真实 Tauri 环境由插件提供。
+  w.__TAURI_EVENT_PLUGIN_INTERNALS__ = {
+    registerListener() {},
+    unregisterListener() {},
+  };
+  // 供应用代码区分预览环境（如导出会话走 Blob 下载而非系统保存对话框）
+  w.__WTH_BROWSER_PREVIEW__ = true;
   console.info("[tauri-mock] 浏览器预览模式已启用（非 Tauri 环境）");
 }
 

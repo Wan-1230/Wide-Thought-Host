@@ -27,6 +27,7 @@ import {
 import type { ProviderSummary, SessionInfo } from "@/lib/ipc";
 import { providerList, providerSetDefault } from "@/lib/ipc";
 import { ContextMenu, contextMenuPointFromEvent, type ContextMenuPoint } from "@/components/common/ContextMenu";
+import { confirmDialog } from "@/components/common/ConfirmDialog";
 import wthLogoDark from "@/assets/wth-logo-dark.png";
 import wthLogoLight from "@/assets/wth-logo-light.png";
 import wthMark from "@/assets/wth-mark.png";
@@ -170,22 +171,30 @@ export function Sidebar({
   onOpenSettings,
   searchQuery = "",
 }: SidebarProps) {
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [menuPoint, setMenuPoint] = useState<ContextMenuPoint | null>(null);
   const [menuSession, setMenuSession] = useState<SessionInfo | null>(null);
-  /** 两步确认删除：第一次点击进确认态，2.5s 内再点才真正删除 */
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
-  const confirmTimerRef = useRef<number | null>(null);
+  /** 行内重命名状态（替代 window.prompt：Tauri WebView2 上 prompt 不可用） */
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
-  const requestDelete = (id: string) => {
-    if (confirmTimerRef.current) window.clearTimeout(confirmTimerRef.current);
-    if (confirmingId === id) {
-      setConfirmingId(null);
-      void handleDelete(id);
-      return;
+  const beginRename = (session: SessionInfo) => {
+    setRenamingId(session.id);
+    setRenameDraft(session.title || "");
+    window.setTimeout(() => {
+      renameInputRef.current?.focus();
+      renameInputRef.current?.select();
+    }, 30);
+  };
+
+  const commitRename = (session: SessionInfo) => {
+    const next = renameDraft.trim();
+    setRenamingId(null);
+    if (next && next !== (session.title || "")) {
+      void onRenameSession(session.id, next).catch((err) =>
+        console.error("重命名会话失败：", err),
+      );
     }
-    setConfirmingId(id);
-    confirmTimerRef.current = window.setTimeout(() => setConfirmingId(null), 2500);
   };
 
   const filteredSessions = useMemo(() => {
@@ -199,15 +208,19 @@ export function Sidebar({
     setMenuSession(null);
   };
 
-  const handleDelete = async (id: string) => {
-    setDeletingId(id);
+  const handleDelete = async (session: SessionInfo) => {
+    const ok = await confirmDialog({
+      title: "删除会话",
+      message: `确定删除会话「${session.title || "未命名会话"}」吗？此操作不可撤销。`,
+      confirmText: "删除",
+      danger: true,
+    });
+    closeMenu();
+    if (!ok) return;
     try {
-      await onDeleteSession(id);
+      await onDeleteSession(session.id);
     } catch (err) {
       console.error("删除会话失败：", err);
-    } finally {
-      setDeletingId(null);
-      closeMenu();
     }
   };
 
@@ -334,7 +347,10 @@ export function Sidebar({
                   return (
                     <div
                       key={session.id}
-                      onClick={() => onSelect(session.id)}
+                      onClick={() => {
+                        if (renamingId === session.id) return;
+                        onSelect(session.id);
+                      }}
                       onContextMenu={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -344,6 +360,29 @@ export function Sidebar({
                       className="session-row group relative px-2.5 py-1.5 cursor-pointer"
                       data-active={isActive}
                     >
+                      {renamingId === session.id ? (
+                        /* 行内重命名：Enter 提交 / Esc 取消 / 失焦提交 */
+                        <input
+                          ref={renameInputRef}
+                          value={renameDraft}
+                          onChange={(e) => setRenameDraft(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              commitRename(session);
+                            } else if (e.key === "Escape") {
+                              e.preventDefault();
+                              setRenamingId(null);
+                            }
+                          }}
+                          onBlur={() => commitRename(session)}
+                          className="w-full rounded-md px-1.5 py-0.5 text-[12.5px] outline-none control !py-0.5"
+                          style={{ color: "var(--text-primary)" }}
+                          aria-label="会话名称"
+                        />
+                      ) : (
+                        <>
                       <div className="flex items-center gap-1.5">
                         {task ? (
                           <Bot size={13} className="flex-shrink-0" style={{ color: "var(--accent-purple)" }} />
@@ -381,7 +420,7 @@ export function Sidebar({
                         )}
                       </div>
 
-                      {/* hover 悬浮操作入口（隐藏时不拦截点击，避免误触） */}
+                      {/* hover 悬浮操作（重命名 / 复制）；删除收敛到右键菜单，避免误触 */}
                       <div
                         className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 p-0.5 rounded-lg opacity-0
                           pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto
@@ -391,8 +430,7 @@ export function Sidebar({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            const next = window.prompt("输入新的会话名称", session.title || "未命名会话");
-                            if (next && next.trim()) void onRenameSession(session.id, next.trim());
+                            beginRename(session);
                           }}
                           title="重命名"
                           className="sidebar-row-action"
@@ -409,27 +447,9 @@ export function Sidebar({
                         >
                           <Copy size={11} />
                         </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            requestDelete(session.id);
-                          }}
-                          disabled={deletingId === session.id}
-                          title={confirmingId === session.id ? "再次点击确认删除" : "删除"}
-                          className="sidebar-row-action"
-                          style={
-                            confirmingId === session.id
-                              ? { background: "var(--accent-red)", color: "#ffffff" }
-                              : undefined
-                          }
-                        >
-                          {deletingId === session.id ? (
-                            <Loader2 size={11} className="animate-spin" />
-                          ) : (
-                            <Trash2 size={11} />
-                          )}
-                        </button>
                       </div>
+                        </>
+                      )}
                     </div>
                   );
                 })}
@@ -474,10 +494,8 @@ export function Sidebar({
                   key: "rename",
                   icon: <Pencil size={14} />,
                   label: "重命名",
-                  onSelect: async () => {
-                    const next = window.prompt("输入新的会话名称", menuSession.title || "未命名会话");
-                    if (!next || !next.trim()) return;
-                    await onRenameSession(menuSession.id, next.trim());
+                  onSelect: () => {
+                    beginRename(menuSession);
                     closeMenu();
                   },
                 },
@@ -523,12 +541,8 @@ export function Sidebar({
                   icon: <Trash2 size={14} />,
                   label: "删除",
                   danger: true,
-                  onSelect: async () => {
-                    if (!window.confirm(`确定删除会话「${menuSession.title || "未命名会话"}」吗？此操作不可撤销。`)) {
-                      closeMenu();
-                      return;
-                    }
-                    await handleDelete(menuSession.id);
+                  onSelect: () => {
+                    void handleDelete(menuSession);
                   },
                 },
               ]

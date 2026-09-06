@@ -99,6 +99,7 @@ import {
   type UpdateCheckInfo,
 } from "@/lib/ipc";
 import { SegmentedControl } from "@/components/common/SegmentedControl";
+import { confirmDialog } from "@/components/common/ConfirmDialog";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { open as openUrl } from "@tauri-apps/plugin-shell";
 
@@ -827,7 +828,7 @@ function PageGeneral({
             disabled={indexBusy}
             title="删除索引缓存，下次检索时自动重建"
             onClick={async () => {
-              if (!window.confirm("清除后下次 @检索 会重新建立索引。确定清除吗？")) return;
+              if (!(await confirmDialog({ title: "清除索引", message: "清除后下次 @检索 会重新建立索引。确定清除吗？", confirmText: "清除", danger: true }))) return;
               setIndexBusy(true);
               try {
                 setIndexStatus(await workspaceIndexClear());
@@ -889,7 +890,7 @@ function PageGeneral({
                 filters: [{ name: "WTH 备份", extensions: ["wthbackup"] }],
               });
               if (!source) return;
-              if (!window.confirm("恢复将覆盖当前数据（恢复前会自动备份当前数据）。确定继续吗？")) return;
+              if (!(await confirmDialog({ title: "恢复备份", message: "恢复将覆盖当前数据（恢复前会自动备份当前数据）。确定继续吗？", confirmText: "继续", danger: true }))) return;
               try {
                 const msg = await backupRestore(String(source));
                 onNotice(msg);
@@ -1091,7 +1092,7 @@ function PageGeneral({
                 filters: [{ name: "WTH 团队配置", extensions: ["wthconfig"] }],
               });
               if (!source) return;
-              if (!window.confirm("导入将覆盖当前的子智能体与提示词模板。确定继续吗？")) return;
+              if (!(await confirmDialog({ title: "导入团队配置", message: "导入将覆盖当前的子智能体与提示词模板。确定继续吗？", confirmText: "继续", danger: true }))) return;
               try {
                 const msg = await teamConfigImport(String(source));
                 onNotice(msg);
@@ -1723,7 +1724,7 @@ function PagePlugins({ settings, onSave, onNotice }: { settings: DesktopSettings
     const confirmMsg = item.installed
       ? `更新插件「${entry.name}」到 v${entry.version}？`
       : `安装插件「${entry.name}」v${entry.version}？\n作者：${entry.author}（${entry.verified ? "已验证" : "未验证"}）\n权限声明：${perms}\n\n高风险权限请谨慎确认。`;
-    if (!window.confirm(confirmMsg)) return;
+    if (!(await confirmDialog({ title: item.installed ? "更新插件" : "安装插件", message: confirmMsg, confirmText: item.installed ? "更新" : "安装", danger: true }))) return;
     setInstalling(entry.name);
     try {
       const msg = await pluginMarketInstall(entry);
@@ -1738,7 +1739,7 @@ function PagePlugins({ settings, onSave, onNotice }: { settings: DesktopSettings
   };
 
   const uninstallPlugin = async (name: string) => {
-    if (!window.confirm(`确定卸载插件「${name}」？其技能与 hooks 将立即失效。`)) return;
+    if (!(await confirmDialog({ title: "卸载插件", message: `确定卸载插件「${name}」？其技能与 hooks 将立即失效。`, confirmText: "卸载", danger: true }))) return;
     try {
       const msg = await pluginUninstall(name);
       onNotice(msg);
@@ -2325,7 +2326,7 @@ function PageUsage({
   const stats = settings.usage_stats;
   const fmt = (n: number) => n.toLocaleString();
   const resetStats = async () => {
-    if (!window.confirm("确定清除全部用量统计吗？")) return;
+    if (!(await confirmDialog({ title: "清除用量统计", message: "确定清除全部用量统计吗？", confirmText: "清除", danger: true }))) return;
     await onSave({
       ...settings,
       usage_stats: {
@@ -2631,8 +2632,8 @@ function PageAbout({ onNotice }: { onNotice: (s: string) => void }) {
                 <button
                   className="small-btn font-semibold"
                   style={{ color: "var(--accent-green)" }}
-                  onClick={() => {
-                    const ok = window.confirm("即将启动安装程序，请先保存工作并关闭 WTH。确定继续吗？");
+                  onClick={async () => {
+                    const ok = await confirmDialog({ title: "启动安装程序", message: "即将启动安装程序，请先保存工作并关闭 WTH。确定继续吗？", confirmText: "启动", danger: true });
                     if (ok) void openUrl(downloadResult.file_path);
                   }}
                 >

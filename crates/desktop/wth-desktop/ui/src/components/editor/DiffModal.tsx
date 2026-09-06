@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import { DiffEditor } from "@monaco-editor/react";
 import { Check, FolderOpen, RotateCcw, X } from "lucide-react";
 import { useWorkbenchStore } from "@/stores/workbench";
+import { toast } from "@/components/common/Toast";
 import { fileWrite } from "@/lib/ipc";
 import "@/lib/monaco";
 import { languageFromPath } from "./EditorPanel";
@@ -21,9 +22,9 @@ export function DiffModal({ theme }: { theme: "dark" | "light" }) {
     try {
       await fileWrite(diffModal.path, diffModal.before);
       closeDiff();
-      window.alert("已撤销修改，文件恢复为修改前的内容。");
+      toast("已撤销修改，文件恢复为修改前的内容。", "success");
     } catch (error) {
-      window.alert(`撤销失败：${String(error)}`);
+      toast(`撤销失败：${String(error)}`, "error");
     } finally {
       setBusy(false);
     }

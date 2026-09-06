@@ -14,7 +14,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { open as openUrl } from "@tauri-apps/plugin-shell";
 import {
   Check,
@@ -49,6 +50,8 @@ import { EditorPanel } from "./components/editor/EditorPanel";
 import { DiffModal } from "./components/editor/DiffModal";
 import { InspectorPanel } from "./components/inspector/InspectorPanel";
 import { CommandPalette } from "./components/common/CommandPalette";
+import { ConfirmHost, confirmDialog } from "./components/common/ConfirmDialog";
+import { ToastHost, toast } from "./components/common/Toast";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { OnboardingModal } from "./components/common/OnboardingModal";
 import { QuickAskModal } from "./components/common/QuickAskModal";
@@ -473,7 +476,7 @@ export default function App() {
       openFileInEditor(path, name, content);
     } catch (error) {
       console.error("打开文件失败：", error);
-      window.alert(`打开文件失败：${String(error)}`);
+      toast(`打开文件失败：${String(error)}`, "error");
     }
   }, [openFileInEditor]);
 
@@ -515,49 +518,67 @@ export default function App() {
   /** 清空当前会话消息（保留会话本身）。 */
   const handleClearSession = useCallback(async () => {
     if (!activeSessionId) return;
-    if (!window.confirm("确定清空当前会话的全部消息吗？此操作不可撤销。")) return;
+    const ok = await confirmDialog({
+      title: "清空会话",
+      message: "确定清空当前会话的全部消息吗？此操作不可撤销。",
+      confirmText: "清空",
+      danger: true,
+    });
+    if (!ok) return;
     setMessages(activeSessionId, []);
     await sessionSaveMessages(activeSessionId, []).catch(() => {});
   }, [activeSessionId, setMessages]);
 
-  /** 导出会话：从 store 取消息，生成 Markdown / JSON 文件下载。 */
+  /** 导出会话：桌面端走系统保存对话框（Blob 下载在 WebView 中不可靠），浏览器预览回退 Blob。 */
   const handleExportSession = useCallback(
-    (id: string, format: "markdown" | "json") => {
+    async (id: string, format: "markdown" | "json") => {
       const msgs = useChatStore.getState().messages[id] || [];
       const session = sessions.find((s) => s.id === id);
       const title = session?.title || "会话";
       const safeTitle = title.replace(/[\\/:*?"<>|]/g, "_") || "会话";
-      if (format === "json") {
-        const payload = JSON.stringify(
-          { id, title, exported_at: new Date().toISOString(), messages: msgs },
-          null,
-          2,
-        );
-        const blob = new Blob([payload], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${safeTitle}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
+      const ext = format === "json" ? "json" : "md";
+      const mime = format === "json" ? "application/json" : "text/markdown";
+      const payload =
+        format === "json"
+          ? JSON.stringify({ id, title, exported_at: new Date().toISOString(), messages: msgs }, null, 2)
+          : (() => {
+              const lines: string[] = [`# ${title}`, ""];
+              for (const m of msgs) {
+                const who =
+                  m.role === "user" ? "用户" : m.role === "assistant" ? "WTH" : m.role === "system" ? "系统" : "工具";
+                lines.push(`## ${who}`, "", m.content || "", "");
+                if (m.tool_calls?.length) {
+                  for (const tc of m.tool_calls) {
+                    lines.push(`> 工具调用：${tc.name}`, "", "```json", JSON.stringify(tc.arguments, null, 2), "```", "");
+                  }
+                }
+              }
+              return lines.join("\n");
+            })();
+
+      const browserPreview = Boolean((window as unknown as Record<string, unknown>).__WTH_BROWSER_PREVIEW__);
+      if (!browserPreview) {
+        try {
+          const path = await save({
+            title: "导出会话",
+            defaultPath: `${safeTitle}.${ext}`,
+            filters: [{ name: ext === "json" ? "JSON" : "Markdown", extensions: [ext] }],
+          });
+          if (!path) return;
+          await writeTextFile(path, payload);
+          toast(`已导出到 ${path}`, "success");
+        } catch (error) {
+          console.error("导出会话失败：", error);
+          toast(`导出失败：${String(error)}`, "error");
+        }
         return;
       }
-      const lines: string[] = [`# ${title}`, ""];
-      for (const m of msgs) {
-        const who =
-          m.role === "user" ? "用户" : m.role === "assistant" ? "WTH" : m.role === "system" ? "系统" : "工具";
-        lines.push(`## ${who}`, "", m.content || "", "");
-        if (m.tool_calls?.length) {
-          for (const tc of m.tool_calls) {
-            lines.push(`> 工具调用：${tc.name}`, "", "```json", JSON.stringify(tc.arguments, null, 2), "```", "");
-          }
-        }
-      }
-      const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+      // 浏览器预览：Blob 下载
+      const blob = new Blob([payload], { type: mime });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${safeTitle}.md`;
+      a.download = `${safeTitle}.${ext}`;
       a.click();
       URL.revokeObjectURL(url);
     },
@@ -992,6 +1013,10 @@ export default function App() {
         onOpenSettings={() => setShowSettings(true)}
         onToggleTheme={() => setTheme((c) => (c === "dark" ? "light" : "dark"))}
       />
+
+      {/* 全局反馈宿主：应用内确认弹窗 + Toast 通知 */}
+      <ConfirmHost />
+      <ToastHost />
     </div>
   );
 }
