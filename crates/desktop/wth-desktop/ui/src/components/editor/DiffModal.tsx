@@ -41,12 +41,11 @@ export function DiffModal({ theme }: { theme: "dark" | "light" }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6"
+      className="modal-mask z-50 p-6"
       onClick={closeDiff}
     >
       <div
-        className="w-[85%] h-[85%] max-w-[1200px] flex flex-col rounded-xl overflow-hidden shadow-2xl"
-        style={{ background: "var(--surface-1)", border: "1px solid var(--surface-4)" }}
+        className="modal-card w-[85%] h-[85%] max-w-[1200px] flex flex-col rounded-xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 px-4 py-2.5 border-b flex-shrink-0" style={{ borderColor: "var(--surface-3)", background: "var(--surface-2)" }}>

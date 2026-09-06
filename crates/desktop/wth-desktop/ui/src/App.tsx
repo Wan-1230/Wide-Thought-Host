@@ -17,7 +17,6 @@ import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { open as openUrl } from "@tauri-apps/plugin-shell";
 import {
-  Activity,
   Check,
   ChevronDown,
   Cpu,
@@ -675,8 +674,8 @@ export default function App() {
             <>
               {/* 搜索 */}
               <div className="px-2.5 pt-2 pb-1.5 flex-shrink-0">
-                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg" style={{ background: "var(--surface-2)" }}>
-                  <Search size={12} style={{ color: "var(--text-muted)" }} />
+                <div className="search-box">
+                  <Search size={12} style={{ color: "var(--text-muted)" }} className="flex-shrink-0" />
                   <input
                     type="text"
                     placeholder={searchMode === "message" ? "搜索全部消息…" : "搜索会话…"}
@@ -686,16 +685,14 @@ export default function App() {
                     style={{ color: "var(--text-primary)" }}
                   />
                 </div>
-                <div className="mt-1.5 flex items-center gap-1 px-1 py-0.5 rounded-lg">
+                <div className="mt-1.5 flex justify-center segmented w-full">
                   {(["title", "message"] as const).map((mode) => (
                     <button
                       key={mode}
                       onClick={() => setSearchMode(mode)}
-                      className="flex-1 text-[10.5px] px-2 py-0.5 rounded transition-colors"
-                      style={{
-                        background: searchMode === mode ? "var(--surface-2)" : "transparent",
-                        color: searchMode === mode ? "var(--text-primary)" : "var(--text-muted)",
-                      }}
+                      data-active={searchMode === mode}
+                      className="flex-1 text-[10.5px] px-2 py-0.5"
+                      style={{ color: searchMode === mode ? "var(--text-primary)" : "var(--text-muted)" }}
                     >
                       {mode === "title" ? "标题" : "消息内容"}
                     </button>
@@ -704,27 +701,27 @@ export default function App() {
               </div>
 
               {/* 会话 / 文件切换 */}
-              <nav className="px-2 pb-1 flex items-center gap-1 flex-shrink-0">
-                {[
-                  { id: "sessions" as const, label: "会话", icon: <MessageSquare size={13} /> },
-                  { id: "files" as const, label: "文件", icon: <Folder size={13} /> },
-                ].map((item) => {
-                  const active = navSection === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => setNavSection(item.id)}
-                      className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11.5px] transition-colors duration-150"
-                      style={{
-                        background: active ? "var(--surface-2)" : "transparent",
-                        color: active ? "var(--text-primary)" : "var(--text-muted)",
-                      }}
-                    >
-                      {item.icon}
-                      {item.label}
-                    </button>
-                  );
-                })}
+              <nav className="px-2 pb-1 flex flex-shrink-0">
+                <div className="flex items-center segmented w-full">
+                  {[
+                    { id: "sessions" as const, label: "会话", icon: <MessageSquare size={13} /> },
+                    { id: "files" as const, label: "文件", icon: <Folder size={13} /> },
+                  ].map((item) => {
+                    const active = navSection === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => setNavSection(item.id)}
+                        data-active={active}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[11.5px]"
+                        style={{ color: active ? "var(--text-primary)" : "var(--text-muted)" }}
+                      >
+                        {item.icon}
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </nav>
             </>
           )}
@@ -1028,15 +1025,15 @@ function StatusBar({
 }) {
   return (
     <div
-      className="flex items-center justify-between px-3 py-1 border-t text-[11px] flex-shrink-0"
+      className="flex items-center justify-between px-3 py-1 border-t text-[11px] flex-shrink-0 tabular-nums"
       style={{ background: "var(--surface-1)", borderColor: "var(--surface-3)" }}
     >
       {/* 左侧：模型 / 工作区 / 分支 */}
-      <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+      <div className="flex items-center gap-0.5 min-w-0 overflow-hidden">
         <button
           type="button"
-          className="flex items-center gap-1.5 rounded-full px-2.5 py-1 border transition-colors hover:bg-[color:var(--surface-2)] shrink-0"
-          style={{ borderColor: "var(--surface-3)", color: "var(--accent-purple)" }}
+          className="chip shrink-0"
+          style={{ color: "var(--accent-brand)" }}
           title="当前模型"
           onClick={onSettingsClick}
         >
@@ -1046,18 +1043,15 @@ function StatusBar({
         <button
           type="button"
           onClick={onWorkspaceClick}
-          className="flex items-center gap-1.5 rounded-full px-2.5 py-1 border transition-colors hover:bg-[color:var(--surface-2)] shrink-0"
-          style={{ borderColor: "var(--surface-3)", color: workspaceActive ? "var(--text-primary)" : "var(--text-muted)" }}
+          className="chip shrink-0"
+          style={{ color: workspaceActive ? "var(--text-primary)" : "var(--text-muted)" }}
           title="工作区"
         >
           <FolderOpen size={11} />
           <span className="max-w-[140px] truncate">{workspaceLabel}</span>
         </button>
         {workspaceBranch && (
-          <span
-            className="flex items-center gap-1.5 rounded-full px-2.5 py-1 border shrink-0"
-            style={{ borderColor: "var(--surface-3)", color: "var(--text-muted)" }}
-          >
+          <span className="chip shrink-0">
             <GitBranch size={11} />
             <span className="max-w-[100px] truncate">{workspaceBranch}</span>
           </span>
@@ -1065,34 +1059,33 @@ function StatusBar({
       </div>
 
       {/* 右侧：统计 / 状态 / GitHub / 设置 */}
-      <div className="flex items-center gap-1.5 shrink-0">
-        <span
-          className="hidden lg:flex items-center gap-1.5 rounded-full px-2.5 py-1 border"
-          style={{ borderColor: "var(--surface-3)", color: "var(--text-muted)" }}
-        >
+      <div className="flex items-center gap-0.5 shrink-0">
+        <span className="chip hidden lg:inline-flex">
           <Database size={11} />
           <span>{sessionCount} 会话 · {messageCount} 消息</span>
         </span>
         <span
-          className="hidden md:flex items-center gap-1.5 rounded-full px-2.5 py-1 border"
-          style={{ borderColor: "var(--surface-3)", color: "var(--text-muted)" }}
+          className="chip hidden md:inline-flex"
           title="当前会话 Token 用量"
         >
           <Cpu size={11} />
           <span>{sessionTokens > 0 ? `${sessionTokens.toLocaleString()} tok` : "— tok"}</span>
         </span>
         <span
-          className="flex items-center gap-1.5 rounded-full px-2.5 py-1 border"
-          style={{ borderColor: "var(--surface-3)", color: streaming ? "var(--accent-green)" : "var(--text-dim)" }}
+          className="chip"
+          style={{ color: streaming ? "var(--accent-green)" : "var(--text-dim)" }}
         >
-          <Activity size={11} />
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${streaming ? "animate-pulse" : ""}`}
+            style={{ background: streaming ? "var(--accent-green)" : "var(--text-dim)" }}
+          />
           <span>{streaming ? "思考中" : "就绪"}</span>
         </span>
         <button
           type="button"
           onClick={onGithubClick}
-          className="flex items-center gap-1.5 rounded-full px-2.5 py-1 border transition-colors hover:bg-[color:var(--surface-2)]"
-          style={{ borderColor: "var(--surface-3)", color: github?.state === "signed_in" ? "var(--text-primary)" : "var(--text-dim)" }}
+          className="chip"
+          style={{ color: github?.state === "signed_in" ? "var(--text-primary)" : "var(--text-dim)" }}
           title={github?.state === "signed_in" ? "GitHub 账户" : "使用 GitHub 登录"}
         >
           {github?.state === "signed_in" ? <Github size={11} /> : <UserCircle2 size={11} />}
@@ -1103,8 +1096,8 @@ function StatusBar({
         <button
           type="button"
           onClick={onSettingsClick}
-          className="flex items-center gap-1.5 rounded-full px-2.5 py-1 border transition-colors hover:bg-[color:var(--surface-2)]"
-          style={{ borderColor: "var(--surface-3)", color: "var(--text-primary)" }}
+          className="chip"
+          style={{ color: "var(--text-primary)" }}
           title="设置"
         >
           <SettingsIcon size={11} />
@@ -1136,10 +1129,11 @@ function ToolbarButton({
         event.preventDefault();
         onContextMenu(event);
       }}
-      className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px] font-medium transition-colors hover:bg-[color:var(--surface-2)]"
+      className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px] font-medium press
+        transition-colors hover:bg-[color:var(--surface-2)]"
       style={{
-        background: active ? "var(--surface-2)" : "transparent",
-        color: "var(--text-primary)",
+        background: active ? "var(--accent-brand-soft)" : "transparent",
+        color: active ? "var(--accent-brand)" : "var(--text-primary)",
       }}
     >
       {icon}
@@ -1164,10 +1158,11 @@ function GitHubDialog({
 }) {
   const pending = status?.state === "pending";
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.45)" }}>
+    <div className="modal-mask z-50 p-4" onClick={onClose}>
       <div
-        className="w-full max-w-sm rounded-2xl p-5 shadow-2xl border"
-        style={{ background: "var(--surface-1)", color: "var(--text-primary)", borderColor: "var(--surface-3)" }}
+        className="modal-card w-full max-w-sm rounded-2xl p-5"
+        style={{ color: "var(--text-primary)" }}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 text-sm font-semibold">
           <Github size={17} />

@@ -78,13 +78,11 @@ export function WorkflowModal({ open, onClose, onNotice }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-[150] flex items-center justify-center p-6"
-      style={{ background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)" }}
+      className="modal-mask z-[150] p-6"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg rounded-2xl p-5 shadow-2xl"
-        style={{ background: "var(--surface-0)", border: "1px solid var(--surface-3)" }}
+        className="modal-card w-full max-w-lg rounded-2xl p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">

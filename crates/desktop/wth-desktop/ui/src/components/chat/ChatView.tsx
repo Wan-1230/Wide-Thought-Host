@@ -17,7 +17,6 @@ import {
   Square,
   Bot,
   AlertCircle,
-  Wrench,
   ChevronRight,
   ChevronDown,
   ChevronUp,
@@ -38,6 +37,7 @@ import {
   Eraser,
   PanelRightOpen,
   Loader2,
+  MessageSquareDashed,
 } from "lucide-react";
 import { THINKING_MESSAGE, useChatStore } from "@/stores/chat";
 import { useWorkbenchStore } from "@/stores/workbench";
@@ -195,23 +195,38 @@ function ToolCallCard({ call }: { call: ToolCall }) {
     }
   };
 
+  const statusIcon = pending ? (
+    <AlertCircle size={13} style={{ color: statusColor }} />
+  ) : running ? (
+    <Loader2 size={13} className="animate-spin" style={{ color: statusColor }} />
+  ) : statusColor === "var(--accent-red)" ? (
+    <X size={13} style={{ color: statusColor }} />
+  ) : (
+    <Check size={13} style={{ color: statusColor }} />
+  );
+
   return (
-    <div className="my-2 border rounded-lg overflow-hidden text-xs" style={{ borderColor: "var(--surface-4)", background: "var(--surface-1)" }}>
+    <div
+      className="my-1.5 rounded-xl overflow-hidden text-xs anim-scale-in"
+      style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)", border: "1px solid var(--surface-3)" }}
+    >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-surface-2 transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-surface-2 transition-colors"
       >
-        {expanded ? (
-          <ChevronDown size={12} style={{ color: "var(--text-muted)" }} />
-        ) : (
-          <ChevronRight size={12} style={{ color: "var(--text-muted)" }} />
-        )}
-        <Wrench size={12} className="text-accent-orange" />
-        <span className="font-mono" style={{ color: "var(--text-primary)" }}>{call.name}</span>
-        <span className="ml-auto flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full" style={{ background: statusColor }} />
+        <span className="flex-shrink-0">{statusIcon}</span>
+        <span className="font-mono font-medium flex-shrink-0" style={{ color: "var(--text-primary)" }}>{call.name}</span>
+        <span className="truncate font-mono text-[11px] min-w-0 flex-1" style={{ color: "var(--text-dim)" }}>
+          {summarizeToolArgs(call)}
+        </span>
+        <span className="ml-auto flex items-center gap-1.5 flex-shrink-0">
           {statusLabel && (
-            <span className="text-[10px] animate-pulse" style={{ color: statusColor }}>{statusLabel}</span>
+            <span className="text-[10.5px]" style={{ color: statusColor }}>{statusLabel}</span>
+          )}
+          {expanded ? (
+            <ChevronDown size={12} style={{ color: "var(--text-muted)" }} />
+          ) : (
+            <ChevronRight size={12} style={{ color: "var(--text-muted)" }} />
           )}
         </span>
       </button>
@@ -219,7 +234,7 @@ function ToolCallCard({ call }: { call: ToolCall }) {
       {pending && (
         <div
           className="border-t px-3 py-2.5 space-y-2"
-          style={{ borderColor: "var(--surface-4)", background: "var(--surface-2)" }}
+          style={{ borderColor: "var(--surface-3)", background: "color-mix(in srgb, var(--accent-yellow) 7%, var(--surface-1))" }}
         >
           <div className="flex items-center gap-1.5 text-[11px] font-medium" style={{ color: "var(--accent-yellow)" }}>
             <AlertCircle size={12} className="flex-shrink-0" />
@@ -230,7 +245,7 @@ function ToolCallCard({ call }: { call: ToolCall }) {
             return summary ? (
               <pre
                 className="font-mono text-[11px] whitespace-pre-wrap break-all rounded-md px-2.5 py-1.5 max-h-32 overflow-y-auto"
-                style={{ background: "var(--surface-0)", border: "1px solid var(--surface-4)", color: "var(--text-primary)" }}
+                style={{ background: "var(--surface-0)", border: "1px solid var(--surface-3)", color: "var(--text-primary)" }}
               >
                 {summary}
               </pre>
@@ -240,16 +255,15 @@ function ToolCallCard({ call }: { call: ToolCall }) {
             <button
               onClick={handleApprove}
               disabled={busy}
-              className="px-3 py-1.5 rounded-md text-[11px] font-medium text-white disabled:opacity-50"
-              style={{ background: "var(--accent-green)" }}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-medium text-white disabled:opacity-50 press"
+              style={{ background: "var(--accent-green)", boxShadow: "0 1px 6px color-mix(in srgb, var(--accent-green) 35%, transparent)" }}
             >
               确认执行
             </button>
             <button
               onClick={handleDeny}
               disabled={busy}
-              className="px-3 py-1.5 rounded-md text-[11px] font-medium disabled:opacity-50"
-              style={{ background: "var(--surface-1)", border: "1px solid var(--surface-4)", color: "var(--text-primary)" }}
+              className="small-btn disabled:opacity-50"
             >
               拒绝
             </button>
@@ -257,17 +271,17 @@ function ToolCallCard({ call }: { call: ToolCall }) {
         </div>
       )}
       {expanded && (
-        <div className="border-t px-3 py-2 space-y-2" style={{ borderColor: "var(--surface-4)" }}>
+        <div className="border-t px-3 py-2 space-y-2" style={{ borderColor: "var(--surface-3)" }}>
           <div>
-            <div className="text-[10px] uppercase mb-1" style={{ color: "var(--text-muted)" }}>参数</div>
-            <pre className="font-mono overflow-x-auto text-[11px]" style={{ color: "var(--text-primary)" }}>
+            <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: "var(--text-dim)" }}>参数</div>
+            <pre className="font-mono overflow-x-auto text-[11px] rounded-md p-2" style={{ background: "var(--surface-0)", color: "var(--text-primary)" }}>
               {argStr}
             </pre>
           </div>
           {resultStr !== null && (
             <div>
-              <div className="text-[10px] uppercase mb-1" style={{ color: "var(--text-muted)" }}>结果</div>
-              <pre className="font-mono overflow-x-auto text-[11px] max-h-48 overflow-y-auto" style={{ color: "var(--text-primary)" }}>
+              <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: "var(--text-dim)" }}>结果</div>
+              <pre className="font-mono overflow-x-auto text-[11px] max-h-48 overflow-y-auto rounded-md p-2" style={{ background: "var(--surface-0)", color: "var(--text-primary)" }}>
                 {resultStr}
               </pre>
               {hasDiff && (
@@ -279,7 +293,7 @@ function ToolCallCard({ call }: { call: ToolCall }) {
                       after: String(resultObj.after_full),
                     })
                   }
-                  className="mt-2 px-3 py-1.5 rounded-md text-[11px] font-medium text-white"
+                  className="mt-2 px-3 py-1.5 rounded-lg text-[11px] font-medium text-white press"
                   style={{ background: "var(--accent-blue)" }}
                 >
                   查看 Diff / 撤销
@@ -298,16 +312,16 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div
-      className="rounded-lg overflow-hidden my-1"
-      style={{ border: "1px solid var(--surface-4)", background: "var(--surface-0)" }}
+      className="rounded-xl overflow-hidden my-2"
+      style={{ border: "1px solid var(--surface-3)", background: "var(--surface-0)" }}
     >
       <div
-        className="flex items-center justify-between px-3 py-1 text-[10px]"
-        style={{ background: "var(--surface-1)", borderBottom: "1px solid var(--surface-4)", color: "var(--text-dim)" }}
+        className="flex items-center justify-between px-3 py-1.5 text-[10.5px]"
+        style={{ background: "var(--surface-1)", borderBottom: "1px solid var(--surface-3)", color: "var(--text-dim)" }}
       >
         <span className="font-mono">{language}</span>
         <button
-          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors hover:bg-[color:var(--surface-2)]"
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md transition-colors hover:bg-[color:var(--surface-3)]"
           style={{ color: copied ? "var(--accent-green)" : "var(--text-muted)" }}
           onClick={() => {
             navigator.clipboard.writeText(code).catch(() => {});
@@ -328,7 +342,8 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
           background: "var(--surface-0)",
           border: "none",
           borderRadius: 0,
-          fontSize: "12px",
+          fontSize: "12.5px",
+          padding: "12px 14px",
         }}
       >
         {code}
@@ -361,14 +376,14 @@ function StepProgressCard({ calls }: { calls: ToolCall[] }) {
   };
 
   return (
-    <div className="my-2 border rounded-lg overflow-hidden" style={{ borderColor: "var(--surface-4)", background: "var(--surface-1)" }}>
+    <div className="my-1.5 rounded-xl overflow-hidden" style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)", border: "1px solid var(--surface-3)" }}>
       <button
         onClick={() => setExpanded((v) => !v)}
         className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[color:var(--surface-2)] transition-colors"
       >
         {expanded ? <ChevronUp size={12} style={{ color: "var(--text-muted)" }} /> : <ChevronDown size={12} style={{ color: "var(--text-muted)" }} />}
         {running ? (
-          <Loader2 size={12} className="animate-spin" style={{ color: "var(--accent-blue)" }} />
+          <Loader2 size={12} className="animate-spin" style={{ color: "var(--accent-brand)" }} />
         ) : failed ? (
           <AlertCircle size={12} style={{ color: "var(--accent-red)" }} />
         ) : (
@@ -380,7 +395,7 @@ function StepProgressCard({ calls }: { calls: ToolCall[] }) {
         {pendingCalls.length > 0 && (
           <span
             className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-medium animate-pulse"
-            style={{ background: "color-mix(in srgb, var(--accent-yellow) 18%, transparent)", color: "var(--accent-yellow)" }}
+            style={{ background: "color-mix(in srgb, var(--accent-yellow) 16%, transparent)", color: "var(--accent-yellow)" }}
           >
             待确认
           </span>
@@ -406,7 +421,7 @@ function StepProgressCard({ calls }: { calls: ToolCall[] }) {
         <ToolCallCard key={call.id} call={call} />
       ))}
       {expanded && (
-        <div className="px-3 pb-2 space-y-0.5 border-t" style={{ borderColor: "var(--surface-4)" }}>
+        <div className="px-3 pb-2 space-y-0.5 border-t" style={{ borderColor: "var(--surface-3)" }}>
           {calls.filter((c) => c.status !== "pending").map((call) => (
             <ToolCallCard key={call.id} call={call} />
           ))}
@@ -451,14 +466,13 @@ function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live, 
   const [collapsedView, setCollapsedView] = useState<boolean | null>(null);
   if (msg.role === "user") {
     return (
-      <div className="flex justify-end mb-4" onContextMenu={onContextMenu}>
-        <div className="max-w-[78%]">
+      <div className="flex justify-end mb-5 anim-fade-up" onContextMenu={onContextMenu}>
+        <div className="max-w-[80%]">
           <div
-            className="rounded-2xl rounded-tr-sm px-4 py-2.5 animate-fade-in"
+            className="rounded-2xl rounded-tr-md px-4 py-2.5"
             style={{
-              background: "var(--surface-2)",
+              background: "color-mix(in srgb, var(--accent-brand) 13%, var(--surface-2))",
               color: "var(--text-primary)",
-              border: "1px solid var(--surface-4)",
             }}
           >
             <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
@@ -484,26 +498,22 @@ function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live, 
     );
   }
 
-  // assistant
+  // assistant — 思考中占位：品牌色 spinner + 流光文本（无气泡，与正文同列对齐）
   if (msg.content === THINKING_MESSAGE) {
     return (
-      <div className="flex items-start gap-3 mb-4 animate-fade-in">
+      <div className="flex items-start gap-3 mb-4 anim-fade-up">
         <div
-          className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5"
-          style={{ background: "var(--surface-3)" }}
+          className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5 text-white"
+          style={{ background: "var(--accent-gradient)", boxShadow: "0 2px 8px color-mix(in srgb, var(--accent-brand) 35%, transparent)" }}
         >
-          <Bot size={14} style={{ color: "var(--accent-purple)" }} />
+          <Bot size={14} />
         </div>
-        <div
-          className="rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm flex items-center gap-2"
-          style={{
-            background: "var(--surface-1)",
-            border: "1px solid var(--surface-4)",
-            color: "var(--text-muted)",
-          }}
-        >
-          <span className="inline-flex h-2.5 w-2.5 rounded-full bg-[color:var(--accent-blue)] animate-pulse" />
-          <span>{THINKING_MESSAGE}</span>
+        <div className="flex items-center gap-2.5 h-7">
+          <span
+            className="inline-flex h-3.5 w-3.5 rounded-full border-2 animate-spin"
+            style={{ borderColor: "var(--accent-brand)", borderTopColor: "transparent" }}
+          />
+          <span className="text-[13px] shimmer-text font-medium">{THINKING_MESSAGE}</span>
         </div>
       </div>
     );
@@ -517,71 +527,63 @@ function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live, 
   const quickOptions = !live && onQuickReply ? extractQuickOptions(msg.content || "") : [];
 
   return (
-    <div className="group flex items-start gap-3 mb-4 animate-fade-in" onContextMenu={onContextMenu}>
+    <div className="group flex items-start gap-3 mb-5 anim-fade-up" onContextMenu={onContextMenu}>
       <div
-        className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5"
-        style={{ background: "var(--surface-3)" }}
+        className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5 text-white"
+        style={{ background: "var(--accent-gradient)", boxShadow: "0 2px 8px color-mix(in srgb, var(--accent-brand) 35%, transparent)" }}
       >
-        <Bot size={14} style={{ color: "var(--accent-purple)" }} />
+        <Bot size={14} />
       </div>
       <div className="flex-1 min-w-0">
         <div
-          className="rounded-2xl rounded-tl-sm px-4 py-2.5"
-          style={{
-            background: "var(--surface-1)",
-            border: "1px solid var(--surface-4)",
-            color: "var(--text-primary)",
-          }}
+          className={`md-body relative ${isCollapsed ? "max-h-40 overflow-hidden" : ""}`}
+          style={{ color: "var(--text-primary)" }}
         >
-          <div
-            className={`prose prose-sm max-w-none break-words leading-relaxed ${isCollapsed ? "max-h-40 overflow-hidden relative" : ""}`}
-            style={{ color: "var(--text-primary)" }}
-          >
-            <ReactMarkdown
-              components={{
-                code({ node, className, children, ...props }: any) {
-                  const match = /language-(\w+)/.exec(className || "");
-                  const isInline = !className;
-                  if (isInline) {
-                    return (
-                      <code
-                        className="px-1.5 py-0.5 rounded font-mono text-[12px]"
-                        style={{ background: "var(--surface-3)", color: "var(--accent-orange)" }}
-                        {...props}
-                      >
-                        {children}
-                      </code>
-                    );
-                  }
+          <ReactMarkdown
+            components={{
+              code({ node, className, children, ...props }: any) {
+                const match = /language-(\w+)/.exec(className || "");
+                const isInline = !className;
+                if (isInline) {
                   return (
-                    <CodeBlock
-                      language={match ? match[1] : "text"}
-                      code={String(children).replace(/\n$/, "")}
-                    />
+                    <code
+                      className="px-1.5 py-0.5 rounded-md font-mono text-[12px]"
+                      style={{ background: "var(--surface-2)", border: "1px solid var(--surface-3)", color: "var(--accent-brand)" }}
+                      {...props}
+                    >
+                      {children}
+                    </code>
                   );
-                },
-              }}
-            >
-              {msg.content || ""}
-            </ReactMarkdown>
-            {isCollapsed && (
-              <div
-                className="absolute inset-x-0 bottom-0 h-12 pointer-events-none"
-                style={{ background: "linear-gradient(transparent, var(--surface-1))" }}
-              />
-            )}
-          </div>
+                }
+                return (
+                  <CodeBlock
+                    language={match ? match[1] : "text"}
+                    code={String(children).replace(/\n$/, "")}
+                  />
+                );
+              },
+            }}
+          >
+            {msg.content || ""}
+          </ReactMarkdown>
+          {live && <span className="stream-caret" />}
+          {isCollapsed && (
+            <div
+              className="absolute inset-x-0 bottom-0 h-12 pointer-events-none"
+              style={{ background: "linear-gradient(transparent, var(--surface-0))" }}
+            />
+          )}
+        </div>
           {isLong && (
             <button
               onClick={() => setCollapsedView(!isCollapsed)}
               className="mt-1.5 inline-flex items-center gap-1 text-[11px] transition-colors hover:opacity-75"
-              style={{ color: "var(--accent-blue)" }}
+              style={{ color: "var(--accent-brand)" }}
             >
               {isCollapsed ? <ChevronDown size={11} /> : <ChevronUp size={11} />}
               {isCollapsed ? "展开全文" : "收起"}
             </button>
           )}
-        </div>
         {msg.tool_calls && msg.tool_calls.length > 0 && <StepProgressCard calls={msg.tool_calls} />}
         {/* 交互式任务选项按钮：点击即作为回复发送 */}
         {quickOptions.length > 0 && (
@@ -595,8 +597,8 @@ function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live, 
                 className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
                 style={{ background: "var(--surface-2)", border: "1px solid var(--surface-4)", color: "var(--text-primary)" }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "var(--accent-blue)";
-                  e.currentTarget.style.color = "var(--accent-blue)";
+                  e.currentTarget.style.borderColor = "var(--accent-brand-border)";
+                  e.currentTarget.style.color = "var(--accent-brand)";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.borderColor = "var(--surface-4)";
@@ -644,13 +646,6 @@ function MessageActionBtn({ icon, label, onClick }: { icon: React.ReactNode; lab
       {done ? <Check size={11} /> : icon}
       {done ? "已复制" : label}
     </button>
-  );
-}
-
-/// 流式光标 — 当 streaming=true 时显示跳动方块。
-function StreamingCursor() {
-  return (
-    <span className="inline-block w-2 h-4 bg-accent-blue ml-0.5 animate-pulse align-middle" />
   );
 }
 
@@ -1173,43 +1168,69 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
     }
   };
 
-  // 空状态 — WTH banner + 居中 CTA
+  // 空状态 — 氛围光晕 + 品牌 banner + 问候 + 示例问题快捷入口
   if (!activeSessionId) {
+    const startWithExample = (question: string) => {
+      onNewSession?.();
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("wth:send-example", { detail: question }));
+      }, 400);
+    };
+    const suggestions = [
+      "分析当前项目的整体架构，给出改进建议",
+      "帮我把这个模块重构得更容易测试",
+      "为最近改动的代码补齐单元测试",
+      "解读一段报错堆栈，定位根本原因",
+    ];
     return (
       <div
-        className="h-full w-full flex flex-col items-center justify-center select-none"
+        className="relative h-full w-full flex flex-col items-center justify-center select-none overflow-hidden"
         style={{ color: "var(--text-primary)" }}
       >
-        {/* WTH logo 横幅（顶部居中） */}
+        {/* 环境光晕：品牌色的柔和辐射，给页面纵深 */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-[-10%] h-[55%]"
+          style={{
+            background: "radial-gradient(560px 300px at 50% 38%, var(--accent-brand-soft), transparent 72%)",
+          }}
+        />
+
         <img
           src={wthBanner}
           alt="Wide Thought Host"
-          className="max-w-xs w-2/3 h-auto object-contain mb-6 theme-logo"
+          className="relative max-w-xs w-2/3 h-auto object-contain mb-5 theme-logo anim-fade-up"
+          style={{ animationDelay: "0ms" }}
         />
 
-        {/* 副标题 */}
         <p
-          className="text-sm mb-8"
-          style={{ color: "var(--text-muted)" }}
+          className="relative text-[15px] font-medium mb-1 anim-fade-up"
+          style={{ color: "var(--text-primary)", animationDelay: "60ms" }}
         >
-          你的 AI 编码代理
+          你今天想做点什么？
+        </p>
+        <p
+          className="relative text-[12.5px] mb-8 anim-fade-up"
+          style={{ color: "var(--text-muted)", animationDelay: "120ms" }}
+        >
+          你的 AI 编码代理 — 提问、委派任务、编排工作流
         </p>
 
         {/* 居中 pill 提示 + 按钮 */}
-        <div className="w-full max-w-md px-6">
+        <div className="relative w-full max-w-md px-6 anim-fade-up" style={{ animationDelay: "180ms" }}>
           <button
             onClick={onNewSession}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-full
-              transition-all duration-200 ease-out
-              hover:scale-[1.01] active:scale-[0.99]"
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl press
+              transition-all duration-200"
             style={{
               background: "var(--surface-1)",
               border: "1px solid var(--surface-3)",
+              boxShadow: "var(--shadow-sm)",
             }}
           >
             <span
-              className="w-6 h-6 rounded-full flex items-center justify-center"
-              style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}
+              className="w-6 h-6 rounded-full flex items-center justify-center text-white"
+              style={{ background: "var(--accent-gradient)" }}
             >
               <Brain size={12} />
             </span>
@@ -1220,7 +1241,7 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
               你今天想做什么？
             </span>
             <span
-              className="text-[10px] font-mono px-1.5 py-0.5 rounded"
+              className="text-[10px] font-mono px-1.5 py-0.5 rounded-md"
               style={{ background: "var(--surface-2)", color: "var(--text-dim)" }}
             >
               Enter
@@ -1228,12 +1249,39 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
           </button>
         </div>
 
+        {/* 示例问题快捷入口 */}
+        <div className="relative flex flex-wrap items-center justify-center gap-1.5 mt-4 px-6 max-w-xl anim-fade-up" style={{ animationDelay: "240ms" }}>
+          {suggestions.map((s) => (
+            <button
+              key={s}
+              onClick={() => startWithExample(s)}
+              className="px-3 py-1.5 rounded-full text-[11.5px] transition-all duration-150
+                hover:scale-[1.02] active:scale-[0.98] press"
+              style={{
+                background: "var(--surface-1)",
+                border: "1px solid var(--surface-3)",
+                color: "var(--text-muted)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "var(--accent-brand-border)";
+                e.currentTarget.style.color = "var(--accent-brand)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "var(--surface-3)";
+                e.currentTarget.style.color = "var(--text-muted)";
+              }}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+
         {/* 推荐操作 */}
-        <div className="flex items-center gap-2 mt-4 text-[11px]" style={{ color: "var(--text-dim)" }}>
+        <div className="flex items-center gap-2 mt-6 text-[11px] anim-fade-up" style={{ color: "var(--text-dim)", animationDelay: "300ms" }}>
           <span>支持</span>
-          <span className="px-1.5 py-0.5 rounded" style={{ background: "var(--surface-2)" }}>GPT-4.1</span>
-          <span className="px-1.5 py-0.5 rounded" style={{ background: "var(--surface-2)" }}>Claude 4</span>
-          <span className="px-1.5 py-0.5 rounded" style={{ background: "var(--surface-2)" }}>DeepSeek</span>
+          <span className="px-1.5 py-0.5 rounded-md" style={{ background: "var(--surface-2)" }}>GPT-4.1</span>
+          <span className="px-1.5 py-0.5 rounded-md" style={{ background: "var(--surface-2)" }}>Claude 4</span>
+          <span className="px-1.5 py-0.5 rounded-md" style={{ background: "var(--surface-2)" }}>DeepSeek</span>
         </div>
       </div>
     );
@@ -1276,17 +1324,17 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
         )}
       </div>
 
-      {/* 消息流 */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
+      {/* 消息流 — 限宽居中的阅读列（参照主流 AI 客户端的排版宽度） */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-5">
+        <div className="w-full max-w-3xl mx-auto">
         {sessionMessages.length === 0 ? (
-          <div className="h-full flex items-center justify-center select-none" style={{ color: "var(--text-dim)" }}>
-            <p className="text-xs">输入消息开始对话</p>
+          <div className="h-full flex flex-col items-center justify-center gap-2 select-none" style={{ color: "var(--text-dim)" }}>
+            <MessageSquareDashed size={22} className="opacity-40" />
+            <p className="text-xs">输入消息开始对话 · @ 提及文件 · / 调用指令</p>
           </div>
         ) : (
           sessionMessages.map((msg, idx) => {
             const isLast = idx === sessionMessages.length - 1;
-            const showCursor =
-              isLast && msg.role === "assistant" && isStreaming;
             // 仅最新一条未续答的助手消息展示可点选项；后续已有用户回复则不再展示
             const hasNextUserReply = sessionMessages
               .slice(idx + 1)
@@ -1299,10 +1347,10 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
               <div
                 key={msg.id}
                 data-message-index={idx}
-                className="rounded-lg transition-colors duration-700"
+                className="rounded-xl transition-colors duration-500"
                 style={
                   highlightIndex === idx
-                    ? { background: "var(--accent-yellow)", opacity: 0.35 }
+                    ? { background: "var(--accent-brand-soft)" }
                     : undefined
                 }
               >
@@ -1319,11 +1367,11 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
                   live={isLast && isStreaming}
                   {...quickReplyProps}
                 />
-                {showCursor && <StreamingCursor />}
               </div>
             );
           })
         )}
+        </div>
       </div>
 
       {/* 输入区 */}
@@ -1332,8 +1380,7 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
           {/* @提及 / /指令 弹出层 */}
           {showPopup !== "none" && popupItems.length > 0 && (
             <div
-              className="absolute bottom-full left-0 right-0 mb-2 rounded-xl border shadow-xl overflow-hidden z-20"
-              style={{ background: "var(--surface-1)", borderColor: "var(--surface-3)" }}
+              className="glass-panel absolute bottom-full left-0 right-0 mb-2 rounded-xl overflow-hidden z-20"
             >
               <div className="px-3 py-1.5 text-[10px] font-medium" style={{ color: "var(--text-dim)" }}>
                 {showPopup === "file" ? "选择文件 / 委派子智能体" : "快捷指令"}
@@ -1369,8 +1416,8 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
           )}
 
           {delegatingTo && (
-            <div className="mb-2 flex items-center gap-2 rounded-xl px-3 py-2 text-xs" style={{ background: "var(--surface-2)", color: "var(--text-primary)" }}>
-              <Bot size={13} style={{ color: "var(--accent-purple)" }} />
+            <div className="mb-2 flex items-center gap-2 rounded-xl px-3 py-2 text-xs anim-fade-up" style={{ background: "var(--surface-2)", color: "var(--text-primary)", border: "1px solid var(--accent-brand-border)" }}>
+              <Bot size={13} style={{ color: "var(--accent-brand)" }} />
               <span className="truncate">正在委派给「{delegatingTo.name}」— 输入任务后发送</span>
               <button
                 className="ml-auto flex items-center gap-1 text-[10px] rounded-md px-2 py-1 hover:bg-[color:var(--surface-3)]"
@@ -1447,8 +1494,8 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
               {attachments.map((a, idx) => (
                 <span
                   key={a.name + idx}
-                  className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px]"
-                  style={{ background: "var(--surface-2)", color: "var(--text-primary)" }}
+                  className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] anim-scale-in"
+                  style={{ background: "var(--surface-2)", border: "1px solid var(--surface-3)", color: "var(--text-primary)" }}
                 >
                   <Paperclip size={10} style={{ color: "var(--text-muted)" }} />
                   <span className="max-w-[160px] truncate">{a.name}</span>
@@ -1466,12 +1513,7 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
           )}
 
           <div
-            className="flex items-center gap-2 rounded-3xl pl-4 pr-2 py-2
-              transition-shadow duration-150"
-            style={{
-              background: "var(--surface-1)",
-              border: "1px solid var(--surface-3)",
-            }}
+            className="composer flex items-center gap-2 pl-4 pr-2 py-2"
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDropFiles}
           >
@@ -1516,8 +1558,7 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowTemplateMenu(false)} />
                   <div
-                    className="absolute bottom-full left-0 mb-2 w-72 rounded-xl border shadow-xl overflow-hidden z-20"
-                    style={{ background: "var(--surface-1)", borderColor: "var(--surface-3)" }}
+                    className="glass-panel absolute bottom-full left-0 mb-2 w-72 rounded-xl overflow-hidden z-20"
                   >
                     <div className="px-3 py-1.5 text-[10px] font-medium flex items-center justify-between" style={{ color: "var(--text-dim)" }}>
                       <span>提示词模板</span>
@@ -1586,8 +1627,8 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
                 title="发送"
                 className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center self-center
                   transition-all duration-150 hover:scale-105 active:scale-95
-                  disabled:opacity-20 disabled:scale-100 disabled:cursor-not-allowed"
-                style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}
+                  disabled:opacity-25 disabled:scale-100 disabled:cursor-not-allowed disabled:shadow-none"
+                style={{ background: "var(--accent-gradient)", color: "#ffffff", boxShadow: "0 2px 10px color-mix(in srgb, var(--accent-brand) 40%, transparent)" }}
               >
                 <Send size={13} />
               </button>

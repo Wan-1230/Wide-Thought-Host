@@ -16,9 +16,11 @@ export default {
           blue: "var(--accent-blue)",
           green: "var(--accent-green)",
           orange: "var(--accent-orange)",
+          yellow: "var(--accent-yellow)",
           red: "var(--accent-red)",
           purple: "var(--accent-purple)",
           primary: "var(--accent-primary)",
+          brand: "var(--accent-brand)",
         },
       },
       fontFamily: {
@@ -35,6 +37,12 @@ export default {
           "sans-serif",
         ],
         mono: ["JetBrains Mono", "Fira Code", "Cascadia Code", "monospace"],
+      },
+      boxShadow: {
+        xs: "var(--shadow-xs)",
+        sm: "var(--shadow-sm)",
+        md: "var(--shadow-md)",
+        lg: "var(--shadow-lg)",
       },
       transitionTimingFunction: {
         // 与 index.css 中的动画令牌保持一致

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MessageSquare, Moon, Plus, Settings, Sun } from "lucide-react";
+import { MessageSquare, Moon, Plus, Search, Settings, Sun } from "lucide-react";
 import type { SessionInfo } from "@/lib/ipc";
 
 interface CommandPaletteProps {
@@ -106,17 +106,15 @@ export function CommandPalette({
 
   return (
     <div
-      className="fixed inset-0 z-[150] flex items-start justify-center pt-[15vh]"
-      style={{ background: "rgba(0,0,0,.45)", backdropFilter: "blur(2px)" }}
+      className="fixed inset-0 z-[150] flex items-start justify-center pt-[15vh] modal-mask"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg rounded-xl border shadow-2xl overflow-hidden"
-        style={{ background: "var(--surface-1)", borderColor: "var(--surface-3)" }}
+        className="glass-panel w-full max-w-lg rounded-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: "var(--surface-3)" }}>
-          <span className="text-xs" style={{ color: "var(--text-dim)" }}>⌘</span>
+        <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: "var(--glass-border)" }}>
+          <Search size={14} style={{ color: "var(--text-dim)" }} />
           <input
             ref={inputRef}
             className="flex-1 bg-transparent border-none outline-none text-sm"

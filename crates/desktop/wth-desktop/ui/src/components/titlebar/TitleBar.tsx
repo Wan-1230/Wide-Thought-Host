@@ -54,7 +54,6 @@ export function TitleBar({ sessionTitle, streaming = false }: TitleBarProps) {
     <header
       data-tauri-drag-region
       className="title-bar flex items-center h-10 flex-shrink-0 select-none"
-      style={{ background: "var(--surface-1)", borderBottom: "1px solid var(--surface-3)" }}
     >
       {/* 左侧：折叠按钮 + 软件名称 */}
       <div className="flex items-center gap-1.5 pl-2.5 pr-3 min-w-0" data-tauri-drag-region>
@@ -65,19 +64,22 @@ export function TitleBar({ sessionTitle, streaming = false }: TitleBarProps) {
         >
           {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
         </button>
-        <img src={wthIcon} alt="WTH" className="w-5 h-5 rounded theme-logo" draggable={false} />
+        <img src={wthIcon} alt="WTH" className="w-5 h-5 rounded-md theme-logo" draggable={false} />
         <span className="text-[12.5px] font-semibold tracking-wide" style={{ color: "var(--text-primary)" }}>
           Wide Thought Host
         </span>
       </div>
 
-      {/* 中间：当前会话 / 任务名称 */}
+      {/* 中间：当前会话 / 任务名称（胶囊底以聚焦视线） */}
       <div
         data-tauri-drag-region
         className="flex-1 flex items-center justify-center min-w-0 px-2"
       >
         {sessionTitle ? (
-          <div className="flex items-center gap-2 min-w-0 max-w-[46%]">
+          <div
+            className="flex items-center gap-2 min-w-0 max-w-[46%] px-3 py-1 rounded-full"
+            style={{ background: "var(--surface-2)" }}
+          >
             {streaming && (
               <span
                 className="w-1.5 h-1.5 rounded-full animate-pulse flex-shrink-0"
@@ -86,7 +88,7 @@ export function TitleBar({ sessionTitle, streaming = false }: TitleBarProps) {
               />
             )}
             <span
-              className="text-[12px] truncate"
+              className="text-[11.5px] truncate"
               style={{ color: "var(--text-muted)" }}
               title={sessionTitle}
             >
@@ -94,7 +96,7 @@ export function TitleBar({ sessionTitle, streaming = false }: TitleBarProps) {
             </span>
           </div>
         ) : (
-          <span className="text-[12px]" style={{ color: "var(--text-dim)" }}>
+          <span className="text-[11.5px]" style={{ color: "var(--text-dim)" }}>
             开始新的任务
           </span>
         )}

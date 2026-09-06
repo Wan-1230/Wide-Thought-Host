@@ -118,8 +118,7 @@ function ModelSwitcher({ providers, onRefresh }: { providers: ProviderSummary[];
       </button>
       {open && (
         <div
-          className="absolute bottom-full left-0 right-0 mb-1.5 rounded-xl border shadow-xl overflow-hidden z-30 animate-fade-in"
-          style={{ background: "var(--surface-1)", borderColor: "var(--surface-3)" }}
+          className="glass-panel absolute bottom-full left-0 right-0 mb-1.5 rounded-xl overflow-hidden z-30"
         >
           <div className="px-3 py-1.5 text-[10px]" style={{ color: "var(--text-dim)" }}>选择默认模型</div>
           <div className="max-h-48 overflow-y-auto pb-1">
@@ -297,9 +296,15 @@ export function Sidebar({
       <div className="px-2.5 pt-2.5 pb-1.5 flex-shrink-0">
         <button
           onClick={onNewSession}
-          className="w-full flex items-center justify-center gap-1.5 rounded-lg py-2 text-[12.5px] font-medium
-            transition-colors duration-150"
-          style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}
+          className="w-full flex items-center justify-center gap-1.5 rounded-xl py-2 text-[12.5px] font-medium press
+            transition-all duration-150"
+          style={{
+            background: "var(--accent-gradient)",
+            color: "#ffffff",
+            boxShadow: "0 2px 10px color-mix(in srgb, var(--accent-brand) 38%, transparent)",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.filter = "brightness(1.08)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.filter = ""; }}
         >
           <Plus size={14} />
           新建会话
@@ -336,9 +341,8 @@ export function Sidebar({
                         setMenuSession(session);
                         setMenuPoint(contextMenuPointFromEvent(e));
                       }}
-                      className="group relative rounded-lg px-2.5 py-1.5 cursor-pointer transition-colors duration-150
-                        hover:bg-[color:var(--surface-2)]"
-                      style={{ background: isActive ? "var(--surface-2)" : "transparent" }}
+                      className="session-row group relative px-2.5 py-1.5 cursor-pointer"
+                      data-active={isActive}
                     >
                       <div className="flex items-center gap-1.5">
                         {task ? (
@@ -379,9 +383,10 @@ export function Sidebar({
 
                       {/* hover 悬浮操作入口（隐藏时不拦截点击，避免误触） */}
                       <div
-                        className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center opacity-0
+                        className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 p-0.5 rounded-lg opacity-0
                           pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto
                           transition-opacity duration-150"
+                        style={{ background: "var(--surface-1)", boxShadow: "var(--shadow-xs)", border: "1px solid var(--surface-3)" }}
                       >
                         <button
                           onClick={(e) => {
