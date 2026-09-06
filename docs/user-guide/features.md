@@ -63,3 +63,45 @@ WTH 桌面端是一个多模型、可扩展、隐私优先的 AI 编码代理。
 
 - 设置 → 关于 → 检查更新：对比 GitHub Releases 版本。
 - 发现新版后可应用内下载安装包（进度条 + SHA-256 校验），随后启动安装程序。
+
+---
+
+## 本地模型（Ollama / vLLM）
+
+设置 → 模型与 API → **「检测本地模型」**：自动发现本机 Ollama（端口 11434）
+或 vLLM（端口 8000）并加入模型列表。本地模型**无需 API Key**，数据不出本机。
+应用启动时也会自动检测一次。embedding 类模型（bge / nomic-embed）会自动过滤。
+
+## 模型降级链（Fallback）
+
+模型页 → **备用模型链**：按顺序添加备用模型。主模型不可用（5xx / 429 /
+网络错误）时自动降级并在对话流中提示；4xx 配置类错误会直接报错而不降级。
+每个模型可单独配置输入/输出单价（USD/百万 Token），预算与用量统计按激活
+模型的价格计算。**压缩摘要模型**可单独指定更便宜的小模型。
+
+## 测试验证循环
+
+设置中配置 **测试命令**（如 `cargo test`）后：Agent 每次修改代码会自动在
+工作区根目录运行测试——通过则结束，失败把输出回注给 Agent 自动修复
+（默认最多 3 轮，可配置）。**Shell 内存限额**（可选）为命令子进程设置
+内存上限；默认不限额（cargo/rustc 重构建建议留空）。
+
+## MCP 服务器模式（CLI）
+
+`wth mcp-serve --root <工作区路径>` 把工作区以 MCP 服务器（stdio，
+2025-06-18 规范）暴露给 VS Code、Claude Desktop 等客户端：
+
+- `wth_read_file` / `wth_list_dir` / `wth_grep`：只读工具，路径严格
+  限制在工作区内
+- `wth_ask`：把问题交给 WTH Agent 完整工具生态回答（headless）
+
+## 子代理嵌套与 Git 工具
+
+子代理默认可嵌套 2 层（`WTH_MAX_SUBAGENT_DEPTH` 可配，上限 8）。
+新增 `git_status` / `git_diff` / `git_log` / `git_commit` 内置工具：
+查看变更、提交都无需经过 bash，`git_commit` 走审批流。
+
+## Windows 子进程保护
+
+Agent 执行的每条命令都在 kill-on-close Job Object 中运行：命令结束
+（含超时）后所有残留子进程/孙进程被系统级清理，不会留下孤儿进程。

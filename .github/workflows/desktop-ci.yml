@@ -94,6 +94,57 @@ jobs:
             target/release/bundle/msi/*.msi
           if-no-files-found: error
 
+  package-cross:
+    name: 跨平台打包（U-04：macOS dmg / Linux AppImage+deb）
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            bundles: "dmg"
+            artifact_glob: "dmg/*.dmg"
+          - os: ubuntu-22.04
+            bundles: "appimage deb"
+            artifact_glob: "appimage/*.AppImage\ndeb/*.deb"
+    runs-on: ${{ matrix.os }}
+    needs: test-and-build
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 安装 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: crates/desktop/wth-desktop/ui/package-lock.json
+
+      - name: 安装前端依赖
+        working-directory: crates/desktop/wth-desktop/ui
+        run: npm ci
+
+      - name: 安装 Linux 系统依赖（Tauri AppImage/deb 要求）
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev             librsvg2-dev patchelf libssl-dev cmake libclang-dev pkg-config
+
+      - name: Tauri 跨平台打包（按平台指定 bundle 目标）
+        working-directory: crates/desktop/wth-desktop
+        run: ui/node_modules/.bin/tauri build --bundles ${{ matrix.bundles }}
+
+      - name: 上传跨平台安装包
+        uses: actions/upload-artifact@v4
+        with:
+          name: wth-desktop-installers-${{ matrix.os }}
+          path: |
+            target/release/bundle/${{ matrix.artifact_glob }}
+          if-no-files-found: warn
+
   release:
     name: 发布 GitHub Release
     runs-on: ubuntu-latest
@@ -110,10 +161,17 @@ jobs:
           name: wth-desktop-installers
           path: installers
 
+      - name: 下载跨平台安装包（U-04）
+        uses: actions/download-artifact@v4
+        with:
+          pattern: wth-desktop-installers-*
+          path: installers
+          merge-multiple: true
+
       - name: 计算 SHA-256 校验和
         working-directory: installers
         run: |
-          find . -type f \( -name "*.exe" -o -name "*.msi" \) -exec sha256sum {} + > sha256sums.txt
+          find . -type f \( -name "*.exe" -o -name "*.msi" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" \) -exec sha256sum {} + > sha256sums.txt
           cat sha256sums.txt
 
       - name: 生成发布说明
