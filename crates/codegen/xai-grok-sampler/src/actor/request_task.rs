@@ -19,6 +19,7 @@ use xai_grok_sampling_types::{
     error::Result as SamplingResult,
 };
 
+use crate::breaker;
 use crate::client::{ApiBackend, SamplingClient};
 use crate::config::{RetryPolicy, SamplerConfig};
 use crate::events::{SamplingErrorInfo, SamplingErrorKind, SamplingEvent};
@@ -28,7 +29,6 @@ use crate::retry::{
 };
 use crate::stream::{stream_chat_completions, stream_messages, stream_responses};
 use crate::types::RequestId;
-
 /// Default per-chunk idle timeout when neither config nor caller
 /// supplies one. Matches the shell's session-level default
 /// (5 minutes -- long enough for cold-start reasoning, short enough
@@ -102,6 +102,28 @@ pub(crate) async fn run_request_task(
         }
     };
 
+    // Fail fast when the upstream's circuit breaker is open: probing a dead
+    // endpoint would only burn the retry budget (up to 15 attempts) before
+    // surfacing the same failure to the session.
+    if let Err(open) = breaker::probe(&config.base_url) {
+        let err = SamplingError::Api {
+            status: reqwest::StatusCode::SERVICE_UNAVAILABLE,
+            message: format!("circuit breaker open for {}: {open}", config.base_url),
+            model_metadata: None,
+            retry_after_secs: Some(open.retry_after.as_secs()),
+            should_retry: Some(false),
+        };
+        tracing::warn!(
+            target: crate::sampling_log::TARGET,
+            base_url = %config.base_url,
+            retry_after_secs = open.retry_after.as_secs(),
+            "circuit breaker open; failing fast without retries"
+        );
+        emit_failed(&event_tx, &request_id, &err);
+        send_completion(&mut completion_tx, Err(err));
+        return request_id;
+    }
+
     let sampling_span = crate::sampling_log::request_span(
         &request_id,
         &config.model,
@@ -147,6 +169,7 @@ pub(crate) async fn run_request_task(
                 response,
                 mut metrics,
             } => {
+                breaker::record_success(&config.base_url);
                 metrics.attempts = retry_count + doom_retry_count + 1;
                 if let Some(policy) = doom_policy {
                     let confident = policy.confident_triggers(&response.doom_loop_signals);
@@ -214,6 +237,9 @@ pub(crate) async fn run_request_task(
                 // Doom-loop resamples run on their own budget and never
                 // consult the transport classifier, so no classifier change
                 // can silently debit the transport budget for a doom failure.
+                // The breaker likewise ignores doom-loop (and other
+                // client-side) failures via its upstream-fault classifier.
+                breaker::record_failure_if_upstream_fault(&config.base_url, &error);
                 if let SamplingError::DoomLoopDetected { .. } = &error {
                     let backoff = retry_mod::doom_loop_backoff(doom_retry_count + 1);
                     doom_retry_count += 1;
@@ -257,6 +283,7 @@ pub(crate) async fn run_request_task(
                 return request_id;
             }
             AttemptOutcome::InitFailed { error } => {
+                breaker::record_failure_if_upstream_fault(&config.base_url, &error);
                 if !apply_retry_decision(
                     &error,
                     &mut retry_count,

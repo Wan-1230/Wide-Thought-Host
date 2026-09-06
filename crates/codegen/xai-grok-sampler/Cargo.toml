@@ -9,6 +9,7 @@ description = "Actor-based sampling/inference layer for the WTH Build sampling s
 # Internal
 xai-grok-sampling-types = { path = "../xai-grok-sampling-types" }
 xai-grok-version = { workspace = true }
+xai-circuit-breaker = { workspace = true }
 
 # External
 async-openai = { workspace = true }
@@ -30,6 +31,8 @@ uuid = { workspace = true, features = ["v4"] }
 axum = { workspace = true }
 # Shared SSE generators for the happy-path mock payloads.
 xai-grok-test-support = { workspace = true }
+# Breaker test hooks (MockClock) for the sampler breaker integration tests.
+xai-circuit-breaker = { workspace = true, features = ["test-hooks"] }
 # `start_paused = true` for deterministic timeout testing; `net` for
 # `TcpListener::bind` in the mock server harness.
 tokio = { workspace = true, features = [

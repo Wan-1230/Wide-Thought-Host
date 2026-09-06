@@ -18,6 +18,7 @@
 
 pub mod actor;
 pub mod attribution;
+mod breaker;
 pub mod client;
 pub mod commands;
 pub mod config;
