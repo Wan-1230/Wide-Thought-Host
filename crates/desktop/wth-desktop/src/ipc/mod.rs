@@ -1,9 +1,12 @@
+pub mod acp_bridge;
 pub mod agent;
 pub mod backup;
+pub mod bundled_skills;
 pub mod capabilities;
 pub mod filesystem;
 pub mod hooks;
 pub mod headroom;
+pub mod local_models;
 pub mod session;
 pub mod subagents;
 pub mod terminal;

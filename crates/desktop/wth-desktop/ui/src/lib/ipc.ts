@@ -150,6 +150,13 @@ export interface DesktopSettings {
   context_compression: boolean;
   context_window_tokens: number;
   price_per_million_tokens: number;
+  price_per_million_output_tokens?: number | null;
+  kernel_agent?: boolean;
+  kernel_agent_path?: string | null;
+  test_cmd?: string | null;
+  verify_max_rounds?: number;
+  searxng_url?: string | null;
+  fallback_provider_ids?: string[];
   usage_stats: UsageStats;
   subagents?: SubagentConfig[];
   /** 快捷键映射（action → 按键组合） */
@@ -187,6 +194,9 @@ export interface ProviderConfig {
   enabled: boolean;
   /** 内置模型标记：由应用自带，不在设置界面展示 */
   builtin?: boolean;
+  local?: boolean;
+  price_input?: number | null;
+  price_output?: number | null;
 }
 
 export interface ProviderSummary extends ProviderConfig {
@@ -339,6 +349,8 @@ export const providerUpsert = (config: ProviderConfig, apiKey?: string) =>
 export const providerDelete = (id: string) => invoke<void>("provider_delete", { id });
 export const providerSetDefault = (id: string) => invoke<void>("provider_set_default", { id });
 export const providerTest = (id: string) => invoke<string>("provider_test", { id });
+export const localProvidersDetect = () =>
+  invoke<{ kind: string; base_url: string; models: string[] }[]>("local_providers_detect");
 export const workspaceGet = () => invoke<WorkspaceInfo>("workspace_get");
 export const workspaceRecent = () => invoke<WorkspaceInfo[]>("workspace_recent");
 export const workspaceSelect = (path: string) => invoke<WorkspaceInfo>("workspace_select", { path });

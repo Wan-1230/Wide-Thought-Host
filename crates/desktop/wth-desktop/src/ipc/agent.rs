@@ -111,6 +111,46 @@ pub async fn agent_send(
     message: AgentMessage,
 ) -> Result<(), String> {
     let session_id = message.session_id.clone();
+    // A-01: 内核桥接开关 —— 开启时优先经 ACP 驱动 CLI Agent 内核（工具
+    // 调用、审批、技能走内核全量生态），失败自动回退自研循环。
+    let kernel_enabled = state
+        .settings
+        .read()
+        .map(|s| s.kernel_agent)
+        .unwrap_or(false);
+    if kernel_enabled {
+        match super::acp_bridge::ensure_connected(&state, &window).await {
+            Ok(kernel) => {
+                // ensure_connected 已落句柄，中止/审批在 prompt 进行中可用。
+                let result = kernel.send_prompt(&message.content).await;
+                match result {
+                    Ok(()) => {
+                        let _ = window.emit(
+                            "agent:stream",
+                            AgentStreamChunk {
+                                session_id: session_id.clone(),
+                                payload: StreamPayload::Done { usage: None },
+                            },
+                        );
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        let _ = window.emit(
+                            "agent:stream",
+                            AgentStreamChunk {
+                                session_id: session_id.clone(),
+                                payload: StreamPayload::Error { message: e },
+                            },
+                        );
+                        return Ok(());
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!("内核桥接不可用，回退自研循环: {e}");
+            }
+        }
+    }
     let (provider, api_key, workspace_root, edit_mode, reasoning_effort) = {
         let settings = state.settings.read().map_err(|e| e.to_string())?;
         let provider_id = settings
@@ -123,8 +163,16 @@ pub async fn agent_send(
             .find(|item| item.id == provider_id && item.enabled)
             .cloned()
             .ok_or_else(|| "默认模型不存在或已停用".to_string())?;
-        let api_key = crate::credentials::read_secret("provider", provider_id)?
-            .ok_or_else(|| "请先在设置中配置 API Key".to_string())?;
+        // 本地模型（Ollama / vLLM，F-01）无需 API Key；云端 Provider 必须
+        // 已在凭据管理器中配置 Key。
+        let api_key = if provider.local {
+            String::new()
+        } else {
+            crate::credentials::read_secret("provider", provider_id)?.ok_or_else(|| {
+                "请先在设置中配置 API Key，或在设置 → 模型与 API 中检测并使用本地模型（Ollama/vLLM）"
+                    .to_string()
+            })?
+        };
         let workspace_root = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
         (
             provider,
@@ -177,6 +225,36 @@ pub async fn agent_send(
         }
     };
 
+    // F-06: 解析 fallback 链（设置中的备用 Provider 顺序，仅主会话启用）
+    let fallback_chain: Vec<FallbackEndpoint> = {
+        let settings = state.settings.read().map_err(|e| e.to_string())?;
+        let mut chain = Vec::new();
+        for fid in &settings.fallback_provider_ids {
+            let Some(p) = settings.providers.iter().find(|p| p.id == *fid && p.enabled) else {
+                continue;
+            };
+            if p.id == provider.id {
+                continue; // 主端点自身不重复入链
+            }
+            let key = if p.local {
+                String::new()
+            } else {
+                crate::credentials::read_secret("provider", &p.id)?.unwrap_or_default()
+            };
+            if !p.local && key.is_empty() {
+                continue; // 无 Key 的云端备用没有意义
+            }
+            chain.push(FallbackEndpoint {
+                api_base: p.base_url.clone(),
+                api_key: key,
+                model: p.model.clone(),
+                price_input: p.price_input,
+                price_output: p.price_output,
+            });
+        }
+        chain
+    };
+
     tokio::spawn(async move {
         let result = run_agent(
             sid.clone(),
@@ -184,6 +262,7 @@ pub async fn agent_send(
             effective_base_url,
             api_key,
             provider.model,
+            fallback_chain,
             window_clone,
             abort_rx,
             upstream_headers,
@@ -221,6 +300,12 @@ pub async fn agent_send(
 
 #[tauri::command]
 pub async fn agent_abort(state: State<'_, AppState>, session_id: String) -> Result<(), String> {
+    // A-01: 内核会话取消（session/cancel 通知）。
+    if let Ok(guard) = state.acp.try_lock()
+        && let Some(kernel) = guard.as_ref()
+    {
+        let _ = kernel.cancel();
+    }
     let mut agents = state.agents.lock().map_err(|e| e.to_string())?;
     if let Some(handle) = agents.sessions.get_mut(&session_id) {
         if let Some(tx) = handle.abort_tx.take() {
@@ -231,6 +316,115 @@ pub async fn agent_abort(state: State<'_, AppState>, session_id: String) -> Resu
     Ok(())
 }
 
+// ─── F-05: 测试验证循环 ─────────────────────────────────────────────────────
+
+/// 验证命令超时（10 分钟，长测试套件友好）。
+const VERIFY_TIMEOUT_SECS: u64 = 600;
+/// 回注模型的失败输出截断长度。
+const VERIFY_OUTPUT_CHARS: usize = 4_000;
+
+/// 在工作区根目录执行验证命令；退出码非 0 返回失败输出（尾部截断）。
+async fn run_verification(cwd: &std::path::Path, cmd: &str) -> Result<(), String> {
+    let shell = if cfg!(windows) { "cmd" } else { "sh" };
+    let shell_args: Vec<&str> = if cfg!(windows) {
+        vec!["/C", cmd]
+    } else {
+        vec!["-c", cmd]
+    };
+    let output = tokio::time::timeout(
+        std::time::Duration::from_secs(VERIFY_TIMEOUT_SECS),
+        tokio::process::Command::new(shell)
+            .args(&shell_args)
+            .current_dir(cwd)
+            .output(),
+    )
+    .await
+    .map_err(|_| format!("验证命令超时（{VERIFY_TIMEOUT_SECS}s）: {cmd}"))?
+    .map_err(|e| format!("验证命令启动失败: {e}"))?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let mut text = String::from_utf8_lossy(&output.stdout).to_string();
+    text.push_str(&String::from_utf8_lossy(&output.stderr));
+    let tail: String = {
+        let chars: Vec<char> = text.chars().collect();
+        let start = chars.len().saturating_sub(VERIFY_OUTPUT_CHARS);
+        chars[start..].iter().collect()
+    };
+    Err(format!(
+        "exit code: {:?}
+{}",
+        output.status.code(),
+        tail.trim()
+    ))
+}
+
+/// 手动运行验证命令（诊断/演示用；自动循环见 agent_send 主流程）。
+#[tauri::command]
+pub async fn verify_run(state: State<'_, AppState>, cmd: String) -> Result<String, String> {
+    let ws = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    run_verification(&ws, cmd.trim())
+        .await
+        .map(|_| "✅ 测试通过".to_string())
+}
+
+// ─── F-06: 模型调度（fallback 链） ──────────────────────────────────────────
+
+/// fallback 链上的一个端点（主端点降级候选）。
+#[derive(Debug, Clone)]
+pub struct FallbackEndpoint {
+    pub api_base: String,
+    pub api_key: String,
+    pub model: String,
+    pub price_input: Option<f64>,
+    pub price_output: Option<f64>,
+}
+
+/// 当前请求使用的端点（含计价覆盖）。
+#[derive(Debug, Clone)]
+struct ActiveEndpoint {
+    api_base: String,
+    api_key: String,
+    model: String,
+    price_input: Option<f64>,
+    price_output: Option<f64>,
+}
+
+fn endpoint_of(e: &FallbackEndpoint) -> ActiveEndpoint {
+    ActiveEndpoint {
+        api_base: e.api_base.clone(),
+        api_key: e.api_key.clone(),
+        model: e.model.clone(),
+        price_input: e.price_input,
+        price_output: e.price_output,
+    }
+}
+
+/// 可降级错误：传输失败与 5xx/429；4xx（配置/权限类）不降级。
+fn is_fallback_eligible(err: &str) -> bool {
+    if err.starts_with("请求失败") {
+        return true; // 传输层错误（重试耗尽）
+    }
+    if let Some(rest) = err.strip_prefix("API 错误 (") {
+        if let Some(code) = rest.split(')').next().and_then(|c| c.parse::<u16>().ok()) {
+            return code == 429 || code >= 500;
+        }
+    }
+    false
+}
+
+/// 错误摘要（事件流展示用）。
+fn short_err(err: &str) -> String {
+    err.chars().take(120).collect()
+}
+
+/// 按激活模型覆盖请求体的 model 字段。
+fn body_with_model(body: &Value, model: &str) -> Value {
+    let mut b = body.clone();
+    b["model"] = json!(model);
+    b
+}
+
 /// 用户批准某个待确认的工具调用。
 #[tauri::command]
 pub async fn agent_approve_tool(
@@ -238,6 +432,15 @@ pub async fn agent_approve_tool(
     session_id: String,
     tool_call_id: String,
 ) -> Result<(), String> {
+    // A-01: 内核权限请求（session/request_permission）优先桥接。
+    {
+        let guard = state.acp.lock().await;
+        if let Some(kernel) = guard.as_ref()
+            && kernel.respond_permission(&tool_call_id, true).await.is_ok()
+        {
+            return Ok(());
+        }
+    }
     send_approval(&state, &session_id, &tool_call_id, true)
 }
 
@@ -248,6 +451,15 @@ pub async fn agent_deny_tool(
     session_id: String,
     tool_call_id: String,
 ) -> Result<(), String> {
+    // A-01: 内核权限请求（session/request_permission）优先桥接。
+    {
+        let guard = state.acp.lock().await;
+        if let Some(kernel) = guard.as_ref()
+            && kernel.respond_permission(&tool_call_id, false).await.is_ok()
+        {
+            return Ok(());
+        }
+    }
     send_approval(&state, &session_id, &tool_call_id, false)
 }
 
@@ -292,6 +504,8 @@ pub(crate) async fn run_agent(
     api_base: String,
     api_key: String,
     model: String,
+    // F-06: 备用模型链（主端点 5xx/429/网络错误时按序降级）；空 = 禁用。
+    fallback_chain: Vec<FallbackEndpoint>,
     window: tauri::Window,
     mut abort_rx: mpsc::Receiver<()>,
     upstream_headers: Option<HashMap<String, String>>,
@@ -417,6 +631,13 @@ pub(crate) async fn run_agent(
             s.context_window_tokens,
         )
     };
+    // F-05: 测试验证循环配置快照
+    let (test_cmd, verify_max_rounds) = {
+        let s = settings_ref.read().map_err(|e| e.to_string())?;
+        (s.test_cmd.clone(), s.verify_max_rounds)
+    };
+    let mut verification_pending = false;
+    let mut verify_round: u32 = 0;
     // G12：网络配置快照（代理 / 超时 / 重试）
     let network = settings_ref.read().map_err(|e| e.to_string())?.network.clone();
     let http_client = build_http_client(&network)?;
@@ -443,6 +664,21 @@ pub(crate) async fn run_agent(
 
     let mut usage_accum: Option<UsageInfo> = None;
     let mut compressed = false;
+
+    // F-06: 激活端点（主端点失败时沿 fallback 链降级，粘滞生效）。
+    // chain_all[0] 为主端点，其余为备用；chain_pos 指向当前使用的位置。
+    let mut chain_all: Vec<ActiveEndpoint> = vec![ActiveEndpoint {
+        api_base: api_base.clone(),
+        api_key: api_key.clone(),
+        model: model.clone(),
+        price_input: None,
+        price_output: None,
+    }];
+    for e in &fallback_chain {
+        chain_all.push(endpoint_of(e));
+    }
+    let mut chain_pos: usize = 0;
+    let mut active = chain_all[0].clone();
 
     for _iteration in 0..tools::MAX_TOOL_ITERATIONS {
         // 上下文压缩：接近窗口上限时，把早期对话压缩为摘要，保留最近消息
@@ -488,26 +724,54 @@ pub(crate) async fn run_agent(
             body["reasoning_effort"] = json!(reasoning_effort);
         }
 
-        let url = format!("{}/chat/completions", api_base.trim_end_matches('/'));
-        // G12：代理 / 超时 / 自动重试
-        let mut headers: Vec<(String, String)> = vec![
-            ("Authorization".to_string(), format!("Bearer {}", api_key)),
-            ("Content-Type".to_string(), "application/json".to_string()),
-        ];
-        if let Some(hs) = &upstream_headers {
-            for (k, v) in hs {
-                headers.push((k.clone(), v.clone()));
+        // F-06: 沿激活端点发送；可降级错误（5xx/429/传输错误）按链降级。
+        let resp = loop {
+            let url = format!("{}/chat/completions", active.api_base.trim_end_matches('/'));
+            // G12：代理 / 超时 / 自动重试
+            let mut headers: Vec<(String, String)> = vec![
+                ("Authorization".to_string(), format!("Bearer {}", active.api_key)),
+                ("Content-Type".to_string(), "application/json".to_string()),
+            ];
+            if let Some(hs) = &upstream_headers {
+                for (k, v) in hs {
+                    headers.push((k.clone(), v.clone()));
+                }
             }
-        }
-        let resp = send_json_with_retry(
-            &http_client,
-            &url,
-            &headers,
-            &body,
-            network.retry_enabled,
-            network.retry_max,
-        )
-        .await?;
+            let body = body_with_model(&body, &active.model);
+            match send_json_with_retry(
+                &http_client,
+                &url,
+                &headers,
+                &body,
+                network.retry_enabled,
+                network.retry_max,
+            )
+            .await
+            {
+                Ok(r) => break r,
+                Err(e) => {
+                    if chain_pos + 1 < chain_all.len() && is_fallback_eligible(&e) {
+                        chain_pos += 1;
+                        active = chain_all[chain_pos].clone();
+                        let _ = window.emit(
+                            "agent:stream",
+                            AgentStreamChunk {
+                                session_id: session_id.clone(),
+                                payload: StreamPayload::TextDelta {
+                                    delta: format!(
+                                        "\n[模型调度] 当前端点不可用（{}），切换到备用模型 {}\n",
+                                        short_err(&e),
+                                        active.model
+                                    ),
+                                },
+                            },
+                        );
+                        continue;
+                    }
+                    return Err(e);
+                }
+            }
+        };
 
         let (assistant_msg, tool_calls, usage) =
             collect_stream(resp, &window, &session_id, &mut abort_rx).await?;
@@ -525,6 +789,66 @@ pub(crate) async fn run_agent(
         messages.push(assistant_msg);
 
         if tool_calls.is_empty() {
+            // F-05: 本轮发生过代码编辑且配置了测试命令 → 自动运行测试；
+            // 失败把输出回注模型进入修复循环（受 verify_max_rounds 约束）。
+            if verification_pending && verify_round < verify_max_rounds {
+                if let Some(test_cmd) = test_cmd.as_deref().map(str::trim).filter(|c| !c.is_empty())
+                {
+                    verification_pending = false;
+                    verify_round += 1;
+                    let _ = window.emit(
+                        "agent:stream",
+                        AgentStreamChunk {
+                            session_id: session_id.clone(),
+                            payload: StreamPayload::TextDelta {
+                                delta: format!("
+
+[验证 第{verify_round}/{verify_max_rounds}轮] 运行 {test_cmd} …
+"),
+                            },
+                        },
+                    );
+                    match run_verification(&workspace_root, test_cmd).await {
+                        Ok(()) => {
+                            let _ = window.emit(
+                                "agent:stream",
+                                AgentStreamChunk {
+                                    session_id: session_id.clone(),
+                                    payload: StreamPayload::TextDelta {
+                                        delta: "[验证] ✅ 测试通过
+".to_string(),
+                                    },
+                                },
+                            );
+                            break;
+                        }
+                        Err(failure) => {
+                            let _ = window.emit(
+                                "agent:stream",
+                                AgentStreamChunk {
+                                    session_id: session_id.clone(),
+                                    payload: StreamPayload::TextDelta {
+                                        delta: "[验证] ❌ 测试失败，进入自动修复
+".to_string(),
+                                    },
+                                },
+                            );
+                            messages.push(json!({
+                                "role": "user",
+                                "content": format!(
+                                    "自动测试验证失败（第 {verify_round}/{verify_max_rounds} 轮）。请修复代码；我会在你完成后继续运行该测试。
+
+命令: {test_cmd}
+
+失败输出:
+{failure}"
+                                ),
+                            }));
+                            continue;
+                        }
+                    }
+                }
+            }
             break;
         }
 
@@ -606,7 +930,17 @@ pub(crate) async fn run_agent(
                     }
                 };
                 match exec {
-                    Ok(output) => (output.model_result, output.full_before, output.full_after),
+                    Ok(output) => {
+                        // F-05: 编辑类工具（含前后全文的 file_edit 与 file_write）
+                        // 成功执行后标记待验证。
+                        if output.full_before.is_some()
+                            || output.full_after.is_some()
+                            || matches!(tc.name.as_str(), "file_write" | "file_edit")
+                        {
+                            verification_pending = true;
+                        }
+                        (output.model_result, output.full_before, output.full_after)
+                    }
                     Err(e) => (json!({ "error": e }), None, None),
                 }
             } else {
@@ -648,7 +982,19 @@ pub(crate) async fn run_agent(
     if let Some(u) = &usage_accum {
         let today = chrono::Local::now().format("%Y-%m-%d").to_string();
         let mut s = settings_ref.write().map_err(|e| e.to_string())?;
-        let cost = u.total_tokens as f64 / 1_000_000.0 * s.price_per_million_tokens;
+        // U-02/F-06: 输入/输出分价计费 —— 激活模型自带价格优先，其次全局
+        // 分价，最后回退全局统一价。
+        let (input_price, output_price) = match (active.price_input, active.price_output) {
+            (Some(i), Some(o)) => (i, o),
+            (i, o) => (
+                i.unwrap_or(s.price_per_million_tokens),
+                o.unwrap_or_else(|| {
+                    s.price_per_million_output_tokens.unwrap_or(s.price_per_million_tokens)
+                }),
+            ),
+        };
+        let cost = u.prompt_tokens as f64 / 1_000_000.0 * input_price
+            + u.completion_tokens as f64 / 1_000_000.0 * output_price;
         let stats = &mut s.usage_stats;
         if stats.last_updated.as_deref() != Some(today.as_str()) {
             stats.today_tokens = 0;

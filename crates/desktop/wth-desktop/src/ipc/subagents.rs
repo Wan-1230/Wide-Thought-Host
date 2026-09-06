@@ -94,8 +94,15 @@ pub async fn subagent_run(
             .find(|p| p.id == provider_id && p.enabled)
             .cloned()
             .ok_or_else(|| "默认模型不存在或已停用".to_string())?;
-        let api_key = crate::credentials::read_secret("provider", provider_id)?
-            .ok_or_else(|| "请先在设置中配置 API Key".to_string())?;
+        // 本地模型（Ollama / vLLM，F-01）无需 API Key。
+        let api_key = if provider.local {
+            String::new()
+        } else {
+            crate::credentials::read_secret("provider", provider_id)?.ok_or_else(|| {
+                "请先在设置中配置 API Key，或在设置 → 模型与 API 中检测并使用本地模型（Ollama/vLLM）"
+                    .to_string()
+            })?
+        };
         let workspace_root = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
         (
             subagent,
@@ -190,6 +197,7 @@ pub async fn subagent_run(
             provider.base_url.clone(),
             api_key,
             provider.model.clone(),
+            Vec::new(),
             window_clone.clone(),
             abort_rx,
             None,

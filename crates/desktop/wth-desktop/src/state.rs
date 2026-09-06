@@ -69,6 +69,8 @@ pub struct AppState {
     pub github_auth: Arc<Mutex<Option<crate::auth::PendingDeviceFlow>>>,
     pub headroom: Arc<HeadroomManager>,
     pub approvals: Arc<Mutex<AgentApprovals>>,
+    /// A-01: CLI Agent 内核桥接（ACP 连接 leader）；None = 未连接（走自研循环）。
+    pub acp: Arc<tokio::sync::Mutex<Option<crate::ipc::acp_bridge::AcpKernel>>>,
     pub mcp: Arc<tokio::sync::Mutex<McpManager>>,
     /// 最近应用日志（环形缓冲，供诊断页展示，最多 200 条）
     pub log_buffer: Arc<Mutex<VecDeque<String>>>,
@@ -89,6 +91,7 @@ impl Default for AppState {
             github_auth: Default::default(),
             headroom: Arc::new(HeadroomManager::new()),
             approvals: Default::default(),
+            acp: Arc::new(tokio::sync::Mutex::new(None)),
             mcp: Arc::new(tokio::sync::Mutex::new(McpManager::default())),
             log_buffer: Default::default(),
         }

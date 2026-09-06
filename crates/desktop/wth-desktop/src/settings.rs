@@ -36,7 +36,8 @@ fn default_edit_mode() -> String {
     "auto".into()
 }
 fn default_web_search_engine() -> String {
-    "bing".into()
+    // F-08: DuckDuckGo 无需 API Key，与"隐私优先"产品主张一致。
+    "duckduckgo".into()
 }
 
 /// 默认快捷键表（action → 按键组合）。
@@ -191,6 +192,12 @@ pub struct WorkflowNode {
     pub depends_on: Vec<String>,
     /// 执行条件：空 = 依赖全部成功后执行；"on_failure" = 依赖失败后执行
     pub condition: String,
+    /// F-09: 失败自动重试次数（0 = 不重试，默认 1 次重试）
+    pub retry: u32,
+    /// F-09: 单次尝试超时（秒）；None = 不限时
+    pub timeout_secs: Option<u64>,
+    /// F-09: 节点输出（传递给下游与落盘）的最大字符数，默认 8000
+    pub output_limit: Option<usize>,
 }
 
 impl Default for WorkflowNode {
@@ -202,6 +209,9 @@ impl Default for WorkflowNode {
             input_template: String::new(),
             depends_on: Vec::new(),
             condition: String::new(),
+            retry: 1,
+            timeout_secs: None,
+            output_limit: None,
         }
     }
 }
@@ -241,6 +251,9 @@ pub fn default_workflows() -> Vec<WorkflowConfig> {
                 input_template: "请审查以下需求与代码：\n{{input}}".into(),
                 depends_on: vec![],
                 condition: String::new(),
+                retry: 1,
+                timeout_secs: None,
+                output_limit: None,
             },
             WorkflowNode {
                 id: "security".into(),
@@ -249,6 +262,9 @@ pub fn default_workflows() -> Vec<WorkflowConfig> {
                 input_template: "请对以下需求进行安全审计：\n{{input}}".into(),
                 depends_on: vec![],
                 condition: String::new(),
+                retry: 1,
+                timeout_secs: None,
+                output_limit: None,
             },
             WorkflowNode {
                 id: "docs".into(),
@@ -257,6 +273,9 @@ pub fn default_workflows() -> Vec<WorkflowConfig> {
                 input_template: "请评估以下需求对应的文档完整性：\n{{input}}".into(),
                 depends_on: vec![],
                 condition: String::new(),
+                retry: 1,
+                timeout_secs: None,
+                output_limit: None,
             },
             WorkflowNode {
                 id: "summary".into(),
@@ -265,6 +284,9 @@ pub fn default_workflows() -> Vec<WorkflowConfig> {
                 input_template: "请汇总以下三个维度的审查结论，输出统一的行动清单：\n\n【代码审查】\n{{prev_output:review}}\n\n【安全审查】\n{{prev_output:security}}\n\n【文档审查】\n{{prev_output:docs}}".into(),
                 depends_on: vec!["review".into(), "security".into(), "docs".into()],
                 condition: String::new(),
+                retry: 1,
+                timeout_secs: None,
+                output_limit: None,
             },
         ],
     }]
@@ -330,6 +352,10 @@ pub struct DesktopSettings {
     pub context_window_tokens: u32,
     /// 每百万 Token 的统一估算单价（USD），用于预算与用量统计
     pub price_per_million_tokens: f64,
+    /// 输出 Token 单价（USD/百万）。U-02：输入/输出分价计费；为 None 时
+    /// 回退旧的统一单价算法（兼容既有 settings.json）。
+    #[serde(default)]
+    pub price_per_million_output_tokens: Option<f64>,
     /// 用量统计（跨会话累计）
     pub usage_stats: UsageStats,
     /// 快捷键映射（action → 按键组合），缺省项回退默认
@@ -342,6 +368,26 @@ pub struct DesktopSettings {
     pub workflows: Vec<WorkflowConfig>,
     /// 网络配置（G12）：代理模式 / 请求超时 / 自动重试
     pub network: NetworkConfig,
+    /// A-01: 优先使用 CLI Agent 内核（ACP）处理会话；连接失败自动回退自研循环。
+    #[serde(default)]
+    pub kernel_agent: bool,
+    /// A-01: 内核可执行文件路径（WTH_LEADER_BIN 覆盖），为空走默认解析。
+    #[serde(default)]
+    pub kernel_agent_path: Option<String>,
+    /// F-05: 测试验证循环 —— 每轮代码修改完成后在工作区根目录自动执行的
+    /// 测试命令（如 `cargo test`）；为空则禁用自动验证。
+    #[serde(default)]
+    pub test_cmd: Option<String>,
+    /// F-05: 测试失败后自动修复的最大轮数（默认 3）。
+    #[serde(default)]
+    pub verify_max_rounds: u32,
+    /// F-08: SearXNG 实例地址（自托管，如 http://localhost:8080），选择 searxng 引擎时必填。
+    #[serde(default)]
+    pub searxng_url: Option<String>,
+    /// F-06: 模型 fallback 链 —— 按 id 顺序排列的备用 Provider；主 Provider
+    /// 请求失败（5xx/429/网络错误）时依次降级。仅主会话生效。
+    #[serde(default)]
+    pub fallback_provider_ids: Vec<String>,
 }
 
 impl Default for DesktopSettings {
@@ -368,6 +414,9 @@ impl Default for DesktopSettings {
                 model: "agnes-2.5-flash".into(),
                 enabled: true,
                 builtin: true,
+                local: false,
+                price_input: None,
+                price_output: None,
             }],
             feature_toggles: HashMap::new(),
             legacy_migration_complete: false,
@@ -383,12 +432,19 @@ impl Default for DesktopSettings {
             context_compression: true,
             context_window_tokens: 128_000,
             price_per_million_tokens: 2.0,
+            price_per_million_output_tokens: None,
             usage_stats: UsageStats::default(),
             shortcuts: default_shortcuts(),
             onboarding_completed: false,
             prompt_templates: default_prompt_templates(),
             workflows: default_workflows(),
             network: NetworkConfig::default(),
+            kernel_agent: false,
+            kernel_agent_path: None,
+            test_cmd: None,
+            verify_max_rounds: 3,
+            searxng_url: None,
+            fallback_provider_ids: Vec::new(),
         }
     }
 }
@@ -425,6 +481,15 @@ pub struct ProviderConfig {
     /// 内置模型标记：由应用自带（如默认模型），不在设置界面展示。
     #[serde(default)]
     pub builtin: bool,
+    /// 本地模型标记：Ollama / vLLM 等本机端点，无需 API Key 即可调用。
+    #[serde(default)]
+    pub local: bool,
+    /// F-06: 该模型输入 Token 单价（USD/百万）；None 用全局价。
+    #[serde(default)]
+    pub price_input: Option<f64>,
+    /// F-06: 该模型输出 Token 单价（USD/百万）；None 用全局价（或全局分价）。
+    #[serde(default)]
+    pub price_output: Option<f64>,
 }
 
 impl Default for ProviderConfig {
@@ -437,6 +502,9 @@ impl Default for ProviderConfig {
             model: String::new(),
             enabled: true,
             builtin: false,
+            local: false,
+            price_input: None,
+            price_output: None,
         }
     }
 }
@@ -547,7 +615,10 @@ fn validate(settings: &DesktopSettings) -> Result<(), String> {
     if !matches!(settings.edit_mode.as_str(), "plan" | "review" | "auto" | "yolo") {
         return Err("编辑模式无效".into());
     }
-    if !matches!(settings.web_search_engine.as_str(), "bing" | "searxng" | "tavily" | "brave" | "perplexity") {
+    if !matches!(
+        settings.web_search_engine.as_str(),
+        "duckduckgo" | "bing" | "searxng" | "tavily" | "brave" | "perplexity"
+    ) {
         return Err("搜索引擎无效".into());
     }
     if !matches!(settings.session_display.as_str(), "standard" | "compact") {
@@ -558,6 +629,12 @@ fn validate(settings: &DesktopSettings) -> Result<(), String> {
     }
     if settings.price_per_million_tokens < 0.0 {
         return Err("Token 单价不能为负数".into());
+    }
+    if settings
+        .price_per_million_output_tokens
+        .is_some_and(|p| p < 0.0)
+    {
+        return Err("输出 Token 单价不能为负数".into());
     }
     Ok(())
 }

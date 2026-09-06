@@ -104,8 +104,15 @@ pub async fn workflow_run(
         .find(|p| p.id == default_provider_id && p.enabled)
         .cloned()
         .ok_or_else(|| "默认模型不存在或已停用".to_string())?;
-    let api_key = crate::credentials::read_secret("provider", &default_provider_id)?
-        .ok_or_else(|| "请先在设置中配置 API Key".to_string())?;
+    // 本地模型（Ollama / vLLM，F-01）无需 API Key。
+    let api_key = if provider.local {
+        String::new()
+    } else {
+        crate::credentials::read_secret("provider", &default_provider_id)?.ok_or_else(|| {
+            "请先在设置中配置 API Key，或在设置 → 模型与 API 中检测并使用本地模型（Ollama/vLLM）"
+                .to_string()
+        })?
+    };
     let workspace_root = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
     let edit_mode = settings.edit_mode.clone();
     let reasoning_effort = settings.reasoning_effort.clone();
@@ -157,13 +164,17 @@ pub async fn workflow_run(
                 let node_name = node.name.clone();
                 let subagent = subagents.iter().find(|s| s.id == node.subagent_id).cloned();
                 let node_input = render_input(&node, &input, &completed);
+                let node_retry = node.retry;
+                let node_timeout = node.timeout_secs;
+                let node_output_limit = node.output_limit;
+                let run_id_inner = run_id_clone.clone();
+                let config_id_inner = config_id.clone();
                 let provider = provider.clone();
                 let api_key = api_key.clone();
                 let workspace_root = workspace_root.clone();
                 let edit_mode = edit_mode.clone();
                 let reasoning_effort = reasoning_effort.clone();
                 let window = window_clone.clone();
-                let abort_rx = tokio::sync::mpsc::channel(1).1;
                 let approvals = approvals.clone();
                 let settings_ref = settings_ref.clone();
                 let settings_path = settings_path.clone();
@@ -233,38 +244,92 @@ pub async fn workflow_run(
                         headless: true,
                     };
 
-                    let result = crate::ipc::agent::run_agent(
-                        sub_session_id.clone(),
-                        crate::ipc::agent::AgentMessage {
-                            session_id: sub_session_id.clone(),
-                            content: node_input,
-                            attachments: vec![],
-                            system_instruction: None,
-                            history: vec![],
-                        },
-                        provider.base_url.clone(),
-                        api_key,
-                        provider.model.clone(),
-                        window.clone(),
-                        abort_rx,
-                        None,
-                        workspace_root,
-                        edit_mode,
-                        reasoning_effort,
-                        approvals,
-                        settings_ref,
-                        settings_path,
-                        mcp_manager,
-                        overrides,
-                    )
-                    .await;
+                    // F-09: 节点级重试 + 超时 + 输出上限
+                    let attempts = node_retry.saturating_add(1).max(1);
+                    let mut attempt: u32 = 0;
+                    let mut last_err = String::new();
+                    let result = loop {
+                        attempt += 1;
+                        let content = if attempt == 1 {
+                            node_input.clone()
+                        } else {
+                            format!(
+                                "{node_input}
+
+（自动重试：第 {attempt}/{attempts} 次。上次失败摘要：{last_err}）"
+                            )
+                        };
+                        let attempt_future = crate::ipc::agent::run_agent(
+                            sub_session_id.clone(),
+                            crate::ipc::agent::AgentMessage {
+                                session_id: sub_session_id.clone(),
+                                content,
+                                attachments: vec![],
+                                system_instruction: None,
+                                history: vec![],
+                            },
+                            provider.base_url.clone(),
+                            api_key.clone(),
+                            provider.model.clone(),
+                            Vec::new(),
+                            window.clone(),
+                            tokio::sync::mpsc::channel(1).1,
+                            None,
+                            workspace_root.clone(),
+                            edit_mode.clone(),
+                            reasoning_effort.clone(),
+                            approvals.clone(),
+                            settings_ref.clone(),
+                            settings_path.clone(),
+                            mcp_manager.clone(),
+                            overrides.clone(),
+                        );
+                        let timed = async {
+                            match node_timeout {
+                                Some(secs) => tokio::time::timeout(
+                                    std::time::Duration::from_secs(secs),
+                                    attempt_future,
+                                )
+                                .await
+                                .unwrap_or_else(|_| Err(format!("节点执行超时（{secs}s）"))),
+                                None => attempt_future.await,
+                            }
+                        };
+                        match timed.await {
+                            Ok(output) => break Ok(output),
+                            Err(e) => {
+                                last_err = e.chars().take(200).collect();
+                                if attempt >= attempts {
+                                    break Err(format!("{e}（已重试 {} 次）", attempts - 1));
+                                }
+                                let _ = window.emit(
+                                    "workflow:progress",
+                                    serde_json::json!({
+                                        "run_id": run_id_inner,
+                                        "config_id": config_id_inner,
+                                        "node_id": node_id.clone(),
+                                        "node_name": node_name.clone(),
+                                        "status": "retrying",
+                                        "error": format!("第 {attempt}/{attempts} 次失败：{last_err}"),
+                                    }),
+                                );
+                                tokio::time::sleep(std::time::Duration::from_millis(
+                                    500u64.saturating_mul(attempt as u64),
+                                ))
+                                .await;
+                            }
+                        }
+                    };
 
                     let r = match result {
                         Ok(output) => WorkflowRunResult {
                             node_id: node_id.clone(),
                             node_name: node_name.clone(),
                             status: "done".into(),
-                            output: output.chars().take(8000).collect(),
+                            output: output
+                                .chars()
+                                .take(node_output_limit.unwrap_or(8000))
+                                .collect(),
                             sub_session_id: sub_session_id.clone(),
                             error: None,
                         },
@@ -403,6 +468,7 @@ mod tests {
             input_template: String::new(),
             depends_on: deps.into_iter().map(String::from).collect(),
             condition: condition.into(),
+            ..Default::default()
         }
     }
 

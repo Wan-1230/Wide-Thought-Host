@@ -103,6 +103,15 @@ pub fn run() {
                 *path_guard = sessions_path;
             }
 
+            // E-01: 捆绑技能种子到 ~/.wth/bundled（不覆盖用户修改）
+            {
+                let wth_home = xai_grok_config::wth_home();
+                let seeded = ipc::bundled_skills::seed_bundled_skills(&wth_home);
+                if seeded > 0 {
+                    tracing::info!("已种子 {seeded} 个捆绑技能到 {:?}", wth_home.join("bundled"));
+                }
+            }
+
             // 桌面偏好与 Agent 的 WTH_HOME 分离；工作区可在运行时切换。
             let settings_path = app
                 .path()
@@ -122,12 +131,35 @@ pub fn run() {
                 let state = app.state::<AppState>();
                 let mut loaded_settings = desktop_settings;
 
-                // 内置默认模型（Agnes AI）的 API Key 由应用自带并写入凭据管理器，
-                // 不在设置界面展示该模型，但保留为开箱即用的默认后端。
-                let builtin_key = "sk-49YlKg3HCKEPZpu2aI2XlSPhRGZdDYaEIOxXf6a3hfCISRwF";
-                if credentials::read_secret("provider", "agnes-default").ok().flatten().is_none() {
-                    let _ = credentials::write_secret("provider", "agnes-default", builtin_key);
-                    tracing::info!("Built-in Agnes AI provider key seeded into credential store");
+                // S-01: 应用不再内置任何 API Key（历史版本曾把内置演示端点
+                // 的 Key 写进凭据管理器，已从源码移除）。开箱即用改由
+                // F-01 本地模型承担：若本机运行着 Ollama / vLLM，自动注册
+                // 本地 Provider 并在无可用默认时接管默认项。
+                {
+                    let state_for_detect = app.state::<AppState>();
+                    let settings_lock = state_for_detect.settings.clone();
+                    let path_lock = state_for_detect.settings_path.clone();
+                    tauri::async_runtime::spawn(async move {
+                        match ipc::local_models::detect_register_and_persist(
+                            &settings_lock,
+                            &path_lock,
+                        )
+                        .await
+                        {
+                            Ok(endpoints) if endpoints.is_empty() => {
+                                tracing::info!("未检测到本地模型端点（Ollama/vLLM）");
+                            }
+                            Ok(endpoints) => {
+                                let kinds = endpoints
+                                    .iter()
+                                    .map(|e| e.kind.as_str())
+                                    .collect::<Vec<_>>()
+                                    .join(", ");
+                                tracing::info!("检测到本地模型端点: {kinds}");
+                            }
+                            Err(e) => tracing::warn!("本地模型探测失败: {e}"),
+                        }
+                    });
                 }
 
                 // 首次启动（或旧版本升级）预置默认子智能体；用户删除后不再自动恢复
@@ -207,6 +239,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             ipc::agent::agent_send,
+            ipc::acp_bridge::acp_status,
+            ipc::agent::verify_run,
             ipc::agent::agent_abort,
             ipc::agent::agent_approve_tool,
             ipc::agent::agent_deny_tool,
@@ -257,6 +291,8 @@ pub fn run() {
             settings::provider_delete,
             settings::provider_set_default,
             settings::provider_test,
+            // F-01: 本地模型（Ollama/vLLM）检测
+            ipc::local_models::local_providers_detect,
             settings::workspace_get,
             settings::workspace_recent,
             settings::workspace_select,

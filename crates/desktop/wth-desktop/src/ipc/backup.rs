@@ -355,6 +355,9 @@ pub async fn config_import(
                 model,
                 enabled,
                 builtin,
+                local: pv.get("local").and_then(|v| v.as_bool()).unwrap_or(false),
+                price_input: pv.get("price_input").and_then(|v| v.as_f64()),
+                price_output: pv.get("price_output").and_then(|v| v.as_f64()),
             });
         }
     }

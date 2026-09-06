@@ -423,6 +423,26 @@ pub async fn execute_tool(
                         "note": format!("读取 Tavily 凭据失败：{e}")
                     }))),
                 },
+                "brave" => with_search_key(query, "brave", web_search_brave).await,
+                "bing" => with_search_key(query, "bing", web_search_bing).await,
+                "perplexity" => with_search_key(query, "perplexity", web_search_perplexity).await,
+                "searxng" => {
+                    let base = settings
+                        .searxng_url
+                        .as_deref()
+                        .map(str::trim)
+                        .filter(|u| !u.is_empty());
+                    match base {
+                        Some(base) => {
+                            web_search_searxng(query, base.trim_end_matches('/')).await
+                        }
+                        None => Ok(ToolOutput::plain(json!({
+                            "query": query,
+                            "results": [],
+                            "note": "已选择 SearXNG 但尚未配置实例地址：请在设置-搜索中填写（如 http://localhost:8080）"
+                        }))),
+                    }
+                }
                 _ => web_search(query).await,
             }
         }
@@ -511,6 +531,173 @@ async fn run_git(args: &[String], root: &Path) -> Result<ShellOutput, String> {
 }
 
 /// Tavily 搜索（需 API Key，配置于“设置 → 搜索”）。
+/// 读取服务凭据并调用需要 API Key 的搜索引擎；缺 Key 返回可操作提示。
+/// 同步读取凭据后分发到具体引擎实现。
+async fn with_search_key(
+    query: &str,
+    service: &str,
+    f: impl AsyncFn(&str, &str) -> Result<ToolOutput, String>,
+) -> Result<ToolOutput, String> {
+    match crate::credentials::read_secret("service", service) {
+        Ok(Some(key)) => f(query, &key).await,
+        Ok(None) => Ok(ToolOutput::plain(json!({
+            "query": query,
+            "results": [],
+            "note": format!("已选择 {service} 但尚未配置 API Key：请在设置-搜索中填写")
+        }))),
+        Err(e) => Ok(ToolOutput::plain(json!({
+            "query": query,
+            "results": [],
+            "note": format!("读取 {service} 凭据失败：{e}")
+        }))),
+    }
+}
+
+fn search_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("创建搜索客户端失败: {e}"))
+}
+
+async fn web_search_brave(query: &str, api_key: &str) -> Result<ToolOutput, String> {
+    let client = search_client()?;
+    let encoded: String = url::form_urlencoded::byte_serialize(query.as_bytes()).collect();
+    let resp = client
+        .get(format!(
+            "https://api.search.brave.com/res/v1/web/search?q={encoded}&count=5"
+        ))
+        .header("X-Subscription-Token", api_key)
+        .header("Accept", "application/json")
+        .send()
+        .await
+        .map_err(|e| format!("Brave 请求失败: {e}"))?;
+    let parsed: Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("解析 Brave 响应失败: {e}"))?;
+    let results: Vec<Value> = parsed
+        .pointer("/web/results")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .take(5)
+        .map(|item| {
+            json!({
+                "title": item["title"].as_str().unwrap_or(""),
+                "url": item["url"].as_str().unwrap_or(""),
+                "snippet": item["description"].as_str().unwrap_or(""),
+            })
+        })
+        .collect();
+    Ok(ToolOutput::plain(json!({ "query": query, "results": results })))
+}
+
+async fn web_search_bing(query: &str, api_key: &str) -> Result<ToolOutput, String> {
+    let client = search_client()?;
+    let encoded: String = url::form_urlencoded::byte_serialize(query.as_bytes()).collect();
+    let resp = client
+        .get(format!(
+            "https://api.bing.microsoft.com/v7.0/search?q={encoded}&count=5"
+        ))
+        .header("Ocp-Apim-Subscription-Key", api_key)
+        .send()
+        .await
+        .map_err(|e| format!("Bing 请求失败: {e}"))?;
+    let parsed: Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("解析 Bing 响应失败: {e}"))?;
+    let results: Vec<Value> = parsed
+        .pointer("/webPages/value")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .take(5)
+        .map(|item| {
+            json!({
+                "title": item["name"].as_str().unwrap_or(""),
+                "url": item["url"].as_str().unwrap_or(""),
+                "snippet": item["snippet"].as_str().unwrap_or(""),
+            })
+        })
+        .collect();
+    Ok(ToolOutput::plain(json!({ "query": query, "results": results })))
+}
+
+/// Perplexity 走 sonar 模型的 chat/completions：返回带引用的综合回答。
+async fn web_search_perplexity(query: &str, api_key: &str) -> Result<ToolOutput, String> {
+    let client = search_client()?;
+    let resp = client
+        .post("https://api.perplexity.ai/chat/completions")
+        .header("Authorization", format!("Bearer {api_key}"))
+        .json(&json!({
+            "model": "sonar",
+            "messages": [{ "role": "user", "content": query }],
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Perplexity 请求失败: {e}"))?;
+    let parsed: Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("解析 Perplexity 响应失败: {e}"))?;
+    let answer = parsed
+        .pointer("/choices/0/message/content")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let citations: Vec<Value> = parsed["citations"].as_array().cloned().unwrap_or_default();
+    Ok(ToolOutput::plain(json!({
+        "query": query,
+        "results": [{
+            "title": "Perplexity 综合回答",
+            "url": citations.first().cloned().unwrap_or(json!("")),
+            "snippet": answer,
+        }],
+        "citations": citations,
+    })))
+}
+
+/// SearXNG（自托管元搜索引擎，实例需开启 JSON 输出）。
+async fn web_search_searxng(query: &str, base: &str) -> Result<ToolOutput, String> {
+    let client = search_client()?;
+    let encoded: String = url::form_urlencoded::byte_serialize(query.as_bytes()).collect();
+    let resp = client
+        .get(format!("{base}/search?q={encoded}&format=json"))
+        .send()
+        .await
+        .map_err(|e| format!("SearXNG 请求失败: {e}"))?;
+    if !resp.status().is_success() {
+        return Ok(ToolOutput::plain(json!({
+            "query": query,
+            "results": [],
+            "note": format!("SearXNG 返回 {}：请确认实例地址正确且已开启 JSON 输出（settings.yml 的 formats 含 json）", resp.status()),
+        })));
+    }
+    let parsed: Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("解析 SearXNG 响应失败: {e}"))?;
+    let results: Vec<Value> = parsed["results"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .take(5)
+        .map(|item| {
+            json!({
+                "title": item["title"].as_str().unwrap_or(""),
+                "url": item["url"].as_str().unwrap_or(""),
+                "snippet": item["content"].as_str().unwrap_or(""),
+            })
+        })
+        .collect();
+    Ok(ToolOutput::plain(json!({ "query": query, "results": results })))
+}
+
 async fn web_search_tavily(query: &str, api_key: &str) -> Result<ToolOutput, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(15))

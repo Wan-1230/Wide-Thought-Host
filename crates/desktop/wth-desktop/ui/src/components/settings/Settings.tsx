@@ -34,6 +34,7 @@ import {
   providerDelete,
   providerList,
   providerSetDefault,
+  localProvidersDetect,
   providerTest,
   providerUpsert,
   settingsGet,
@@ -156,12 +157,14 @@ const emptySettings: DesktopSettings = {
   edit_mode: "auto",
   budget_usd: null,
   show_system_events: true,
-  web_search_engine: "bing",
+  web_search_engine: "duckduckgo",
+  searxng_url: null,
   headroom_enabled: false,
   headroom_port: 8787,
   context_compression: true,
   context_window_tokens: 128000,
   price_per_million_tokens: 2.0,
+  price_per_million_output_tokens: null,
   usage_stats: {
     total_tokens: 0,
     total_cost_usd: 0,
@@ -190,6 +193,8 @@ const blankProviderConfig: ProviderConfig = {
   base_url: "",
   model: "",
   enabled: true,
+  price_input: null,
+  price_output: null,
 };
 
 // ─── Main Modal ──────────────────────────────────────
@@ -375,7 +380,7 @@ function SettingsBody({
   onNotice: (value: string) => void;
 }) {
   if (page === "models") {
-    return <PageModels providers={providers} onRefresh={onRefresh} onNotice={onNotice} />;
+    return <PageModels providers={providers} settings={settings} onSave={onSave} onRefresh={onRefresh} onNotice={onNotice} />;
   }
   if (page === "appearance") {
     return <PageAppearance settings={settings} onSave={onSave} />;
@@ -563,6 +568,42 @@ function PageGeneral({
             }}
           />
         </SettingRow>
+        <SettingRow label="输出 Token 单价 (USD/百万)" hint="留空则按上方统一单价估算；输入/输出分价后预算估算更接近真实账单">
+          <input
+            className="control w-28"
+            type="number"
+            min="0"
+            step="0.1"
+            placeholder="例如：8"
+            value={settings.price_per_million_output_tokens ?? ""}
+            onChange={(e) => {
+              const raw = e.target.value;
+              const v = raw === "" ? null : Number(raw);
+              if (v === null || v >= 0) onSave({ ...settings, price_per_million_output_tokens: v });
+            }}
+          />
+        </SettingRow>
+        <SettingRow label="测试命令（F-05 验证循环）" hint="代码修改完成后自动在工作区根目录运行（如 cargo test）；留空禁用">
+          <input
+            className="control w-64"
+            placeholder="例如：cargo test"
+            value={settings.test_cmd ?? ""}
+            onChange={(e) => onSave({ ...settings, test_cmd: e.target.value || null })}
+          />
+        </SettingRow>
+        <SettingRow label="自动修复轮数" hint="测试失败后自动回注错误并让模型修复的最大轮数">
+          <input
+            className="control w-20"
+            type="number"
+            min="0"
+            max="10"
+            value={settings.verify_max_rounds ?? 3}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              if (v >= 0 && v <= 10) onSave({ ...settings, verify_max_rounds: v });
+            }}
+          />
+        </SettingRow>
       </section>
 
       <section className="section">
@@ -573,13 +614,27 @@ function PageGeneral({
             value={settings.web_search_engine}
             onChange={(e) => onSave({ ...settings, web_search_engine: e.target.value })}
           >
-            <option value="bing">Bing</option>
-            <option value="searxng">SearXNG</option>
+            <option value="duckduckgo">DuckDuckGo（无需 Key）</option>
+            <option value="searxng">SearXNG（自托管）</option>
             <option value="tavily">Tavily</option>
             <option value="brave">Brave</option>
+            <option value="bing">Bing</option>
             <option value="perplexity">Perplexity</option>
           </select>
         </SettingRow>
+        {settings.web_search_engine === "searxng" && (
+          <SettingRow label="SearXNG 实例地址" hint="自托管元搜索引擎，实例需开启 JSON 输出（formats 含 json）">
+            <input
+              className="control w-64"
+              placeholder="例如：http://localhost:8080"
+              value={settings.searxng_url ?? ""}
+              onChange={(e) => onSave({ ...settings, searxng_url: e.target.value || null })}
+            />
+          </SettingRow>
+        )}
+        {["brave", "bing", "perplexity"].includes(settings.web_search_engine) && (
+          <SearchKeyRow engine={settings.web_search_engine} onNotice={onNotice} />
+        )}
         {settings.web_search_engine === "tavily" && (
           <SettingRow label="Tavily API Key" hint="写入 Windows 凭据管理器，仅用于 Tavily 搜索">
             <div className="flex items-center gap-2">
@@ -1194,10 +1249,14 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 
 function PageModels({
   providers,
+  settings,
+  onSave,
   onRefresh,
   onNotice,
 }: {
   providers: ProviderSummary[];
+  settings: DesktopSettings;
+  onSave: (v: DesktopSettings) => Promise<void>;
   onRefresh: () => Promise<void>;
   onNotice: (s: string) => void;
 }) {
@@ -1254,14 +1313,39 @@ function PageModels({
     setApiKey("");
   };
 
+  // F-01: 检测本机 Ollama / vLLM 并注册为本地模型 Provider（无需 API Key）。
+  const [detecting, setDetecting] = useState(false);
+  const detectLocal = async () => {
+    setDetecting(true);
+    try {
+      const endpoints = await localProvidersDetect();
+      if (endpoints.length === 0) {
+        onNotice("未检测到本地模型。可启动 Ollama（https://ollama.com）或 vLLM 后重试。");
+      } else {
+        const total = endpoints.reduce((n, e) => n + e.models.length, 0);
+        onNotice("检测到本地模型 " + total + " 个（" + endpoints.map((e) => e.kind).join(" / ") + "），已加入模型列表");
+        await onRefresh();
+      }
+    } catch (e) {
+      onNotice(String(e));
+    } finally {
+      setDetecting(false);
+    }
+  };
+
   return (
     <div className="grid grid-cols-[240px_minmax(0,1fr)] gap-4">
       <div className="rounded-xl border p-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
         <div className="flex items-center justify-between px-1 pb-2">
           <div className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>我的模型</div>
-          <button className="small-btn" onClick={startNew}>
-            <Plus size={12} /> 新增
-          </button>
+          <div className="flex items-center gap-1">
+            <button className="small-btn" onClick={detectLocal} disabled={detecting}>
+              <Sparkles size={12} /> {detecting ? "检测中…" : "检测本地模型"}
+            </button>
+            <button className="small-btn" onClick={startNew}>
+              <Plus size={12} /> 新增
+            </button>
+          </div>
         </div>
         <div className="space-y-1.5 max-h-[400px] overflow-y-auto pr-1">
           {visibleProviders.length === 0 ? (
@@ -1291,6 +1375,55 @@ function PageModels({
               </button>
             ))
           )}
+        </div>
+      </div>
+
+      <div className="rounded-xl border p-4" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
+        <div className="text-sm font-medium mb-1">备用模型链</div>
+        <div className="text-[10px] mb-3" style={{ color: "var(--text-dim)" }}>
+          主模型不可用（5xx / 429 / 网络错误）时按顺序自动降级；每个模型可单独配置单价
+        </div>
+        <div className="flex flex-col gap-1.5 mb-4">
+          {(settings.fallback_provider_ids ?? []).map((id, idx) => (
+            <div key={id} className="flex items-center justify-between rounded-lg border px-3 py-1.5" style={{ borderColor: "var(--surface-3)" }}>
+              <span className="text-xs">
+                {idx + 1}. {providers.find((p) => p.id === id)?.name ?? id}
+              </span>
+              <button
+                className="text-[10px]"
+                style={{ color: "var(--text-dim)" }}
+                onClick={() =>
+                  onSave({
+                    ...settings,
+                    fallback_provider_ids: (settings.fallback_provider_ids ?? []).filter((x) => x !== id),
+                  })
+                }
+              >
+                移除
+              </button>
+            </div>
+          ))}
+          <select
+            className="control w-44"
+            value=""
+            onChange={(e) => {
+              if (e.target.value) {
+                onSave({
+                  ...settings,
+                  fallback_provider_ids: [...(settings.fallback_provider_ids ?? []), e.target.value],
+                });
+              }
+            }}
+          >
+            <option value="">+ 添加备用模型</option>
+            {providers
+              .filter((p) => p.enabled && !(settings.fallback_provider_ids ?? []).includes(p.id))
+              .map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+          </select>
         </div>
       </div>
 
@@ -1326,6 +1459,36 @@ function PageModels({
           <Field label="API Key" hint="仅保存在本机，不会回显">
             <input className="control w-full" type="password" placeholder="粘贴你的 API Key（修改时留空表示不更换）" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
           </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="输入单价 (USD/百万)" hint="可选；留空用全局价">
+              <input
+                className="control w-full"
+                type="number"
+                min="0"
+                step="0.1"
+                placeholder="例如：2"
+                value={draft.price_input ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value === "" ? null : Number(e.target.value);
+                  if (v === null || v >= 0) setDraft({ ...draft, price_input: v });
+                }}
+              />
+            </Field>
+            <Field label="输出单价 (USD/百万)" hint="可选；留空用全局价">
+              <input
+                className="control w-full"
+                type="number"
+                min="0"
+                step="0.1"
+                placeholder="例如：8"
+                value={draft.price_output ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value === "" ? null : Number(e.target.value);
+                  if (v === null || v >= 0) setDraft({ ...draft, price_output: v });
+                }}
+              />
+            </Field>
+          </div>
           <div className="flex items-center justify-between rounded-lg border px-3 py-2.5" style={{ borderColor: "var(--surface-3)" }}>
             <div>
               <div className="text-xs font-medium">启用该模型</div>
@@ -2507,5 +2670,55 @@ function Pill({ children }: { children: ReactNode }) {
     <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[9px]" style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}>
       {children}
     </span>
+  );
+}
+
+/** F-08: 通用搜索引擎 Key 输入行（Brave / Bing / Perplexity）。 */
+function SearchKeyRow({
+  engine,
+  onNotice,
+}: {
+  engine: string;
+  onNotice: (msg: string) => void;
+}) {
+  const [key, setKey] = useState("");
+  const labels: Record<string, { label: string; placeholder: string }> = {
+    brave: { label: "Brave API Key", placeholder: "BSA..." },
+    bing: { label: "Bing API Key", placeholder: "Azure 订阅密钥" },
+    perplexity: { label: "Perplexity API Key", placeholder: "pplx-xxxxxxxx" },
+  };
+  const meta = labels[engine] ?? { label: engine, placeholder: "" };
+  return (
+    <SettingRow label={meta.label} hint="写入 Windows 凭据管理器，仅用于当前搜索引擎">
+      <div className="flex items-center gap-2">
+        <input
+          className="control w-64"
+          type="password"
+          placeholder={meta.placeholder}
+          value={key}
+          onChange={(e) => setKey(e.target.value)}
+        />
+        <button
+          onClick={async () => {
+            try {
+              if (key.trim()) {
+                await setServiceApiKey(engine, key.trim());
+                onNotice(`${meta.label} 已保存`);
+              } else {
+                await clearServiceApiKey(engine);
+                onNotice(`${meta.label} 已清除`);
+              }
+              setKey("");
+            } catch (error) {
+              onNotice(`保存失败：${String(error)}`);
+            }
+          }}
+          className="px-3 py-1.5 rounded-md text-[11px] font-medium text-white"
+          style={{ background: "var(--accent-blue)" }}
+        >
+          保存
+        </button>
+      </div>
+    </SettingRow>
   );
 }
