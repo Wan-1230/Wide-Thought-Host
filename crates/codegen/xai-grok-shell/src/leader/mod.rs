@@ -1359,10 +1359,20 @@ fn managed_grok_bin_name() -> &'static str {
     if cfg!(windows) { "grok.exe" } else { "grok" }
 }
 /// Core leader-binary resolution with the current-exe path injected, for testability.
+///
+/// Resolution order: `WTH_LEADER_BIN` env override (used by embedded hosts
+/// such as the Tauri desktop app, whose own exe is not an agent runner) →
+/// managed install under `<home>/bin` → the current executable.
 fn resolve_binary_impl(
     grok_home: &Path,
     current_exe: Option<std::path::PathBuf>,
 ) -> Result<std::path::PathBuf, ConnectionError> {
+    if let Some(bin) = std::env::var_os("WTH_LEADER_BIN") {
+        let bin = std::path::PathBuf::from(bin);
+        if !bin.as_os_str().is_empty() && bin.is_file() {
+            return Ok(bin);
+        }
+    }
     let managed_bin = grok_home.join("bin").join(managed_grok_bin_name());
     if let Some(ref exe) = current_exe
         && path_is_under(exe, grok_home)
