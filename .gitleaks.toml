@@ -1,15 +1,20 @@
-# gitleaks 基线配置（S-01，PRD v1.1）
+# gitleaks 基线配置
 #
-# 历史遗留：提交 abd3978798bab31ae61ce6d7d6ab6afec20fd6bd 曾内置 "Agnes AI"
-# 演示端点的 API Key。该 Key 已于 2026-09 从源码移除（PRD S-01）。
+# 历史遗留：提交 abd3978798bab31ae61ce6d7d6ab6afec20fd6bd 内置了 "Agnes AI"
+# 免费模型的 API Key。该 Key 于 2026-09 一度从源码移除（S-01），后经维护者
+# 决策恢复为应用自带的共享凭据（内置免费模型，开箱即用）。
 #
-# ⚠️ 安全提示：该 Key 仍存在于 git 历史中，无法通过删除代码清除。
-# 维护者应在实际服务端吊销该 Key（见 docs/WTH-优化PRD.md 风险 RK2）。
-# 此处仅对历史提交做一次性豁免，防止历史扫描长期阻塞 CI；
-# 新增代码中的任何密钥都会被 secret-scan 工作流拒绝。
+# ⚠️ 说明：该 Key 是应用级共享凭据，泄露面等同于应用本身；由维护者通过
+# crates/desktop/wth-desktop/src/main.rs 的 BUILTIN_AGNES_API_KEY 常量统一
+# 轮换，各安装实例下次启动自动覆盖旧值。除下方豁免项外的任何密钥仍会被
+# secret-scan 工作流拒绝。
 
 [allowlist]
-  description = "历史提交中的已移除内置 Key（需在服务端吊销）"
+  description = "内置 Agnes 免费模型的共享 Key（应用自带，故意入库，可轮换）"
+  # 历史提交（Key 首次引入）+ 当前内置常量所在路径
   commits = [
     "abd3978798bab31ae61ce6d7d6ab6afec20fd6bd",
+  ]
+  paths = [
+    '''crates/desktop/wth-desktop/src/main\.rs$''',
   ]

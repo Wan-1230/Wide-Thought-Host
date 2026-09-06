@@ -146,6 +146,17 @@ const MOCK_FILE_TREE = [
 
 const MOCK_PROVIDERS = [
   {
+    id: "agnes-default",
+    name: "Agnes AI (内置)",
+    kind: "openai-compatible",
+    base_url: "https://api.agnes-ai.cn/v1",
+    model: "agnes-2.5-flash",
+    enabled: true,
+    builtin: true,
+    has_api_key: true,
+    is_default: true,
+  },
+  {
     id: "openai-demo",
     name: "OpenAI",
     kind: "openai",
@@ -153,7 +164,7 @@ const MOCK_PROVIDERS = [
     model: "gpt-4o",
     enabled: true,
     has_api_key: true,
-    is_default: true,
+    is_default: false,
   },
   {
     id: "local-ollama",

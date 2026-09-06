@@ -52,6 +52,24 @@ fn parse_global_shortcut(s: &str) -> Option<tauri_plugin_global_shortcut::Shortc
     Some(Shortcut::new(Some(modifiers), code))
 }
 
+/// 内置免费模型（Agnes AI，id=agnes-default）的共享 API Key。
+/// 应用自带的共享凭据：泄露面等同于应用本身，由维护者通过本常量统一轮换，
+/// 各安装实例下次启动自动覆盖凭据管理器中的旧值。
+const BUILTIN_AGNES_API_KEY: &str = "sk-49YlKg3HCKEPZpu2aI2XlSPhRGZdDYaEIOxXf6a3hfCISRwF";
+
+/// 启动时把内置模型的 Key 同步进凭据管理器（Windows）。
+/// 已是最新则跳过；非 Windows 平台没有凭据存储实现，静默跳过
+/// （该平台下内置模型不可用，由 F-01 本地模型兜底）。
+fn seed_builtin_provider_key() {
+    match credentials::read_secret("provider", "agnes-default") {
+        Ok(Some(existing)) if existing == BUILTIN_AGNES_API_KEY => {}
+        _ => match credentials::write_secret("provider", "agnes-default", BUILTIN_AGNES_API_KEY) {
+            Ok(()) => tracing::info!("内置 Agnes AI 共享 Key 已写入凭据管理器"),
+            Err(e) => tracing::debug!("内置模型 Key 写入跳过：{e}"),
+        },
+    }
+}
+
 pub fn run() {
     // Initialize tracing
     tracing_subscriber::registry()
@@ -131,10 +149,14 @@ pub fn run() {
                 let state = app.state::<AppState>();
                 let mut loaded_settings = desktop_settings;
 
-                // S-01: 应用不再内置任何 API Key（历史版本曾把内置演示端点
-                // 的 Key 写进凭据管理器，已从源码移除）。开箱即用改由
-                // F-01 本地模型承担：若本机运行着 Ollama / vLLM，自动注册
-                // 本地 Provider 并在无可用默认时接管默认项。
+                // 内置免费模型（Agnes AI）的共享 API Key：随应用自带，开箱即用。
+                // Key 只进凭据管理器、不落配置文件；维护者轮换时更新常量即可，
+                // 各安装实例下次启动会自动覆盖旧值。
+                seed_builtin_provider_key();
+
+                // F-01 本地模型兜底：若本机运行着 Ollama / vLLM，自动注册
+                // 本地 Provider 并在无可用默认时接管默认项（内置 Agnes 可用
+                // 时默认项保持不变）。
                 {
                     let state_for_detect = app.state::<AppState>();
                     let settings_lock = state_for_detect.settings.clone();
