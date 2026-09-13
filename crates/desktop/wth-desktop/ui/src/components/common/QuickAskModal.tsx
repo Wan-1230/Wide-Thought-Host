@@ -77,14 +77,14 @@ export function QuickAskModal({ open, onClose, onSent }: Props) {
         />
         <div className="mt-3 flex items-center justify-end gap-2">
           <button
-            className="px-3 py-1.5 rounded-lg text-xs"
+            className="px-3 py-1.5 rounded-lg text-xs whitespace-nowrap"
             style={{ color: "var(--text-muted)" }}
             onClick={onClose}
           >
             取消
           </button>
           <button
-            className="px-4 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+            className="px-4 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 whitespace-nowrap"
             style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}
             disabled={!text.trim()}
             onClick={() => void send()}

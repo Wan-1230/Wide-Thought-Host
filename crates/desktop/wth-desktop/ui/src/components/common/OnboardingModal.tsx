@@ -115,7 +115,7 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
                   disabled={picking}
                   onClick={pickWorkspace}
                 >
-                  <FolderOpen size={16} style={{ color: "var(--accent-blue)" }} />
+                  <FolderOpen size={16} style={{ color: "var(--text-muted)" }} />
                   <span className="flex-1 text-[13px]" style={{ color: "var(--text-primary)" }}>
                     {picking ? "正在选择…" : workspaceName ? `已选择：${workspaceName}` : "选择工作区文件夹"}
                   </span>
@@ -147,7 +147,7 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
                 style={{ background: "var(--surface-1)", border: "1px solid var(--surface-3)" }}
               >
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "var(--surface-2)" }}>
-                  <Rocket size={15} style={{ color: "var(--accent-green)" }} />
+                  <Rocket size={15} style={{ color: "var(--text-muted)" }} />
                 </div>
                 <div className="flex-1">
                   <div className="text-[13px] font-medium" style={{ color: "var(--text-primary)" }}>
@@ -159,7 +159,7 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
                 </div>
                 <button
                   className="text-[11px] hover:underline"
-                  style={{ color: "var(--accent-blue)" }}
+                  style={{ color: "var(--text-muted)" }}
                   onClick={() => {
                     onClose();
                     onOpenSettings();
@@ -199,18 +199,18 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
         </div>
 
         {/* 底部按钮 */}
-        <div className="flex items-center justify-between mt-6">
+        <div className="flex items-center justify-between gap-3 mt-6">
           <button
-            className="text-[11px] hover:underline"
+            className="text-[11px] hover:underline whitespace-nowrap flex-shrink-0"
             style={{ color: "var(--text-muted)" }}
             onClick={onClose}
           >
             跳过引导
           </button>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {step > 1 && (
               <button
-                className="px-4 py-2 rounded-lg text-xs transition-colors hover:bg-surface-2"
+                className="px-4 py-2 rounded-lg text-xs transition-colors hover:bg-surface-2 whitespace-nowrap"
                 style={{ color: "var(--text-muted)" }}
                 onClick={() => setStep((s) => (s - 1) as 1 | 2 | 3)}
               >
@@ -218,7 +218,7 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
               </button>
             )}
             <button
-              className="px-4 py-2 rounded-lg text-xs font-medium transition-colors"
+              className="px-4 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap"
               style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}
               onClick={() => {
                 if (step === 3) {

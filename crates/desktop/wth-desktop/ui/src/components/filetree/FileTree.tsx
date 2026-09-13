@@ -33,24 +33,24 @@ function fileIcon(name: string) {
   const ext = name.split(".").pop()?.toLowerCase();
   switch (ext) {
     case "rs":
-      return <FileCode size={13} className="text-accent-orange" />;
     case "ts":
     case "tsx":
     case "js":
     case "jsx":
-      return <FileCode size={13} className="text-accent-blue" />;
+    case "py":
+    case "go":
+      return <FileCode size={13} className="text-gray-400" />;
     case "json":
-      return <FileJson size={13} className="text-accent-yellow" />;
-    case "sh":
-    case "bash":
-      return <FileTerminal size={13} className="text-accent-green" />;
-    case "md":
-    case "markdown":
-      return <FileText size={13} className="text-gray-400" />;
     case "toml":
     case "yaml":
     case "yml":
-      return <FileType size={13} className="text-accent-purple" />;
+      return <FileJson size={13} className="text-gray-400" />;
+    case "sh":
+    case "bash":
+      return <FileTerminal size={13} className="text-gray-400" />;
+    case "md":
+    case "markdown":
+      return <FileText size={13} className="text-gray-400" />;
     default:
       return <FileText size={13} className="text-gray-500" />;
   }

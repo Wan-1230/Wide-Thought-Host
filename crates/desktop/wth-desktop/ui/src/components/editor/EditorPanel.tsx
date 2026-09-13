@@ -115,7 +115,7 @@ export function EditorPanel({ theme }: { theme: "dark" | "light" }) {
         {openFiles.map((file) => (
           <div
             key={file.path}
-            className={`group flex items-center gap-1.5 px-2.5 py-1.5 rounded-t-lg text-[11px] cursor-pointer select-none ${
+            className={`group flex items-center gap-1.5 px-2.5 py-1.5 rounded-t-lg text-[11px] cursor-pointer select-none whitespace-nowrap flex-shrink-0 ${
               file.path === activeFile ? "" : "opacity-70 hover:opacity-100"
             }`}
             style={{
@@ -185,8 +185,8 @@ export function EditorPanel({ theme }: { theme: "dark" | "light" }) {
         <div className="flex items-center gap-2 px-3 py-1.5 flex-shrink-0 border-t" style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)" }}>
           <button
             onClick={handleSave}
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-medium text-white"
-            style={{ background: "var(--accent-blue)" }}
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-medium whitespace-nowrap flex-shrink-0"
+            style={{ background: "var(--accent-primary)", color: "var(--bg-body)" }}
           >
             <Save size={11} />
             保存

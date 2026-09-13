@@ -69,7 +69,7 @@ export function ToastHost() {
     ) : kind === "error" ? (
       <AlertCircle size={14} style={{ color: "var(--accent-red)" }} />
     ) : (
-      <Info size={14} style={{ color: "var(--accent-brand)" }} />
+      <Info size={14} style={{ color: "var(--text-muted)" }} />
     );
 
   return createPortal(
@@ -77,8 +77,16 @@ export function ToastHost() {
       {list.map((item) => (
         <div
           key={item.id}
-          className="glass-panel rounded-xl px-3.5 py-2.5 flex items-start gap-2.5"
+          className="glass-panel rounded-lg px-3.5 py-2.5 flex items-start gap-2.5 anim-slide-down"
           role="status"
+          style={{
+            borderColor:
+              item.kind === "error"
+                ? "color-mix(in srgb, var(--accent-red) 40%, var(--glass-border))"
+                : item.kind === "success"
+                  ? "color-mix(in srgb, var(--accent-green) 35%, var(--glass-border))"
+                  : undefined,
+          }}
         >
           <span className="flex-shrink-0 mt-0.5">{icon(item.kind)}</span>
           <span className="flex-1 text-[12px] leading-relaxed break-words" style={{ color: "var(--text-primary)" }}>

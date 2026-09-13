@@ -207,7 +207,7 @@ export function ContextMenu({
       aria-label={ariaLabel}
       tabIndex={0}
       onKeyDown={handleKeyDown}
-      className="fixed z-50 min-w-48 overflow-hidden rounded-xl border shadow-2xl animate-fade-in"
+      className="fixed z-50 min-w-48 overflow-hidden rounded-lg border shadow-md animate-fade-in"
       style={{
         left: position.left,
         top: position.top,
@@ -342,7 +342,7 @@ function ContextSubMenu({
     <div
       ref={ref}
       role="menu"
-      className="fixed z-[51] min-w-40 rounded-xl border shadow-2xl overflow-hidden"
+      className="fixed z-[51] min-w-40 rounded-lg border shadow-md overflow-hidden"
       style={{
         left: pos.left,
         top: pos.top,

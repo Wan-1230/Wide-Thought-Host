@@ -30,7 +30,7 @@ export function SegmentedControl({ options, value, onChange, size = "md" }: Segm
             role="radio"
             aria-checked={active}
             onClick={() => onChange(option.value)}
-            className={`rounded-md font-medium transition-all duration-150 ${padClass}`}
+            className={`rounded-md font-medium transition-all duration-150 whitespace-nowrap flex-shrink-0 ${padClass}`}
             style={{
               background: active ? "var(--surface-0)" : "transparent",
               color: active ? "var(--text-primary)" : "var(--text-muted)",

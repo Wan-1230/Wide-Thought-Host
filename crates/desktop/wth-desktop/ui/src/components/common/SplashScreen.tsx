@@ -45,7 +45,7 @@ export function SplashScreen({ onDone }: SplashScreenProps) {
           className="h-full rounded-full transition-all duration-150"
           style={{
             width: `${Math.min(progress, 100)}%`,
-            background: "var(--accent-blue)",
+            background: "var(--text-primary)",
           }}
         />
       </div>

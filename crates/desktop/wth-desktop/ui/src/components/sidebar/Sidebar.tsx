@@ -111,7 +111,7 @@ function ModelSwitcher({ providers, onRefresh }: { providers: ProviderSummary[];
         className="w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[color:var(--surface-2)]"
         title="切换默认模型"
       >
-        <Server size={14} style={{ color: "var(--accent-purple)" }} className="flex-shrink-0" />
+        <Server size={14} style={{ color: "var(--text-muted)" }} className="flex-shrink-0" />
         <span className="flex-1 min-w-0 text-[11.5px] truncate" style={{ color: "var(--text-primary)" }}>
           {current ? current.model || current.name : "未配置模型"}
         </span>
@@ -140,9 +140,9 @@ function ModelSwitcher({ providers, onRefresh }: { providers: ProviderSummary[];
                   <span className="block text-[10px] truncate font-mono" style={{ color: "var(--text-dim)" }}>{p.model}</span>
                 </span>
                 {busyId === p.id ? (
-                  <Loader2 size={12} className="animate-spin flex-shrink-0" style={{ color: "var(--accent-blue)" }} />
+                  <Loader2 size={12} className="animate-spin flex-shrink-0" style={{ color: "var(--text-muted)" }} />
                 ) : (p.is_default || p.id === current?.id) ? (
-                  <Check size={12} className="flex-shrink-0" style={{ color: "var(--accent-green)" }} />
+                  <Check size={12} className="flex-shrink-0" style={{ color: "var(--text-primary)" }} />
                 ) : null}
               </button>
             ))}
@@ -306,18 +306,15 @@ export function Sidebar({
       </div>
 
       {/* 顶部：新建会话按钮（醒目常驻） */}
-      <div className="px-2.5 pt-2.5 pb-1.5 flex-shrink-0">
+      <div className="px-2.5 pt-2 pb-2 flex-shrink-0">
         <button
           onClick={onNewSession}
-          className="w-full flex items-center justify-center gap-1.5 rounded-xl py-2 text-[12.5px] font-medium press
-            transition-all duration-150"
+          className="w-full flex items-center justify-center gap-1.5 rounded-lg py-2 text-[12.5px] font-medium press
+            transition-opacity duration-150 hover:opacity-90"
           style={{
-            background: "var(--accent-gradient)",
-            color: "#ffffff",
-            boxShadow: "0 2px 10px color-mix(in srgb, var(--accent-brand) 38%, transparent)",
+            background: "var(--accent-primary)",
+            color: "var(--bg-body)",
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.filter = "brightness(1.08)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.filter = ""; }}
         >
           <Plus size={14} />
           新建会话
@@ -328,15 +325,16 @@ export function Sidebar({
       <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">
         {sessions.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center px-4 text-center" style={{ color: "var(--text-dim)" }}>
-            <MessageSquare size={24} className="mb-2 opacity-25" />
-            <p className="text-[11px]">还没有会话</p>
+            <MessageSquare size={22} className="mb-2 opacity-25" />
+            <p className="text-[11.5px]">还没有会话</p>
+            <p className="text-[10.5px] mt-1 opacity-70">点击上方「新建会话」开始</p>
           </div>
         ) : groups.length === 0 ? (
-          <div className="text-center py-6 text-[11px]" style={{ color: "var(--text-dim)" }}>没有匹配的会话</div>
+          <div className="text-center py-6 text-[11.5px]" style={{ color: "var(--text-dim)" }}>没有匹配的会话</div>
         ) : (
           groups.map((group) => (
-            <div key={group.label} className="mb-2.5">
-              <div className="px-2 py-1 text-[10px] font-medium tracking-wider" style={{ color: "var(--text-dim)" }}>
+            <div key={group.label} className="mb-3">
+              <div className="panel-section-head !py-1 !px-2">
                 {group.label}
               </div>
               <div className="space-y-0.5">
@@ -357,7 +355,7 @@ export function Sidebar({
                         setMenuSession(session);
                         setMenuPoint(contextMenuPointFromEvent(e));
                       }}
-                      className="session-row group relative px-2.5 py-1.5 cursor-pointer"
+                      className="session-row group relative px-2.5 py-2 cursor-pointer"
                       data-active={isActive}
                     >
                       {renamingId === session.id ? (
@@ -385,7 +383,7 @@ export function Sidebar({
                         <>
                       <div className="flex items-center gap-1.5">
                         {task ? (
-                          <Bot size={13} className="flex-shrink-0" style={{ color: "var(--accent-purple)" }} />
+                          <Bot size={13} className="flex-shrink-0" style={{ color: "var(--text-dim)" }} />
                         ) : (
                           <MessageSquare size={13} className="flex-shrink-0" style={{ color: "var(--text-dim)" }} />
                         )}
@@ -398,7 +396,7 @@ export function Sidebar({
                         >
                           {session.title || "未命名会话"}
                         </span>
-                        {session.pinned && <Pin size={10} style={{ color: "var(--accent-orange)" }} className="flex-shrink-0" />}
+                        {session.pinned && <Pin size={10} style={{ color: "var(--text-muted)" }} className="flex-shrink-0" />}
                       </div>
 
                       {/* 任务条目：状态标记；普通会话：相对时间 */}

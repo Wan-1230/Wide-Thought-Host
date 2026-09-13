@@ -110,7 +110,7 @@ export function CommandPalette({
       onClick={onClose}
     >
       <div
-        className="glass-panel w-full max-w-lg rounded-2xl overflow-hidden"
+        className="glass-panel w-full max-w-lg rounded-xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: "var(--glass-border)" }}>
@@ -143,10 +143,10 @@ export function CommandPalette({
                 onClick={item.action}
                 onMouseEnter={() => setActiveIndex(index)}
               >
-                <span style={{ color: "var(--text-muted)" }}>{item.icon}</span>
-                <span className="flex-1 text-xs font-medium truncate">{item.label}</span>
+                <span className="flex-shrink-0" style={{ color: "var(--text-muted)" }}>{item.icon}</span>
+                <span className="flex-1 min-w-0 text-xs font-medium truncate">{item.label}</span>
                 {item.hint && (
-                  <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>{item.hint}</span>
+                  <span className="text-[10px] whitespace-nowrap flex-shrink-0" style={{ color: "var(--text-dim)" }}>{item.hint}</span>
                 )}
               </button>
             ))

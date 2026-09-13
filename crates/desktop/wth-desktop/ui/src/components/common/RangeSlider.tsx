@@ -138,7 +138,7 @@ export function RangeSlider<T extends string = string>({
             width: `${percent}%`,
             background: disabled
               ? "var(--surface-4)"
-              : "linear-gradient(90deg, var(--accent-blue), var(--accent-purple))",
+              : "var(--text-primary)",
           }}
         />
         {/* Thumb */}

@@ -419,7 +419,7 @@ impl Default for DesktopSettings {
                 name: "Agnes AI (内置)".into(),
                 kind: "openai-compatible".into(),
                 base_url: "https://api.agnes-ai.cn/v1".into(),
-                model: "agnes-2.5-flash".into(),
+                model: "agnes-3.0-flash".into(),
                 enabled: true,
                 builtin: true,
                 local: false,

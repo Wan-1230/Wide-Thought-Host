@@ -64,8 +64,8 @@ export function TitleBar({ sessionTitle, streaming = false }: TitleBarProps) {
         >
           {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
         </button>
-        <img src={wthIcon} alt="WTH" className="w-5 h-5 rounded-md theme-logo" draggable={false} />
-        <span className="text-[12.5px] font-semibold tracking-wide" style={{ color: "var(--text-primary)" }}>
+        <img src={wthIcon} alt="WTH" className="w-5 h-5 rounded-md theme-logo flex-shrink-0" draggable={false} />
+        <span className="text-[12.5px] font-semibold tracking-wide whitespace-nowrap" style={{ color: "var(--text-primary)" }}>
           Wide Thought Host
         </span>
       </div>
@@ -77,8 +77,8 @@ export function TitleBar({ sessionTitle, streaming = false }: TitleBarProps) {
       >
         {sessionTitle ? (
           <div
-            className="flex items-center gap-2 min-w-0 max-w-[46%] px-3 py-1 rounded-full"
-            style={{ background: "var(--surface-2)" }}
+            className="flex items-center gap-2 min-w-0 max-w-[52%] px-3 py-1 rounded-lg"
+            style={{ background: "var(--surface-2)", border: "1px solid transparent" }}
           >
             {streaming && (
               <span
@@ -88,7 +88,7 @@ export function TitleBar({ sessionTitle, streaming = false }: TitleBarProps) {
               />
             )}
             <span
-              className="text-[11.5px] truncate"
+              className="text-[12px] truncate"
               style={{ color: "var(--text-muted)" }}
               title={sessionTitle}
             >
@@ -96,7 +96,7 @@ export function TitleBar({ sessionTitle, streaming = false }: TitleBarProps) {
             </span>
           </div>
         ) : (
-          <span className="text-[11.5px]" style={{ color: "var(--text-dim)" }}>
+          <span className="text-[12px]" style={{ color: "var(--text-dim)" }}>
             开始新的任务
           </span>
         )}

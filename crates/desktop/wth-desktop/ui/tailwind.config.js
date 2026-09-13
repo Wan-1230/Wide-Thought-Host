@@ -23,8 +23,16 @@ export default {
           brand: "var(--accent-brand)",
         },
       },
+      // 对齐 MiMo/Codex：按钮 8 / 卡片 10 / 输入区 14
+      borderRadius: {
+        sm: "4px",
+        DEFAULT: "6px",
+        md: "6px",
+        lg: "8px",
+        xl: "10px",
+        "2xl": "14px",
+      },
       fontFamily: {
-        // 中文排版适配：英文字体后接中文回退字体
         sans: [
           "Inter",
           "-apple-system",
@@ -36,7 +44,7 @@ export default {
           "Noto Sans SC",
           "sans-serif",
         ],
-        mono: ["JetBrains Mono", "Fira Code", "Cascadia Code", "monospace"],
+        mono: ["JetBrains Mono", "Fira Code", "Cascadia Code", "Consolas", "monospace"],
       },
       boxShadow: {
         xs: "var(--shadow-xs)",
@@ -45,7 +53,6 @@ export default {
         lg: "var(--shadow-lg)",
       },
       transitionTimingFunction: {
-        // 与 index.css 中的动画令牌保持一致
         "ease-out-expo": "cubic-bezier(0.16, 1, 0.3, 1)",
       },
     },

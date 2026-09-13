@@ -207,7 +207,7 @@ function ToolCallCard({ call }: { call: ToolCall }) {
 
   return (
     <div
-      className="my-1.5 rounded-xl overflow-hidden text-xs anim-scale-in"
+      className="my-1.5 rounded-lg overflow-hidden text-xs anim-scale-in"
       style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)", border: "1px solid var(--surface-3)" }}
     >
       <button
@@ -255,8 +255,8 @@ function ToolCallCard({ call }: { call: ToolCall }) {
             <button
               onClick={handleApprove}
               disabled={busy}
-              className="px-3 py-1.5 rounded-lg text-[11px] font-medium text-white disabled:opacity-50 press"
-              style={{ background: "var(--accent-green)", boxShadow: "0 1px 6px color-mix(in srgb, var(--accent-green) 35%, transparent)" }}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-medium press disabled:opacity-50 whitespace-nowrap flex-shrink-0"
+              style={{ background: "var(--accent-primary)", color: "var(--bg-body)" }}
             >
               确认执行
             </button>
@@ -293,8 +293,8 @@ function ToolCallCard({ call }: { call: ToolCall }) {
                       after: String(resultObj.after_full),
                     })
                   }
-                  className="mt-2 px-3 py-1.5 rounded-lg text-[11px] font-medium text-white press"
-                  style={{ background: "var(--accent-blue)" }}
+                  className="mt-2 px-3 py-1.5 rounded-lg text-[11px] font-medium press whitespace-nowrap flex-shrink-0"
+                  style={{ background: "var(--surface-3)", color: "var(--text-primary)" }}
                 >
                   查看 Diff / 撤销
                 </button>
@@ -312,7 +312,7 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div
-      className="rounded-xl overflow-hidden my-2"
+      className="rounded-lg overflow-hidden my-2"
       style={{ border: "1px solid var(--surface-3)", background: "var(--surface-0)" }}
     >
       <div
@@ -376,14 +376,14 @@ function StepProgressCard({ calls }: { calls: ToolCall[] }) {
   };
 
   return (
-    <div className="my-1.5 rounded-xl overflow-hidden" style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)", border: "1px solid var(--surface-3)" }}>
+    <div className="my-1.5 rounded-lg overflow-hidden" style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)", border: "1px solid var(--surface-3)" }}>
       <button
         onClick={() => setExpanded((v) => !v)}
         className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[color:var(--surface-2)] transition-colors"
       >
         {expanded ? <ChevronUp size={12} style={{ color: "var(--text-muted)" }} /> : <ChevronDown size={12} style={{ color: "var(--text-muted)" }} />}
         {running ? (
-          <Loader2 size={12} className="animate-spin" style={{ color: "var(--accent-brand)" }} />
+          <Loader2 size={12} className="animate-spin" style={{ color: "var(--text-muted)" }} />
         ) : failed ? (
           <AlertCircle size={12} style={{ color: "var(--accent-red)" }} />
         ) : (
@@ -394,7 +394,7 @@ function StepProgressCard({ calls }: { calls: ToolCall[] }) {
         </span>
         {pendingCalls.length > 0 && (
           <span
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-medium animate-pulse"
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-medium animate-pulse whitespace-nowrap flex-shrink-0"
             style={{ background: "color-mix(in srgb, var(--accent-yellow) 16%, transparent)", color: "var(--accent-yellow)" }}
           >
             待确认
@@ -402,7 +402,7 @@ function StepProgressCard({ calls }: { calls: ToolCall[] }) {
         )}
         {running && (
           <span
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-medium transition-colors hover:opacity-80"
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-medium transition-colors hover:opacity-80 whitespace-nowrap flex-shrink-0"
             style={{ background: "var(--surface-2)", color: "var(--accent-red)" }}
             onClick={(e) => {
               e.stopPropagation();
@@ -474,15 +474,16 @@ function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live, 
   if (msg.role === "user") {
     return (
       <div className="flex justify-end mb-5 anim-fade-up" onContextMenu={onContextMenu}>
-        <div className="max-w-[80%]">
+        <div className="max-w-[78%]">
           <div
-            className="rounded-2xl rounded-tr-md px-4 py-2.5"
+            className="rounded-2xl px-4 py-2.5"
             style={{
-              background: "color-mix(in srgb, var(--accent-brand) 13%, var(--surface-2))",
+              background: "var(--surface-2)",
+              border: "1px solid var(--surface-3)",
               color: "var(--text-primary)",
             }}
           >
-            <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+            <p className="text-[13.5px] whitespace-pre-wrap break-words leading-relaxed">
               {msg.content}
             </p>
           </div>
@@ -495,7 +496,7 @@ function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live, 
     return (
       <div className="flex items-center justify-center my-3 animate-fade-in">
         <div
-          className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-full"
+          className="flex items-center gap-1.5 text-[11px] px-3 py-1 rounded-md"
           style={{ background: "var(--surface-2)", color: "var(--text-dim)" }}
         >
           <AlertCircle size={11} />
@@ -510,15 +511,15 @@ function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live, 
     return (
       <div className="flex items-start gap-3 mb-4 anim-fade-up">
         <div
-          className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5 text-white"
-          style={{ background: "var(--accent-gradient)", boxShadow: "0 2px 8px color-mix(in srgb, var(--accent-brand) 35%, transparent)" }}
+          className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center mt-0.5"
+          style={{ background: "var(--surface-2)", border: "1px solid var(--surface-3)", color: "var(--text-muted)" }}
         >
           <Bot size={14} />
         </div>
         <div className="flex items-center gap-2.5 h-7">
           <span
             className="inline-flex h-3.5 w-3.5 rounded-full border-2 animate-spin"
-            style={{ borderColor: "var(--accent-brand)", borderTopColor: "transparent" }}
+            style={{ borderColor: "var(--text-muted)", borderTopColor: "transparent" }}
           />
           <span className="text-[13px] shimmer-text font-medium">{THINKING_MESSAGE}</span>
         </div>
@@ -534,10 +535,10 @@ function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live, 
   const quickOptions = !live && onQuickReply ? extractQuickOptions(msg.content || "") : [];
 
   return (
-    <div className="group flex items-start gap-3 mb-5 anim-fade-up" onContextMenu={onContextMenu}>
+    <div className="group flex items-start gap-3 mb-6 anim-fade-up" onContextMenu={onContextMenu}>
       <div
-        className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5 text-white"
-        style={{ background: "var(--accent-gradient)", boxShadow: "0 2px 8px color-mix(in srgb, var(--accent-brand) 35%, transparent)" }}
+        className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center mt-0.5"
+        style={{ background: "var(--surface-2)", border: "1px solid var(--surface-3)", color: "var(--text-muted)" }}
       >
         <Bot size={14} />
       </div>
@@ -555,7 +556,7 @@ function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live, 
                   return (
                     <code
                       className="px-1.5 py-0.5 rounded-md font-mono text-[12px]"
-                      style={{ background: "var(--surface-2)", border: "1px solid var(--surface-3)", color: "var(--accent-brand)" }}
+                      style={{ background: "var(--surface-2)", border: "1px solid var(--surface-3)", color: "var(--text-primary)" }}
                       {...props}
                     >
                       {children}
@@ -584,8 +585,8 @@ function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live, 
           {isLong && (
             <button
               onClick={() => setCollapsedView(!isCollapsed)}
-              className="mt-1.5 inline-flex items-center gap-1 text-[11px] transition-colors hover:opacity-75"
-              style={{ color: "var(--accent-brand)" }}
+              className="mt-1.5 inline-flex items-center gap-1 text-[11px] transition-colors hover:opacity-75 whitespace-nowrap"
+              style={{ color: "var(--text-muted)" }}
             >
               {isCollapsed ? <ChevronDown size={11} /> : <ChevronUp size={11} />}
               {isCollapsed ? "展开全文" : "收起"}
@@ -601,15 +602,13 @@ function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live, 
                 disabled={quickReplyDisabled}
                 onClick={() => onQuickReply?.(opt)}
                 title={opt}
-                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
-                style={{ background: "var(--surface-2)", border: "1px solid var(--surface-4)", color: "var(--text-primary)" }}
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap"
+                style={{ background: "var(--surface-2)", border: "1px solid var(--surface-3)", color: "var(--text-primary)" }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "var(--accent-brand-border)";
-                  e.currentTarget.style.color = "var(--accent-brand)";
+                  e.currentTarget.style.borderColor = "var(--surface-4)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "var(--surface-4)";
-                  e.currentTarget.style.color = "var(--text-primary)";
+                  e.currentTarget.style.borderColor = "var(--surface-3)";
                 }}
               >
                 {opt}
@@ -618,7 +617,7 @@ function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live, 
           </div>
         )}
         {/* 悬浮操作按钮 */}
-        <div className="mt-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="mt-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <MessageActionBtn
             icon={<Copy size={11} />}
             label="复制"
@@ -626,7 +625,7 @@ function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live, 
           />
           {canRegenerate && onRegenerate && (
             <button
-              className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[10px] transition-colors hover:bg-[color:var(--surface-2)]"
+              className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[10px] transition-colors hover:bg-[color:var(--surface-2)] whitespace-nowrap"
               style={{ color: "var(--text-dim)" }}
               title="重新生成这条回复"
               onClick={onRegenerate}
@@ -645,7 +644,7 @@ function MessageActionBtn({ icon, label, onClick }: { icon: React.ReactNode; lab
   const [done, setDone] = useState(false);
   return (
     <button
-      className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[10px] transition-colors hover:bg-[color:var(--surface-2)]"
+      className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[10px] transition-colors hover:bg-[color:var(--surface-2)] whitespace-nowrap"
       style={{ color: "var(--text-dim)" }}
       title={label}
       onClick={() => { onClick(); setDone(true); setTimeout(() => setDone(false), 1500); }}
@@ -1194,15 +1193,6 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
         className="relative h-full w-full flex flex-col items-center justify-center select-none overflow-hidden"
         style={{ color: "var(--text-primary)" }}
       >
-        {/* 环境光晕：品牌色的柔和辐射，给页面纵深 */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-[-10%] h-[55%]"
-          style={{
-            background: "radial-gradient(560px 300px at 50% 38%, var(--accent-brand-soft), transparent 72%)",
-          }}
-        />
-
         <img
           src={wthBanner}
           alt="Wide Thought Host"
@@ -1223,21 +1213,20 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
           你的 AI 编码代理 — 提问、委派任务、编排工作流
         </p>
 
-        {/* 居中 pill 提示 + 按钮 */}
+        {/* 居中输入提示 + 按钮 */}
         <div className="relative w-full max-w-md px-6 anim-fade-up" style={{ animationDelay: "180ms" }}>
           <button
             onClick={onNewSession}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl press
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl press
               transition-all duration-200"
             style={{
               background: "var(--surface-1)",
               border: "1px solid var(--surface-3)",
-              boxShadow: "var(--shadow-sm)",
             }}
           >
             <span
-              className="w-6 h-6 rounded-full flex items-center justify-center text-white"
-              style={{ background: "var(--accent-gradient)" }}
+              className="w-6 h-6 rounded-md flex items-center justify-center"
+              style={{ background: "var(--surface-3)", color: "var(--text-muted)" }}
             >
               <Brain size={12} />
             </span>
@@ -1262,16 +1251,15 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
             <button
               key={s}
               onClick={() => startWithExample(s)}
-              className="px-3 py-1.5 rounded-full text-[11.5px] transition-all duration-150
-                hover:scale-[1.02] active:scale-[0.98] press"
+              className="px-3 py-1.5 rounded-lg text-[11.5px] transition-colors duration-150 press"
               style={{
                 background: "var(--surface-1)",
                 border: "1px solid var(--surface-3)",
                 color: "var(--text-muted)",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "var(--accent-brand-border)";
-                e.currentTarget.style.color = "var(--accent-brand)";
+                e.currentTarget.style.borderColor = "var(--surface-4)";
+                e.currentTarget.style.color = "var(--text-primary)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.borderColor = "var(--surface-3)";
@@ -1298,10 +1286,10 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
     <div className="h-full flex flex-col bg-surface-0">
       {/* 会话头部：标题 + 会话操作（清空 / 导出 / 执行面板） */}
       <div
-        className="flex items-center gap-1 px-4 py-1.5 flex-shrink-0 border-b"
+        className="flex items-center gap-1 px-4 py-2 flex-shrink-0 border-b"
         style={{ borderColor: "var(--surface-3)" }}
       >
-        <span className="flex-1 min-w-0 text-[12px] font-medium truncate" style={{ color: "var(--text-primary)" }}>
+        <span className="flex-1 min-w-0 text-[12.5px] font-medium truncate" style={{ color: "var(--text-primary)" }}>
           {sessionTitle || "新会话"}
         </span>
         {activeSessionId && (
@@ -1332,12 +1320,12 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
       </div>
 
       {/* 消息流 — 限宽居中的阅读列（参照主流 AI 客户端的排版宽度） */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-5">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-5">
         <div className="w-full max-w-3xl mx-auto">
         {sessionMessages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center gap-2 select-none" style={{ color: "var(--text-dim)" }}>
-            <MessageSquareDashed size={22} className="opacity-40" />
-            <p className="text-xs">输入消息开始对话 · @ 提及文件 · / 调用指令</p>
+            <MessageSquareDashed size={20} className="opacity-40" />
+            <p className="text-[12px]">输入消息开始对话 · @ 提及文件 · / 调用指令</p>
           </div>
         ) : (
           sessionMessages.map((msg, idx) => {
@@ -1357,7 +1345,7 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
                 className="rounded-xl transition-colors duration-500"
                 style={
                   highlightIndex === idx
-                    ? { background: "var(--accent-brand-soft)" }
+                    ? { background: "var(--surface-2)" }
                     : undefined
                 }
               >
@@ -1404,7 +1392,7 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
                     {item.kind === "file" ? (
                       <FileText size={12} style={{ color: "var(--text-muted)" }} />
                     ) : item.kind === "subagent" ? (
-                      <Bot size={12} style={{ color: "var(--accent-purple)" }} />
+                      <Bot size={12} style={{ color: "var(--text-dim)" }} />
                     ) : item.kind === "search" ? (
                       <Search size={12} style={{ color: "var(--accent-green)" }} />
                     ) : (
@@ -1423,8 +1411,8 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
           )}
 
           {delegatingTo && (
-            <div className="mb-2 flex items-center gap-2 rounded-xl px-3 py-2 text-xs anim-fade-up" style={{ background: "var(--surface-2)", color: "var(--text-primary)", border: "1px solid var(--accent-brand-border)" }}>
-              <Bot size={13} style={{ color: "var(--accent-brand)" }} />
+            <div className="mb-2 flex items-center gap-2 rounded-lg px-3 py-2 text-xs anim-fade-up" style={{ background: "var(--surface-2)", color: "var(--text-primary)", border: "1px solid var(--surface-3)" }}>
+              <Bot size={13} style={{ color: "var(--text-muted)" }} />
               <span className="truncate">正在委派给「{delegatingTo.name}」— 输入任务后发送</span>
               <button
                 className="ml-auto flex items-center gap-1 text-[10px] rounded-md px-2 py-1 hover:bg-[color:var(--surface-3)]"
@@ -1444,7 +1432,7 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
           {showParallel && (
             <div className="mb-2 rounded-xl border p-3 space-y-2" style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)" }}>
               <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
-                <Users size={13} style={{ color: "var(--accent-purple)" }} />
+                <Users size={13} style={{ color: "var(--text-muted)" }} />
                 并行委派多智能体
               </div>
               <textarea
@@ -1461,10 +1449,11 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
                   return (
                     <button
                       key={s.id}
-                      className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] transition-colors"
+                      className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[10px] transition-colors whitespace-nowrap"
                       style={{
-                        background: active ? "var(--accent-purple)" : "var(--surface-2)",
-                        color: active ? "#fff" : "var(--text-primary)",
+                        background: active ? "var(--text-primary)" : "var(--surface-2)",
+                        color: active ? "var(--bg-body)" : "var(--text-primary)",
+                        border: `1px solid ${active ? "var(--text-primary)" : "var(--surface-3)"}`,
                       }}
                       onClick={() =>
                         setParallelSelection((prev) => {
@@ -1501,12 +1490,12 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
               {attachments.map((a, idx) => (
                 <span
                   key={a.name + idx}
-                  className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] anim-scale-in"
+                  className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[10px] anim-scale-in"
                   style={{ background: "var(--surface-2)", border: "1px solid var(--surface-3)", color: "var(--text-primary)" }}
                 >
                   <Paperclip size={10} style={{ color: "var(--text-muted)" }} />
                   <span className="max-w-[160px] truncate">{a.name}</span>
-                  {a.data_url ? <span className="text-[9px]" style={{ color: "var(--accent-blue)" }}>图片</span> : null}
+                  {a.data_url ? <span className="text-[9px]" style={{ color: "var(--text-dim)" }}>图片</span> : null}
                   <button
                     className="hover:opacity-70"
                     title="移除附件"
@@ -1520,14 +1509,14 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
           )}
 
           <div
-            className="composer flex items-center gap-2 pl-4 pr-2 py-2"
+            className="composer flex items-center gap-1.5 pl-3 pr-2 py-2"
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDropFiles}
           >
             <button
               onClick={() => setShowWorkflow(true)}
               title="多 Agent 工作流编排"
-              className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center
+              className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center
                 transition-colors hover:bg-[color:var(--surface-2)]"
               style={{ color: "var(--text-muted)" }}
             >
@@ -1536,16 +1525,19 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
             <button
               onClick={() => setShowParallel((v) => !v)}
               title="并行委派多智能体"
-              className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center
+              className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center
                 transition-colors hover:bg-[color:var(--surface-2)]"
-              style={{ color: showParallel ? "var(--accent-purple)" : "var(--text-muted)" }}
+              style={{
+                color: showParallel ? "var(--text-primary)" : "var(--text-muted)",
+                background: showParallel ? "var(--surface-2)" : "transparent",
+              }}
             >
               <Users size={14} />
             </button>
             <button
               onClick={handlePickAttachments}
               title="添加附件（图片 / 文本）"
-              className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center
+              className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center
                 transition-colors hover:bg-[color:var(--surface-2)]"
               style={{ color: "var(--text-muted)" }}
             >
@@ -1555,9 +1547,12 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
               <button
                 onClick={() => setShowTemplateMenu((v) => !v)}
                 title="插入提示词模板"
-                className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center
+                className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center
                   transition-colors hover:bg-[color:var(--surface-2)]"
-                style={{ color: showTemplateMenu ? "var(--accent-blue)" : "var(--text-muted)" }}
+                style={{
+                  color: showTemplateMenu ? "var(--text-primary)" : "var(--text-muted)",
+                  background: showTemplateMenu ? "var(--surface-2)" : "transparent",
+                }}
               >
                 <BookOpen size={14} />
               </button>
@@ -1567,13 +1562,13 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
                   <div
                     className="glass-panel absolute bottom-full left-0 mb-2 w-72 rounded-xl overflow-hidden z-20"
                   >
-                    <div className="px-3 py-1.5 text-[10px] font-medium flex items-center justify-between" style={{ color: "var(--text-dim)" }}>
+                    <div className="px-3 py-1.5 text-[10.5px] font-medium flex items-center justify-between" style={{ color: "var(--text-dim)" }}>
                       <span>提示词模板</span>
                       <span className="font-normal">支持 {'{{workspace}}'} / {'{{file}}'} / {'{{language}}'} 变量</span>
                     </div>
                     <div className="max-h-56 overflow-y-auto pb-1">
                       {templates.length === 0 ? (
-                        <div className="px-3 py-2 text-[11px]" style={{ color: "var(--text-dim)" }}>
+                        <div className="px-3 py-2 text-[11.5px]" style={{ color: "var(--text-dim)" }}>
                           暂无模板，可在 设置 → 通用 中管理
                         </div>
                       ) : (
@@ -1591,10 +1586,10 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
                               textareaRef.current?.focus();
                             }}
                           >
-                            <BookOpen size={12} style={{ color: "var(--accent-blue)", marginTop: 2 }} />
+                            <BookOpen size={12} style={{ color: "var(--text-dim)", marginTop: 2 }} />
                             <span>
                               <span className="block text-xs" style={{ color: "var(--text-primary)" }}>{tpl.name}</span>
-                              <span className="block text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>{tpl.description}</span>
+                              <span className="block text-[10.5px] mt-0.5" style={{ color: "var(--text-muted)" }}>{tpl.description}</span>
                             </span>
                           </button>
                         ))
@@ -1612,7 +1607,7 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
               disabled={isStreaming}
               placeholder={isStreaming ? "正在生成…" : delegatingTo ? `委派给 ${delegatingTo.name}：输入任务…` : "输入消息… @ 提及文件 / 指令"}
               rows={1}
-              className="flex-1 resize-none bg-transparent border-none px-0 py-2 text-sm leading-relaxed
+              className="flex-1 resize-none bg-transparent border-none px-1.5 py-1.5 text-[13.5px] leading-relaxed
                 placeholder:text-[13px] focus:outline-none
                 disabled:opacity-50 font-sans"
               style={{ color: "var(--text-primary)" }}
@@ -1621,28 +1616,28 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
               <button
                 onClick={handleAbort}
                 title="中止"
-                className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center self-center
-                  transition-all duration-150 hover:scale-105 active:scale-95"
+                className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center self-center
+                  transition-opacity duration-150 hover:opacity-90"
                 style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}
               >
-                <Square size={11} />
+                <Square size={11} fill="currentColor" />
               </button>
             ) : (
               <button
                 onClick={handleSend}
                 disabled={!input.trim()}
                 title="发送"
-                className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center self-center
-                  transition-all duration-150 hover:scale-105 active:scale-95
-                  disabled:opacity-25 disabled:scale-100 disabled:cursor-not-allowed disabled:shadow-none"
-                style={{ background: "var(--accent-gradient)", color: "#ffffff", boxShadow: "0 2px 10px color-mix(in srgb, var(--accent-brand) 40%, transparent)" }}
+                className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center self-center
+                  transition-opacity duration-150
+                  disabled:opacity-25 disabled:cursor-not-allowed"
+                style={{ background: "var(--accent-primary)", color: "var(--bg-body)" }}
               >
-                <Send size={13} />
+                <Send size={14} />
               </button>
             )}
           </div>
           <div
-            className="text-center text-[10px] mt-1.5"
+            className="text-center text-[10.5px] mt-2"
             style={{ color: "var(--text-dim)" }}
           >
             Enter 发送 · Shift+Enter 换行 · @ 提及文件/子智能体 · / 指令

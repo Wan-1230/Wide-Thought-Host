@@ -76,7 +76,7 @@ export function ConfirmHost() {
   return createPortal(
     <div className="modal-mask z-[200] p-6" onClick={() => settle(current, false)}>
       <div
-        className="modal-card w-full max-w-sm rounded-2xl p-5 anim-pop"
+        className="modal-card w-full max-w-sm rounded-xl p-5 anim-pop"
         role="alertdialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
@@ -84,10 +84,10 @@ export function ConfirmHost() {
         <div className="flex items-start gap-3">
           {current.danger && (
             <span
-              className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center"
-              style={{ background: "color-mix(in srgb, var(--accent-red) 14%, transparent)", color: "var(--accent-red)" }}
+              className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: "var(--surface-2)", color: "var(--accent-red)" }}
             >
-              <AlertTriangle size={17} />
+              <AlertTriangle size={16} />
             </span>
           )}
           <div className="min-w-0">
@@ -109,13 +109,11 @@ export function ConfirmHost() {
             {current.cancelText || "取消"}
           </button>
           <button
-            className="px-4 py-1.5 rounded-lg text-xs font-medium text-white press"
+            className="px-4 py-1.5 rounded-lg text-xs font-medium press"
             autoFocus={!current.danger}
             style={{
-              background: current.danger ? "var(--accent-red)" : "var(--accent-gradient)",
-              boxShadow: current.danger
-                ? "0 2px 10px color-mix(in srgb, var(--accent-red) 35%, transparent)"
-                : "0 2px 10px color-mix(in srgb, var(--accent-brand) 35%, transparent)",
+              background: current.danger ? "var(--accent-red)" : "var(--accent-primary)",
+              color: current.danger ? "#ffffff" : "var(--bg-body)",
             }}
             onClick={() => settle(current, true)}
           >

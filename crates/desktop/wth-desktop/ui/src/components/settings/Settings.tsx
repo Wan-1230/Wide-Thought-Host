@@ -318,7 +318,7 @@ export function SettingsModal({ open, onClose, initialPage, onSettingsSaved }: S
 
       {notice && (
         <div
-          className="fixed bottom-5 right-5 px-4 py-2 rounded-xl shadow-lg text-xs cursor-pointer z-[200]"
+          className="fixed bottom-5 right-5 px-4 py-2 rounded-lg shadow-md text-xs cursor-pointer z-[200]"
           style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}
           onClick={() => setNotice("")}
         >
@@ -685,8 +685,7 @@ function PageGeneral({
                     onNotice(`保存失败：${String(error)}`);
                   }
                 }}
-                className="px-3 py-1.5 rounded-md text-[11px] font-medium text-white"
-                style={{ background: "var(--accent-blue)" }}
+                className="primary-btn !px-3 !py-1.5 !text-[11px] !rounded-md"
               >
                 保存
               </button>
@@ -1263,9 +1262,9 @@ function PageAppearance({ settings, onSave }: { settings: DesktopSettings; onSav
 function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
     <label className="block">
-      <span className="flex items-center justify-between text-xs font-medium mb-1" style={{ color: "var(--text-primary)" }}>
-        <span>{label}</span>
-        {hint && <span className="text-[10px] font-normal" style={{ color: "var(--text-dim)" }}>{hint}</span>}
+      <span className="flex items-center justify-between gap-3 text-xs font-medium mb-1" style={{ color: "var(--text-primary)" }}>
+        <span className="whitespace-nowrap flex-shrink-0">{label}</span>
+        {hint && <span className="text-[10px] font-normal truncate" style={{ color: "var(--text-dim)" }}>{hint}</span>}
       </span>
       {children}
     </label>
@@ -1359,16 +1358,16 @@ function PageModels({
   };
 
   return (
-    <div className="grid grid-cols-[240px_minmax(0,1fr)] gap-4">
+    <div className="grid grid-cols-[280px_minmax(0,1fr)] gap-4">
       <div className="rounded-xl border p-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
-        <div className="flex items-center justify-between px-1 pb-2">
-          <div className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>我的模型</div>
-          <div className="flex items-center gap-1">
-            <button className="small-btn" onClick={detectLocal} disabled={detecting}>
-              <Sparkles size={12} /> {detecting ? "检测中…" : "检测本地模型"}
+        <div className="flex items-center justify-between gap-2 px-1 pb-2">
+          <div className="text-xs font-medium whitespace-nowrap flex-shrink-0" style={{ color: "var(--text-muted)" }}>我的模型</div>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button className="small-btn !px-2 !py-1 !text-[11px]" onClick={detectLocal} disabled={detecting}>
+              <Sparkles size={11} /> {detecting ? "检测中…" : "检测本地"}
             </button>
-            <button className="small-btn" onClick={startNew}>
-              <Plus size={12} /> 新增
+            <button className="small-btn !px-2 !py-1 !text-[11px]" onClick={startNew}>
+              <Plus size={11} /> 新增
             </button>
           </div>
         </div>
@@ -1454,9 +1453,9 @@ function PageModels({
 
       <div className="rounded-xl border p-4" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
         <div className="flex items-center justify-between gap-3 mb-4">
-          <div className="text-sm font-medium">{selected ? "编辑模型" : "添加模型"}</div>
+          <div className="text-sm font-medium whitespace-nowrap flex-shrink-0">{selected ? "编辑模型" : "添加模型"}</div>
           {selected && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <button className="small-btn" onClick={async () => { try { onNotice(await providerTest(selected.id)); } catch (e) { onNotice(String(e)); } }}>
                 测试
               </button>
@@ -1567,8 +1566,8 @@ function PageMcp({ onNotice }: { onNotice: (s: string) => void }) {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <div className="text-xs" style={{ color: "var(--text-muted)" }}>{servers.length} 个服务器</div>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="text-xs whitespace-nowrap flex-shrink-0" style={{ color: "var(--text-muted)" }}>{servers.length} 个服务器</div>
         <button className="primary-btn" onClick={() => setShowAdd(!showAdd)}><Plus size={13} /> 添加服务器</button>
       </div>
 
@@ -1805,7 +1804,7 @@ function PagePlugins({ settings, onSave, onNotice }: { settings: DesktopSettings
                         <div className="flex flex-wrap gap-1 mt-1">{item.tags.map((t) => <Pill key={t}>{t}</Pill>)}</div>
                       </div>
                     )}
-                    <button className="mt-1 text-[10px]" style={{ color: "var(--accent-blue)" }} onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}>
+                    <button className="mt-1 text-[10.5px] hover:underline" style={{ color: "var(--text-muted)" }} onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}>
                       {expandedId === item.id ? "收起详情" : "查看详情"}
                     </button>
                   </div>
@@ -1818,7 +1817,7 @@ function PagePlugins({ settings, onSave, onNotice }: { settings: DesktopSettings
       ) : (
         <div className="space-y-2">
           {marketError && (
-            <div className="rounded-xl p-3 text-[11px]" style={{ background: "var(--accent-red)", color: "#fff" }}>
+            <div className="rounded-lg p-3 text-[11.5px] space-y-1" style={{ background: "var(--surface-2)", border: "1px solid var(--accent-red)", color: "var(--text-primary)" }}>
               市场加载失败：{marketError}
             </div>
           )}
@@ -1837,12 +1836,12 @@ function PagePlugins({ settings, onSave, onNotice }: { settings: DesktopSettings
                       <span className="text-xs font-semibold truncate">{item.entry.name}</span>
                       <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}>v{item.entry.version}</span>
                       {item.entry.verified ? (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--accent-green)", color: "#fff" }}>已验证</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}>已验证</span>
                       ) : (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--accent-yellow)", color: "#000" }}>未验证</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--surface-3)", color: "var(--text-primary)" }}>未验证</span>
                       )}
                       {item.has_update && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--accent-blue)", color: "#fff" }}>有更新</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--surface-3)", color: "var(--text-primary)" }}>有更新</span>
                       )}
                     </div>
                     <div className="text-[10px] mt-1" style={{ color: "var(--text-muted)" }}>{item.entry.description}</div>
@@ -1973,7 +1972,7 @@ function PageMemory({ onNotice }: { onNotice: (s: string) => void }) {
                       {entry.content}
                     </div>
                   )}
-                  <button className="mt-1 text-[10px]" style={{ color: "var(--accent-blue)" }} onClick={() => setExpandedId(expandedId === entry.id ? null : entry.id)}>
+                  <button className="mt-1 text-[10.5px] hover:underline" style={{ color: "var(--text-muted)" }} onClick={() => setExpandedId(expandedId === entry.id ? null : entry.id)}>
                     {expandedId === entry.id ? "收起" : "展开全文"}
                   </button>
                 </div>
@@ -2026,8 +2025,8 @@ function PageHooks({ onNotice }: { onNotice: (s: string) => void }) {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <div className="text-xs" style={{ color: "var(--text-muted)" }}>{hooks.length} 个 Hooks</div>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="text-xs whitespace-nowrap flex-shrink-0" style={{ color: "var(--text-muted)" }}>{hooks.length} 个 Hooks</div>
         <button className="primary-btn" onClick={() => setShowAdd(!showAdd)}><Plus size={13} /> 添加 Hook</button>
       </div>
 
@@ -2113,8 +2112,8 @@ function PageSubagents({ onNotice }: { onNotice: (s: string) => void }) {
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <div className="text-xs" style={{ color: "var(--text-muted)" }}>{agents.length} 个子智能体</div>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="text-xs whitespace-nowrap flex-shrink-0" style={{ color: "var(--text-muted)" }}>{agents.length} 个子智能体</div>
         <button className="primary-btn" onClick={() => setShowAdd(!showAdd)}><Plus size={13} /> 创建子智能体</button>
       </div>
 
@@ -2153,7 +2152,7 @@ function PageSubagents({ onNotice }: { onNotice: (s: string) => void }) {
             <div key={agent.id} className="rounded-xl border p-3" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "var(--surface-2)" }}>
-                  <Bot size={15} style={{ color: "var(--accent-purple)" }} />
+                  <Bot size={15} style={{ color: "var(--text-muted)" }} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-semibold truncate">{agent.name}</div>
@@ -2353,13 +2352,13 @@ function PageUsage({
         />
       </div>
       <div className="rounded-xl border p-4 text-xs space-y-2" style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)" }}>
-        <div className="flex items-center justify-between">
-          <span style={{ color: "var(--text-muted)" }}>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
             用量来自模型响应的真实 usage 数据，按 Token 单价估算费用，仅保存在本地。
           </span>
           <button
             onClick={resetStats}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium whitespace-nowrap flex-shrink-0"
             style={{ background: "var(--surface-2)", border: "1px solid var(--surface-4)", color: "var(--text-primary)" }}
           >
             <Trash2 size={11} />
@@ -2620,7 +2619,7 @@ function PageAbout({ onNotice }: { onNotice: (s: string) => void }) {
                 下载中：{(progress.received / 1024 / 1024).toFixed(1)} / {(progress.total / 1024 / 1024).toFixed(1)} MB（{progress.percent}%）
               </div>
               <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--surface-3)" }}>
-                <div className="h-full transition-all" style={{ width: `${progress.percent}%`, background: "var(--accent-blue)" }} />
+                <div className="h-full transition-all" style={{ width: `${progress.percent}%`, background: "var(--text-primary)" }} />
               </div>
             </div>
           )}
@@ -2656,11 +2655,11 @@ function PageAbout({ onNotice }: { onNotice: (s: string) => void }) {
 function SettingRow({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
     <div className="setting-row">
-      <div className="l">
+      <div className="l min-w-0">
         <div className="n">{label}</div>
         {hint && <div className="h">{hint}</div>}
       </div>
-      {children}
+      <div className="flex-shrink-0">{children}</div>
     </div>
   );
 }
@@ -2692,7 +2691,7 @@ function StatCard({ label, value, hint }: { label: string; value: string; hint: 
 
 function Pill({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[9px]" style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}>
+    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[9px] whitespace-nowrap" style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}>
       {children}
     </span>
   );
@@ -2738,8 +2737,7 @@ function SearchKeyRow({
               onNotice(`保存失败：${String(error)}`);
             }
           }}
-          className="px-3 py-1.5 rounded-md text-[11px] font-medium text-white"
-          style={{ background: "var(--accent-blue)" }}
+          className="primary-btn !px-3 !py-1.5 !text-[11px] !rounded-md"
         >
           保存
         </button>

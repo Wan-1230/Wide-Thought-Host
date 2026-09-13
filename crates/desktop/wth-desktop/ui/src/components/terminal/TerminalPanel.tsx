@@ -176,18 +176,18 @@ export function TerminalPanel() {
               setMenuTab(tab);
               setMenuPoint(contextMenuPointFromEvent(event));
             }}
-            className={`group flex items-center gap-1.5 px-3 py-1.5 rounded-t-md text-xs cursor-pointer border-b-2 transition-colors ${
+            className={`group flex items-center gap-1.5 px-3 py-1.5 rounded-t-md text-xs cursor-pointer border-b-2 transition-colors whitespace-nowrap flex-shrink-0 ${
               activeTab === tab.id
                 ? "border-accent-primary bg-surface-0"
                 : "border-transparent hover:bg-surface-2"
             }`}
             style={{
-              color: activeTab === tab.id ? "var(--accent-primary)" : "var(--text-muted)",
+              color: activeTab === tab.id ? "var(--text-primary)" : "var(--text-muted)",
             }}
           >
-            <TerminalIcon size={11} />
-            {tab.title}
-            {tab.exited && <span className="text-[9px] text-accent-orange">已退出</span>}
+            <TerminalIcon size={11} className="flex-shrink-0" />
+            <span className="truncate max-w-[120px]">{tab.title}</span>
+            {tab.exited && <span className="text-[9px] flex-shrink-0" style={{ color: "var(--text-dim)" }}>已退出</span>}
             <button
               onClick={(e) => { e.stopPropagation(); handleCloseTab(tab.id); }}
               className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-surface-3 transition-opacity"

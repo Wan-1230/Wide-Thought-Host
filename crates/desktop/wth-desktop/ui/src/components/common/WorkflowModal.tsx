@@ -87,7 +87,7 @@ export function WorkflowModal({ open, onClose, onNotice }: Props) {
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <GitBranch size={16} style={{ color: "var(--accent-purple)" }} />
+            <GitBranch size={16} style={{ color: "var(--text-muted)" }} />
             <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
               多 Agent 工作流
             </h2>
@@ -173,18 +173,18 @@ export function WorkflowModal({ open, onClose, onNotice }: Props) {
             {progress.map((p) => (
               <div key={p.node_id} className="flex items-center gap-2 text-[11px]">
                 <span
-                  className="w-2 h-2 rounded-full"
+                  className="w-2 h-2 rounded-full flex-shrink-0"
                   style={{
                     background:
                       p.status === "done"
                         ? "var(--accent-green)"
                         : p.status === "error"
                           ? "var(--accent-red)"
-                          : "var(--accent-yellow)",
+                          : "var(--text-muted)",
                   }}
                 />
-                <span style={{ color: "var(--text-primary)" }}>{p.node_name}</span>
-                <span style={{ color: "var(--text-muted)" }}>
+                <span className="truncate min-w-0" style={{ color: "var(--text-primary)" }}>{p.node_name}</span>
+                <span className="whitespace-nowrap flex-shrink-0" style={{ color: "var(--text-muted)" }}>
                   {p.status === "done" ? "已完成" : p.status === "error" ? `失败：${p.error}` : "执行中…"}
                 </span>
               </div>

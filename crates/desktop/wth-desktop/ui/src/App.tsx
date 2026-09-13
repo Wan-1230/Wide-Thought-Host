@@ -686,7 +686,7 @@ export default function App() {
         <aside
           className="flex-shrink-0 flex flex-col border-r overflow-hidden layout-transition"
           style={{
-            width: sidebarCollapsed ? 48 : 244,
+            width: sidebarCollapsed ? 48 : 248,
             background: "var(--surface-1)",
             borderColor: "var(--surface-3)",
           }}
@@ -821,7 +821,7 @@ export default function App() {
         {/* 中间主区 */}
         <main className="flex-1 flex flex-col min-w-0 min-h-0">
           {/* 轻量工具条 */}
-          <div className="flex items-center justify-between gap-2 px-3 py-1 flex-shrink-0">
+          <div className="flex items-center justify-between gap-2 px-3 py-1.5 flex-shrink-0 border-b" style={{ borderColor: "var(--surface-3)" }}>
             <div className="flex items-center gap-1 min-w-0">
               <ToolbarButton icon={<Plus size={13} />} label="新建会话" onClick={() => void handleNewSession()} />
               <ToolbarButton
@@ -838,7 +838,7 @@ export default function App() {
                 onClick={() => setTheme((c) => (c === "dark" ? "light" : "dark"))}
               />
               <ToolbarButton
-                icon={showTerminalPanel ? <Terminal size={13} /> : <Terminal size={13} />}
+                icon={<Terminal size={13} />}
                 label="终端"
                 onClick={() => setShowTerminalPanel((current) => !current)}
                 active={showTerminalPanel}
@@ -1051,28 +1051,28 @@ function StatusBar({
   return (
     <div
       className="flex items-center justify-between px-3 py-1 border-t text-[11px] flex-shrink-0 tabular-nums"
-      style={{ background: "var(--surface-1)", borderColor: "var(--surface-3)" }}
+      style={{ background: "var(--surface-0)", borderColor: "var(--surface-3)", color: "var(--text-muted)" }}
     >
       {/* 左侧：模型 / 工作区 / 分支 */}
       <div className="flex items-center gap-0.5 min-w-0 overflow-hidden">
         <button
           type="button"
           className="chip shrink-0"
-          style={{ color: "var(--accent-brand)" }}
+          style={{ color: "var(--text-muted)" }}
           title="当前模型"
           onClick={onSettingsClick}
         >
-          <Cpu size={11} />
+          <Cpu size={11} className="flex-shrink-0" />
           <span className="max-w-[120px] truncate">{modelLabel || "默认模型"}</span>
         </button>
         <button
           type="button"
           onClick={onWorkspaceClick}
           className="chip shrink-0"
-          style={{ color: workspaceActive ? "var(--text-primary)" : "var(--text-muted)" }}
+          style={{ color: workspaceActive ? "var(--text-muted)" : "var(--text-dim)" }}
           title="工作区"
         >
-          <FolderOpen size={11} />
+          <FolderOpen size={11} className="flex-shrink-0" />
           <span className="max-w-[140px] truncate">{workspaceLabel}</span>
         </button>
         {workspaceBranch && (
@@ -1154,11 +1154,11 @@ function ToolbarButton({
         event.preventDefault();
         onContextMenu(event);
       }}
-      className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px] font-medium press
+      className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px] font-medium press whitespace-nowrap flex-shrink-0
         transition-colors hover:bg-[color:var(--surface-2)]"
       style={{
-        background: active ? "var(--accent-brand-soft)" : "transparent",
-        color: active ? "var(--accent-brand)" : "var(--text-primary)",
+        background: active ? "var(--surface-2)" : "transparent",
+        color: "var(--text-primary)",
       }}
     >
       {icon}

@@ -150,7 +150,7 @@ const MOCK_PROVIDERS = [
     name: "Agnes AI (内置)",
     kind: "openai-compatible",
     base_url: "https://api.agnes-ai.cn/v1",
-    model: "agnes-2.5-flash",
+    model: "agnes-3.0-flash",
     enabled: true,
     builtin: true,
     has_api_key: true,

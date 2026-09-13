@@ -40,10 +40,10 @@ export class ErrorBoundary extends Component<Props, State> {
           style={{ background: "var(--bg-body)", color: "var(--text-primary)" }}
         >
           <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center"
-            style={{ background: "var(--surface-2)" }}
+            className="w-12 h-12 rounded-xl flex items-center justify-center"
+            style={{ background: "var(--surface-2)", border: "1px solid var(--surface-3)" }}
           >
-            <AlertTriangle size={28} style={{ color: "var(--accent-orange)" }} />
+            <AlertTriangle size={22} style={{ color: "var(--accent-red)" }} />
           </div>
           <div className="text-center">
             <h2 className="text-base font-semibold">出现了一些问题</h2>
@@ -54,7 +54,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <div className="flex items-center gap-2">
             <button
               onClick={this.handleReset}
-              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-colors whitespace-nowrap"
               style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}
             >
               <RefreshCw size={13} />
@@ -62,7 +62,7 @@ export class ErrorBoundary extends Component<Props, State> {
             </button>
             <button
               onClick={() => window.location.reload()}
-              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-colors whitespace-nowrap"
               style={{ background: "var(--surface-2)", color: "var(--text-primary)" }}
               title="重新加载应用，会话内容会自动从本地恢复"
             >
