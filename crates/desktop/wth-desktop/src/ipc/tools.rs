@@ -509,7 +509,7 @@ async fn run_shell(
     #[cfg(windows)]
     let job =
         crate::ipc::sandbox_windows::ChildJob::create_with_memory_limit(memory_limit_mb);
-    let mut child = cmd
+    let child = cmd
         .spawn()
         .map_err(|e| format!("命令执行失败: {e}"))?;
     #[cfg(windows)]

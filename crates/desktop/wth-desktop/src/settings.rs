@@ -396,6 +396,14 @@ pub struct DesktopSettings {
     /// 避免 cargo/rustc 重构建被误伤）。
     #[serde(default)]
     pub bash_memory_limit_mb: Option<u64>,
+    /// 自动压缩触发比例（占上下文窗口的百分比，30–85）。默认 70，
+    /// 与 CLI 内核 CompactionPolicy 对齐。
+    #[serde(default = "default_compaction_ratio")]
+    pub compaction_ratio_percent: u32,
+}
+
+fn default_compaction_ratio() -> u32 {
+    70
 }
 
 impl Default for DesktopSettings {
@@ -455,6 +463,7 @@ impl Default for DesktopSettings {
             fallback_provider_ids: Vec::new(),
             summary_model: None,
             bash_memory_limit_mb: None,
+            compaction_ratio_percent: default_compaction_ratio(),
         }
     }
 }
@@ -808,18 +817,21 @@ pub async fn provider_test(id: String, state: State<'_, AppState>) -> Result<Str
             .cloned()
             .ok_or_else(|| "提供商不存在".to_string())?
     };
-    let key = credentials::read_secret("provider", &provider.id)?
-        .ok_or_else(|| "尚未配置 API Key".to_string())?;
+    // 本地模型（Ollama / vLLM）通常无需 API Key
+    let key = credentials::read_secret("provider", &provider.id)?.filter(|k| !k.trim().is_empty());
+    if key.is_none() && !provider.local {
+        return Err("尚未配置 API Key".into());
+    }
     let endpoint = format!("{}/models", provider.base_url.trim_end_matches('/'));
     let network = state.settings.read().map_err(|e| e.to_string())?.network.clone();
     let client = network.build_client()?;
-    let request = if provider.kind == "anthropic" {
-        client
+    let request = match (&key, provider.kind.as_str()) {
+        (Some(k), "anthropic") => client
             .get(endpoint)
-            .header("x-api-key", key)
-            .header("anthropic-version", "2023-06-01")
-    } else {
-        client.get(endpoint).bearer_auth(key)
+            .header("x-api-key", k.as_str())
+            .header("anthropic-version", "2023-06-01"),
+        (Some(k), _) => client.get(endpoint).bearer_auth(k),
+        (None, _) => client.get(endpoint),
     };
     let response = request.send().await.map_err(|e| format!("连接失败：{e}"))?;
     if response.status().is_success() {

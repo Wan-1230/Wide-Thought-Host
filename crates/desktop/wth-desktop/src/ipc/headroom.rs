@@ -23,11 +23,7 @@ pub struct HeadroomStatusResponse {
     pub error: Option<String>,
 }
 
-fn build_response(
-    status: HeadroomStatus,
-    installed: bool,
-    error: Option<String>,
-) -> HeadroomStatusResponse {
+fn build_response(status: HeadroomStatus, installed: bool) -> HeadroomStatusResponse {
     match status {
         HeadroomStatus::Disabled => HeadroomStatusResponse {
             enabled: false,
@@ -68,7 +64,7 @@ fn build_response(
 pub async fn headroom_status(state: State<'_, AppState>) -> Result<HeadroomStatusResponse, String> {
     let installed = crate::headroom::HeadroomManager::is_installed();
     let status = state.headroom.status();
-    Ok(build_response(status, installed, None))
+    Ok(build_response(status, installed))
 }
 
 #[tauri::command]
@@ -98,13 +94,9 @@ pub async fn headroom_start(
     match state.headroom.start(port).await {
         Ok(()) => {
             let status = state.headroom.status();
-            Ok(build_response(status, true, None))
+            Ok(build_response(status, true))
         }
-        Err(e) => Ok(build_response(
-            HeadroomStatus::Error(e),
-            true,
-            None,
-        )),
+        Err(e) => Ok(build_response(HeadroomStatus::Error(e), true)),
     }
 }
 
@@ -112,7 +104,7 @@ pub async fn headroom_start(
 pub fn headroom_stop(state: State<'_, AppState>) -> HeadroomStatusResponse {
     state.headroom.stop();
     let installed = crate::headroom::HeadroomManager::is_installed();
-    build_response(HeadroomStatus::Disabled, installed, None)
+    build_response(HeadroomStatus::Disabled, installed)
 }
 
 #[tauri::command]
@@ -127,7 +119,7 @@ mod tests {
 
     #[test]
     fn build_response_maps_running_status() {
-        let resp = build_response(HeadroomStatus::Running { port: 8787 }, true, None);
+        let resp = build_response(HeadroomStatus::Running { port: 8787 }, true);
         assert!(resp.enabled);
         assert!(resp.running);
         assert_eq!(resp.port, 8787);
@@ -137,7 +129,7 @@ mod tests {
 
     #[test]
     fn build_response_maps_disabled() {
-        let resp = build_response(HeadroomStatus::Disabled, false, None);
+        let resp = build_response(HeadroomStatus::Disabled, false);
         assert!(!resp.enabled);
         assert!(!resp.running);
         assert!(!resp.installed);
@@ -146,7 +138,7 @@ mod tests {
 
     #[test]
     fn build_response_maps_error_status() {
-        let resp = build_response(HeadroomStatus::Error("启动失败".into()), true, None);
+        let resp = build_response(HeadroomStatus::Error("启动失败".into()), true);
         assert!(resp.enabled);
         assert!(!resp.running);
         assert_eq!(resp.error.as_deref(), Some("启动失败"));

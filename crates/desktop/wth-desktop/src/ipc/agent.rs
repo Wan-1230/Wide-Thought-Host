@@ -631,12 +631,15 @@ pub(crate) async fn run_agent(
     }
 
     // 上下文压缩与预算配置快照
-    let (budget_usd, compression_enabled, window_tokens) = {
+    let (budget_usd, compression_enabled, window_tokens, compaction_ratio, summary_model) = {
         let s = settings_ref.read().map_err(|e| e.to_string())?;
+        let ratio = s.compaction_ratio_percent.clamp(30, 85);
         (
             s.budget_usd,
             s.context_compression,
             s.context_window_tokens,
+            ratio,
+            s.summary_model.clone(),
         )
     };
     // F-05: 测试验证循环配置快照
@@ -671,7 +674,6 @@ pub(crate) async fn run_agent(
     }
 
     let mut usage_accum: Option<UsageInfo> = None;
-    let mut compressed = false;
 
     // F-06: 激活端点（主端点失败时沿 fallback 链降级，粘滞生效）。
     // chain_all[0] 为主端点，其余为备用；chain_pos 指向当前使用的位置。
@@ -689,16 +691,28 @@ pub(crate) async fn run_agent(
     let mut active = chain_all[0].clone();
 
     for _iteration in 0..tools::MAX_TOOL_ITERATIONS {
-        // 上下文压缩：接近窗口上限时，把早期对话压缩为摘要，保留最近消息
-        if compression_enabled && !compressed {
-            let threshold = (window_tokens as usize).saturating_mul(4);
+        // 上下文压缩：按窗口比例触发，保留 system + 近尾，压缩早期对话。
+        // 允许再次压缩（压缩后仍超阈值时继续），对齐内核 CompactionPolicy。
+        if compression_enabled {
+            let threshold = (window_tokens as usize)
+                .saturating_mul(compaction_ratio as usize)
+                / 100;
+            // chars ≈ tokens * 3.5，留余量避免在边界抖动
+            let threshold_chars = threshold.saturating_mul(7) / 2;
             let total_len: usize = messages.iter().map(|m| m.to_string().len()).sum();
-            if total_len > threshold && messages.len() > 6 {
+            if total_len > threshold_chars && messages.len() > 8 {
                 let (kept, history) = split_messages(&messages);
                 if !history.is_empty() {
-                    let summary =
-                        summarize_history(&api_base, &api_key, &model, &history, &upstream_headers, &network)
-                            .await?;
+                    let summary_model_ref = summary_model.as_deref().unwrap_or(&model);
+                    let summary = summarize_history(
+                        &api_base,
+                        &api_key,
+                        summary_model_ref,
+                        &history,
+                        &upstream_headers,
+                        &network,
+                    )
+                    .await?;
                     let kept_count = kept.len();
                     let history_count = history.len();
                     let mut next: Vec<Value> = vec![json!({
@@ -707,8 +721,9 @@ pub(crate) async fn run_agent(
                     })];
                     next.extend(kept);
                     messages = next;
-                    compressed = true;
-                    tracing::info!("Context compressed: kept {kept_count} messages, summarized {history_count}");
+                    tracing::info!(
+                        "Context compressed: kept {kept_count} messages, summarized {history_count}, model={summary_model_ref}"
+                    );
                 }
             }
         }
@@ -1063,17 +1078,26 @@ pub(crate) async fn run_agent(
 
 // ─── Context compression & usage helpers ───────────────
 
-/// 划分消息：保留全部 system 消息与最后 10 条对话消息，中间部分作为待压缩历史。
+/// 划分消息：保留全部 system 消息与近尾（约 16% 非 system 消息，至少 8 条），
+/// 中间部分作为待压缩历史。对齐 Reasonix 缓存友好保留策略。
 fn split_messages(messages: &[Value]) -> (Vec<Value>, Vec<Value>) {
     let mut kept: Vec<Value> = Vec::new();
     let mut history: Vec<Value> = Vec::new();
     let mut tail: Vec<Value> = Vec::new();
     let total = messages.len();
+    // 至少保留 8 条近尾；窗口较大时按 ~16% 保留，避免压缩后丢上下文。
+    let keep_tail = {
+        let non_system = messages
+            .iter()
+            .filter(|m| m["role"].as_str() != Some("system"))
+            .count();
+        (non_system.saturating_mul(16) / 100).max(8)
+    };
     for (i, m) in messages.iter().enumerate() {
         let role = m["role"].as_str().unwrap_or("");
         if role == "system" {
             kept.push(m.clone());
-        } else if total - i <= 10 {
+        } else if total - i <= keep_tail {
             tail.push(m.clone());
         } else {
             history.push(m.clone());

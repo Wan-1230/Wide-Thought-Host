@@ -5,13 +5,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::{fs, iter};
 
-/// Platform-appropriate "discard output" device path. Unix uses `/dev/null`,
-/// Windows uses `NUL`. Used for `protoc --descriptor_set_out=<path>` so protoc
-/// has somewhere to (not) write the descriptor set we throw away.
-#[cfg(windows)]
-const NULL_DEV: &str = "NUL";
-#[cfg(not(windows))]
-const NULL_DEV: &str = "/dev/null";
+/// `protoc --descriptor_set_out` target for the discarded descriptor set.
+/// We point it at a temp file (see `emit_rerun_if_changed`) instead of the
+/// platform null device, because opening `NUL` fails ("Permission denied")
+/// under some Windows toolchains/sandboxes and breaks the build.
 
 /// Find the protoc well-known types include directory.
 ///
@@ -125,16 +122,22 @@ impl XaiProtoBuilder {
             let mut command = Command::new(protoc.unwrap_or(Path::new("protoc")));
             // Windows has no /dev/stdout equivalent — CON is the console, not
             // stdout-as-a-file. Write the dependency list to a temp file and
-            // read it back. --descriptor_set_out uses the platform's null
-            // device (NUL on Windows, /dev/null on Unix) since we discard it.
+            // read it back (the dependency output's target is whatever
+            // --descriptor_set_out was set to).
             let dep_file = tempfile::NamedTempFile::new()
                 .context("failed to create temp file for protoc dependency output")?;
+            // Write the discarded descriptor set to a temp file instead of the
+            // NUL device: opening `NUL` fails ("Permission denied") under some
+            // Windows toolchains/sandboxes, which breaks Windows builds.
+            let desc_tmp = tempfile::TempDir::new()
+                .context("failed to create temp dir for protoc descriptor set")?;
+            let desc_path = desc_tmp.path().join("descriptor.pb");
             command
                 .arg(format!(
                     "--dependency_out={}",
                     dep_file.path().display()
                 ))
-                .arg(format!("--descriptor_set_out={NULL_DEV}"));
+                .arg(format!("--descriptor_set_out={}", desc_path.display()));
 
             // Add protoc's well-known types include directory first (if found).
             // This is needed for Bazel sandboxed builds where protoc and its
@@ -165,7 +168,7 @@ impl XaiProtoBuilder {
 
             let mut lines = dep_output.lines();
             let first_line = lines.next().context("protoc command output is empty")?;
-            let prefix = format!("{NULL_DEV}:");
+            let prefix = format!("{}:", desc_path.display());
             let rem = first_line.strip_prefix(prefix.as_str()).with_context(|| {
                 format!("protoc command output must start with {prefix}: {dep_output:?}")
             })?;

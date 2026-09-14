@@ -115,6 +115,15 @@ See ~/.grok/README.md for more information.
         #[arg(long)]
         json: bool,
     },
+    /// Diagnose environment, models, sandbox, terminal, and MCP health
+    Doctor {
+        /// Emit machine-readable JSON output.
+        #[arg(long)]
+        json: bool,
+        /// Only run a named check (version|paths|models|sandbox|terminal|mcp|update).
+        #[arg(long, value_name = "CHECK")]
+        only: Option<String>,
+    },
     /// Generate shell completion scripts (bash, zsh, fish, powershell, ...)
     Completions {
         /// Target shell
@@ -515,12 +524,12 @@ pub struct PagerArgs {
     /// Compaction mode [summary|transcript|segments]: `summary` (default) adds
     /// no pointer; `transcript` points at the raw transcript; `segments`
     /// persists per-segment markdown to grep. Sets `GROK_COMPACTION_MODE`.
-    #[clap(long = "compaction-mode", value_name = "MODE", hide = true)]
+    #[clap(long = "compaction-mode", value_name = "MODE")]
     pub compaction_mode: Option<String>,
     /// Segments verbatim detail [none|minimal|balanced|verbose] (default
     /// `verbose`). Only affects `--compaction-mode segments`. Sets
     /// `GROK_COMPACTION_DETAIL`.
-    #[clap(long = "compaction-detail", value_name = "DETAIL", hide = true)]
+    #[clap(long = "compaction-detail", value_name = "DETAIL")]
     pub compaction_detail: Option<String>,
     /// Override the agent's system prompt (compat alias: --system-prompt).
     #[clap(
@@ -564,7 +573,9 @@ pub struct PagerArgs {
     pub session_id: Option<String>,
     /// When resuming (`--resume` / `--continue`), create a new session ID
     /// instead of reusing the original (optionally set via `--session-id`).
-    #[arg(long = "fork-session")]
+    /// Leaves the source transcript untouched — equivalent to Reasonix
+    /// `--copy` (continue in a writable copy).
+    #[arg(long = "fork-session", visible_alias = "copy")]
     pub fork_session: bool,
     /// Start the session in a new git worktree, optionally named.
     #[arg(short = 'w', long = "worktree", num_args = 0..= 1, default_missing_value = "")]

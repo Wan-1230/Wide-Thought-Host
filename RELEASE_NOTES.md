@@ -1,3 +1,33 @@
+# v2.0.1 — 产品闭环与 Setup 向导
+
+> 发布日期：2026-09
+> 对标 DeepSeek-Reasonix 完成产品闭环四件套与桌面 Setup 向导，安装包同步更新。
+
+## ✨ 新增
+
+- **`wth doctor`**：一键体检 version / paths / models / sandbox / terminal / update / MCP，支持 `--json` 与 `--only`
+- **CLI `--copy`**：`--fork-session` 可见别名，resume 进入可写副本，原会话只读
+- **Setup 向导（桌面）**：首次启动可检测 Ollama / vLLM、添加 OpenAI 兼容端点、测试连接并设为默认
+- **压缩开关公开**：`--compaction-mode` / `--compaction-detail` 取消隐藏；设置页新增「压缩触发比例」
+
+## 🔧 优化
+
+- 桌面上下文压缩对齐内核策略：按窗口比例触发（默认 70%）、允许再次压缩、摘要走 `summary_model`、近尾约 16% 保留
+- `provider_test` 支持本地模型免 API Key
+- 清理仓库冗余：移除误跟踪 `node_modules`、宣传素材与构建日志
+
+## 📦 安装
+
+| 平台 | 方式 |
+|------|------|
+| Windows 10/11 x64 | 下载 NSIS 安装包（`Wide-Thought-Host-2.0.1-x64-setup.exe`）或 MSI |
+| 免安装 | `Wide-Thought-Host-2.0.1-x64-portable.zip` 解压即用 |
+| 从源码 | `cargo run -p wth-pager-bin`（CLI）/ `cd crates/desktop/wth-desktop && npm run tauri dev` |
+
+依赖：Rust 1.92+、Node.js 20+、protoc、[WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)。
+
+---
+
 # v1.0.0 — 首个稳定版发布
 
 > 发布日期：2026-08

@@ -1,6 +1,6 @@
 [package]
 name = "wth-desktop"
-version = "1.0.0"
+version = "2.0.1"
 edition.workspace = true
 description = "Wide Thought Host — Desktop Agent Application"
 license = "Apache-2.0"

@@ -159,6 +159,8 @@ export interface DesktopSettings {
   fallback_provider_ids?: string[];
   summary_model?: string | null;
   bash_memory_limit_mb?: number | null;
+  /** 自动压缩触发比例（占上下文窗口 %，30–85） */
+  compaction_ratio_percent?: number;
   usage_stats: UsageStats;
   subagents?: SubagentConfig[];
   /** 快捷键映射（action → 按键组合） */

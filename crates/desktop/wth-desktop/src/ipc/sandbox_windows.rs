@@ -17,12 +17,6 @@ pub struct ChildJob {
 
 #[cfg(windows)]
 impl ChildJob {
-    /// 创建 kill-on-close 的 Job 对象（A-03 第一阶段）。
-    /// 失败返回 None（调用方降级）。
-    pub fn create() -> Option<ChildJob> {
-        Self::create_with_memory_limit(None)
-    }
-
     /// 创建 kill-on-close + 可选内存限额（MB，A-03 第二阶段）的 Job 对象。
     /// 内存限额防止失控命令耗尽整机内存；但 cargo/rustc 等重构建可能合法
     /// 超限，因此默认不启用（由设置显式开启）。
@@ -104,7 +98,7 @@ mod tests {
     #[test]
     fn job_create_and_assign() {
         use super::ChildJob;
-        let Some(job) = ChildJob::create() else {
+        let Some(job) = ChildJob::create_with_memory_limit(None) else {
             // 个别受限环境创建 Job 失败，允许降级
             return;
         };

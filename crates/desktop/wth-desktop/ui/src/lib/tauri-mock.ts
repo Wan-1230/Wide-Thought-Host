@@ -41,6 +41,7 @@ const MOCK_SETTINGS = {
   headroom_port: 8787,
   context_compression: true,
   context_window_tokens: 128000,
+  compaction_ratio_percent: 70,
   price_per_million_tokens: 0,
   price_per_million_output_tokens: null,
   usage_stats: {

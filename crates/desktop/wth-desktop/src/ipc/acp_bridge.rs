@@ -14,7 +14,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Value};
-use tauri::Emitter;
 use tokio::sync::{mpsc, oneshot, RwLock};
 
 use crate::ipc::agent::{AgentStreamChunk, StreamPayload};

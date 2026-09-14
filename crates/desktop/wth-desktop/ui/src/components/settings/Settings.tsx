@@ -557,6 +557,25 @@ function PageGeneral({
             }}
           />
         </SettingRow>
+        <SettingRow
+          label="压缩触发比例 (%)"
+          hint="上下文用量达到窗口的该比例时触发压缩（30–85，默认 70，与 CLI 内核一致）"
+        >
+          <input
+            className="control w-24"
+            type="number"
+            min="30"
+            max="85"
+            step="1"
+            value={settings.compaction_ratio_percent ?? 70}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              if (v >= 30 && v <= 85) {
+                onSave({ ...settings, compaction_ratio_percent: Math.floor(v) });
+              }
+            }}
+          />
+        </SettingRow>
         <SettingRow label="Token 单价 (USD/百万)" hint="估算用量费用的统一单价，用于预算与用量统计">
           <input
             className="control w-28"

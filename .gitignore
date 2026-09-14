@@ -17,3 +17,9 @@ crates/desktop/wth-desktop/icons/android/
 crates/desktop/wth-desktop/icons/ios/
 
 tauri-build*.log
+
+# local tooling / accidental vendor
+.playwright-mcp/
+crates/desktop/wth-desktop/node_modules/
+
+/dist

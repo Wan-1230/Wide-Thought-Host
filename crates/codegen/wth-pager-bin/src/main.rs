@@ -1615,6 +1615,9 @@ async fn async_main() -> Result<()> {
                 }
                 return Ok(());
             }
+            Command::Doctor { json, only } => {
+                return xai_grok_pager::doctor_cmd::run(json, only).await;
+            }
             Command::Agent(agent_args) => {
                 if args.leader || args.no_leader {
                     let flag = if args.leader {
