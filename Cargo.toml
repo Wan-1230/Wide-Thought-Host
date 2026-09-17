@@ -330,6 +330,9 @@ zstd = "0.13"
 [profile.release]
 incremental = true
 panic = "abort"
+# C-07: 发行体积 — release 默认 strip，降低桌面 exe 尺寸。
+# 本地调试可继续用 dev；需要符号时用 release-dist。
+strip = true
 
 # Hardened release profile for shipping to end users (alpha + stable).
 # Use `cargo build --profile release-dist` for distribution builds.

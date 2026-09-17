@@ -1,0 +1,59 @@
+{
+  "name": "wth-agent",
+  "displayName": "WTH Agent",
+  "description": "Wide Thought Host coding agent for VS Code (ACP over stdio)",
+  "version": "0.1.0",
+  "publisher": "wth",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["AI", "Chat"],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "wth.openPanel",
+        "title": "WTH: Open Agent Panel"
+      },
+      {
+        "command": "wth.startSession",
+        "title": "WTH: Start Agent Session"
+      },
+      {
+        "command": "wth.sendPrompt",
+        "title": "WTH: Send Prompt to Agent"
+      },
+      {
+        "command": "wth.stopSession",
+        "title": "WTH: Stop Agent Session"
+      }
+    ],
+    "menus": {
+      "view/title": []
+    },
+    "configuration": {
+      "title": "WTH Agent",
+      "properties": {
+        "wth.cliPath": {
+          "type": "string",
+          "default": "wth",
+          "description": "Path to the wth CLI binary (must support `agent stdio`)."
+        },
+        "wth.extraArgs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Extra args passed to `wth agent stdio`."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.5.0"
+  }
+}

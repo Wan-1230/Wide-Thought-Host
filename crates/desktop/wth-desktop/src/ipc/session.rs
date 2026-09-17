@@ -2,9 +2,14 @@
 //!
 //! Sessions are persisted as JSON at `<app_data_dir>/sessions.json`
 //! and loaded into memory on startup. All mutations write through
-//! to disk immediately (simple, sufficient for single-user desktop).
+//! to disk immediately. A sidecar `sessions.lock` guards concurrent
+//! writers (CLI/desktop dual-process, backup, etc.).
 
 use serde::{Deserialize, Serialize};
+use std::fs::OpenOptions;
+use std::path::Path;
+
+const LOCK_FILENAME: &str = "sessions.lock";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -65,13 +70,43 @@ pub fn load_sessions(path: &std::path::Path) -> Vec<SessionInfo> {
     }
 }
 
-/// Persist the in-memory session list to disk.
-pub(crate) fn save_sessions(path: &std::path::Path, sessions: &[SessionInfo]) {
+/// Persist the in-memory session list to disk under an exclusive file lock.
+/// Atomic write via tmp+rename to avoid torn files on crash.
+pub(crate) fn save_sessions(path: &Path, sessions: &[SessionInfo]) {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    if let Ok(json) = serde_json::to_string_pretty(sessions) {
+    let lock_path = path.with_file_name(LOCK_FILENAME);
+    let Ok(json) = serde_json::to_string_pretty(sessions) else {
+        return;
+    };
+    let lock_file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&lock_path);
+    let Ok(lock_file) = lock_file else {
+        // 锁文件不可用时降级为直接写，避免会话功能整体不可用。
         let _ = std::fs::write(path, json);
+        return;
+    };
+    use fs2::FileExt;
+    if lock_file.try_lock_exclusive().is_err() {
+        // 短暂等待后再试；失败则放弃本次落盘并告警（防止交叉写坏文件）。
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        if lock_file.try_lock_exclusive().is_err() {
+            tracing::warn!("sessions.lock contention; skip this write to avoid corruption");
+            return;
+        }
+    }
+    let tmp = path.with_extension("json.tmp");
+    let write_ok = std::fs::write(&tmp, &json)
+        .and_then(|_| std::fs::rename(&tmp, path))
+        .is_ok();
+    let _ = lock_file.unlock();
+    if !write_ok {
+        tracing::warn!("failed to persist sessions.json");
     }
 }
 

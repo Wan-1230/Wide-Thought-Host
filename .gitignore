@@ -23,3 +23,6 @@ tauri-build*.log
 crates/desktop/wth-desktop/node_modules/
 
 /dist
+
+editors/vscode/node_modules/
+editors/vscode/out/

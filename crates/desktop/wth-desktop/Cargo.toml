@@ -1,6 +1,6 @@
 [package]
 name = "wth-desktop"
-version = "2.0.1"
+version = "2.1.0"
 edition.workspace = true
 description = "Wide Thought Host — Desktop Agent Application"
 license = "Apache-2.0"
@@ -59,6 +59,7 @@ portable-pty = { workspace = true }
 toml = { workspace = true }
 url = { workspace = true }
 walkdir = { workspace = true }
+fs2 = { workspace = true }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [target.'cfg(windows)'.dependencies]
@@ -66,19 +67,21 @@ windows = { workspace = true }
 # A-03: Windows 子进程 containment（Job Object）
 windows-sys = { version = "0.60", features = [
     "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_Storage_FileSystem",
     "Win32_System_JobObjects",
+    "Win32_System_Pipes",
     "Win32_System_Threading",
+    "Win32_System_WindowsProgramming",
 ] }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+# NOTE: package-level [profile.*] is ignored in a workspace.
+# Release strip/LTO is controlled by the workspace root Cargo.toml
+# ([profile.release] strip=true) and the tauri build pipeline.
+
 [dev-dependencies]
 tempfile = { workspace = true }
-
-[profile.release]
-panic = "abort"
-codegen-units = 1
-lto = true
-opt-level = 3
-strip = true

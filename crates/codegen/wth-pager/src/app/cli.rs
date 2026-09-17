@@ -120,7 +120,7 @@ See ~/.grok/README.md for more information.
         /// Emit machine-readable JSON output.
         #[arg(long)]
         json: bool,
-        /// Only run a named check (version|paths|models|sandbox|terminal|mcp|update).
+        /// Only run a named check (version|paths|models|sandbox|terminal|update|env|mcp).
         #[arg(long, value_name = "CHECK")]
         only: Option<String>,
     },

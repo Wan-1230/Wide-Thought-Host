@@ -1,6 +1,12 @@
 // Zustand store for chat/session state.
 
 import { create } from "zustand";
+
+function omitKey<T>(obj: Record<string, T>, key: string): Record<string, T> {
+  const { [key]: _removed, ...rest } = obj;
+  void _removed;
+  return rest;
+}
 import type { SessionInfo, StreamChunk, UsageInfo } from "@/lib/ipc";
 
 export const THINKING_MESSAGE = "模型正在思考…";
@@ -28,6 +34,8 @@ interface ChatStore {
   activeSessionId: string | null;
   messages: Record<string, ChatMessage[]>;
   streaming: Record<string, boolean>;
+  /** U-03: 会话当前阶段 working/checking/verifying */
+  phase: Record<string, string>;
   usage: Record<string, UsageInfo>;
   /** 并行子智能体运行跟踪（session_id → 批次状态），用于结果汇总 */
   parallel: Record<string, { total: number; done: number; names: string[]; statuses: Record<string, "done" | "error"> }>;
@@ -44,6 +52,7 @@ interface ChatStore {
   appendToLastMessage: (sessionId: string, delta: string) => void;
   finalizeAssistantMessage: (sessionId: string, fallback: string) => void;
   setStreaming: (sessionId: string, active: boolean) => void;
+  setPhase: (sessionId: string, phase: string | null) => void;
   addUsage: (sessionId: string, usage: UsageInfo) => void;
   registerParallelRun: (sessionId: string, names: string[]) => void;
   completeParallelRun: (sessionId: string, subSessionId: string, ok: boolean, name: string) => void;
@@ -58,6 +67,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   activeSessionId: null,
   messages: {},
   streaming: {},
+  phase: {},
   usage: {},
   parallel: {},
 
@@ -219,7 +229,16 @@ export const useChatStore = create<ChatStore>((set) => ({
   setStreaming: (sessionId, active) =>
     set((state) => ({
       streaming: { ...state.streaming, [sessionId]: active },
+      phase: active ? state.phase : omitKey(state.phase, sessionId),
     })),
+
+  setPhase: (sessionId, phase) =>
+    set((state) => {
+      if (phase === null) {
+        return { phase: omitKey(state.phase, sessionId) };
+      }
+      return { phase: { ...state.phase, [sessionId]: phase } };
+    }),
 
   addUsage: (sessionId, usage) =>
     set((state) => {

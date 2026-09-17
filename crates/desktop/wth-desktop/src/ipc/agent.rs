@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
-use tauri::{Emitter, State};
+use tauri::{Emitter, Manager, State};
 use tokio::sync::{mpsc, oneshot};
 
 /// 前端回传的历史对话消息（多轮上下文）。
@@ -80,6 +80,10 @@ pub enum StreamPayload {
     Error {
         message: String,
     },
+    /// U-03: 长任务阶段提示（working / checking / verifying），无业务载荷。
+    Phase {
+        phase: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -139,7 +143,9 @@ pub async fn agent_send(
                             "agent:stream",
                             AgentStreamChunk {
                                 session_id: session_id.clone(),
-                                payload: StreamPayload::Error { message: e },
+                                payload: StreamPayload::Error {
+                                    message: actionable_error(&e),
+                                },
                             },
                         );
                         return Ok(());
@@ -263,7 +269,9 @@ pub async fn agent_send(
                 "agent:stream",
                 AgentStreamChunk {
                     session_id: sid.clone(),
-                    payload: StreamPayload::Error { message: e },
+                    payload: StreamPayload::Error {
+                        message: actionable_error(&e),
+                    },
                 },
             );
         } else {
@@ -672,8 +680,53 @@ pub(crate) async fn run_agent(
             ));
         }
     }
+    // C-02: 单会话预算
+    let session_budget = settings_ref
+        .read()
+        .map_err(|e| e.to_string())?
+        .session_budget_usd;
+    let mut session_cost = 0.0f64;
 
     let mut usage_accum: Option<UsageInfo> = None;
+
+    // U-02: 会话内已批准命令免再次确认（危险/敏感操作不入缓存）
+    let session_allowlist: std::sync::Arc<std::sync::RwLock<std::collections::HashSet<String>>> =
+        std::sync::Arc::new(std::sync::RwLock::new(std::collections::HashSet::new()));
+
+    // S-02: 崩溃续跑 — 启动时写 running 标记，正常结束清除；
+    // 异常退出后下次启动可检测到 interrupted 标记。
+    let crash_marker = {
+        let Ok(app_dir) = window.app_handle().path().app_data_dir() else {
+            return Err("无法定位应用数据目录".into());
+        };
+        let marker = app_dir.join("agent-running.json");
+        let payload = serde_json::json!({
+            "session_id": session_id,
+            "pid": std::process::id(),
+            "started_at": chrono::Utc::now().to_rfc3339(),
+            "model": model,
+        });
+        let _ = std::fs::create_dir_all(&app_dir);
+        if std::fs::write(&marker, payload.to_string()).is_err() {
+            tracing::warn!("failed to write crash marker");
+        }
+        // O-01: 会话开始事件
+        crate::audit::log_run_event(
+            &app_dir.join("events.jsonl"),
+            &session_id,
+            "session_start",
+            Some(serde_json::json!({ "model": model })),
+        );
+        marker
+    };
+    // 清理标记的 RAII 守卫
+    struct CrashGuard(std::path::PathBuf);
+    impl Drop for CrashGuard {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+    let _crash_guard = CrashGuard(crash_marker);
 
     // F-06: 激活端点（主端点失败时沿 fallback 链降级，粘滞生效）。
     // chain_all[0] 为主端点，其余为备用；chain_pos 指向当前使用的位置。
@@ -704,7 +757,9 @@ pub(crate) async fn run_agent(
                 let (kept, history) = split_messages(&messages);
                 if !history.is_empty() {
                     let summary_model_ref = summary_model.as_deref().unwrap_or(&model);
-                    let summary = summarize_history(
+                    // S-04: 压缩失败降级——摘要请求失败时保留原消息继续会话，
+                    // 绝不因压缩错误中断本轮工具循环。
+                    match summarize_history(
                         &api_base,
                         &api_key,
                         summary_model_ref,
@@ -712,18 +767,35 @@ pub(crate) async fn run_agent(
                         &upstream_headers,
                         &network,
                     )
-                    .await?;
-                    let kept_count = kept.len();
-                    let history_count = history.len();
-                    let mut next: Vec<Value> = vec![json!({
-                        "role": "system",
-                        "content": format!("以下是更早对话的摘要（已被自动压缩）：\n{summary}")
-                    })];
-                    next.extend(kept);
-                    messages = next;
-                    tracing::info!(
-                        "Context compressed: kept {kept_count} messages, summarized {history_count}, model={summary_model_ref}"
-                    );
+                    .await
+                    {
+                        Ok(summary) => {
+                            let kept_count = kept.len();
+                            let history_count = history.len();
+                            let mut next: Vec<Value> = vec![json!({
+                                "role": "system",
+                                "content": format!("以下是更早对话的摘要（已被自动压缩）：\n{summary}")
+                            })];
+                            next.extend(kept);
+                            messages = next;
+                            if let Ok(mut s) = settings_ref.write() {
+                                s.usage_stats.compaction_count =
+                                    s.usage_stats.compaction_count.saturating_add(1);
+                            }
+                            tracing::info!(
+                                "Context compressed: kept {kept_count}, summarized {history_count}, model={summary_model_ref}"
+                            );
+                        }
+                        Err(e) => {
+                            if let Ok(mut s) = settings_ref.write() {
+                                s.usage_stats.compaction_failures =
+                                    s.usage_stats.compaction_failures.saturating_add(1);
+                            }
+                            tracing::warn!(
+                                "Context compression failed (continuing without compact): {e}"
+                            );
+                        }
+                    }
                 }
             }
         }
@@ -735,6 +807,16 @@ pub(crate) async fn run_agent(
             });
         }
         all_tools.extend(mcp_tools.clone());
+        // U-03: 进入模型等待
+        let _ = window.emit(
+            "agent:stream",
+            AgentStreamChunk {
+                session_id: session_id.clone(),
+                payload: StreamPayload::Phase {
+                    phase: "working".into(),
+                },
+            },
+        );
         let mut body = json!({
             "model": model,
             "messages": messages,
@@ -750,6 +832,18 @@ pub(crate) async fn run_agent(
         // F-06: 沿激活端点发送；可降级错误（5xx/429/传输错误）按链降级。
         let resp = loop {
             let url = format!("{}/chat/completions", active.api_base.trim_end_matches('/'));
+            // P-07: 网络出口白名单
+            {
+                let allow = settings_ref
+                    .read()
+                    .map(|s| s.network_allowlist.clone())
+                    .unwrap_or_default();
+                if !url_allowed(&url, &allow) {
+                    return Err(actionable_error(&format!(
+                        "目标端点不在网络白名单内：{url}。请到设置中添加允许的域名。"
+                    )));
+                }
+            }
             // G12：代理 / 超时 / 自动重试
             let mut headers: Vec<(String, String)> = vec![
                 ("Authorization".to_string(), format!("Bearer {}", active.api_key)),
@@ -895,7 +989,46 @@ pub(crate) async fn run_agent(
                     // 后台运行无法交互确认，自动拒绝
                     false
                 } else {
-                    match wait_for_approval(
+                    // U-02: 会话内已允许的同类命令免再次确认（仅非危险命令）
+                    let already_allowed = {
+                        let cmd_key = if tc.name == "bash" {
+                            tc.arguments
+                                .get("command")
+                                .and_then(|v| v.as_str())
+                                .map(|c| format!("bash:{}", c.trim()))
+                        } else if tc.name == "file_delete" {
+                            tc.arguments
+                                .get("path")
+                                .and_then(|v| v.as_str())
+                                .map(|p| format!("file_delete:{p}"))
+                        } else {
+                            None
+                        };
+                        let dangerous = tc.name == "bash"
+                            && tools::is_dangerous_shell(
+                                tc.arguments
+                                    .get("command")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or(""),
+                            );
+                        let sensitive = tc.name == "file_delete"
+                            && tools::is_sensitive_path(
+                                tc.arguments
+                                    .get("path")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or(""),
+                            );
+                        match cmd_key {
+                            Some(k) if !dangerous && !sensitive => {
+                                session_allowlist.read().map(|s| s.contains(&k)).unwrap_or(false)
+                            }
+                            _ => false,
+                        }
+                    };
+                    if already_allowed {
+                        true
+                    } else {
+                        match wait_for_approval(
                     &approvals,
                     &window,
                     &session_id,
@@ -904,13 +1037,44 @@ pub(crate) async fn run_agent(
                 )
                 .await
                 {
-                        Ok(v) => v,
-                        Err(e) => return Err(e),
+                            Ok(v) => {
+                                if v
+                                    && let Some(key) = session_cmd_key(tc)
+                                {
+                                    if let Ok(mut set) = session_allowlist.write() {
+                                        set.insert(key);
+                                    }
+                                }
+                                v
+                            }
+                            Err(e) => return Err(e),
+                        }
                     }
                 }
             } else {
                 true
             };
+
+            // P-02: 审计 — 需确认的工具调用写入本地 audit.jsonl
+            if needs {
+                let dangerous = tc.name == "bash"
+                    && tools::is_dangerous_shell(
+                        tc.arguments
+                            .get("command")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or(""),
+                    );
+                if let Some(app_dir) = window.app_handle().path().app_data_dir().ok() {
+                    crate::audit::record_approval(
+                        &app_dir.join("audit.jsonl"),
+                        &session_id,
+                        &tc.name,
+                        &tc.arguments,
+                        approved,
+                        dangerous,
+                    );
+                }
+            }
 
             // 白名单运行时校验：模型不得调用允许范围外的工具
             if let Some(allowed) = &overrides.allowed_tools {
@@ -934,6 +1098,17 @@ pub(crate) async fn run_agent(
                     continue;
                 }
             }
+
+            // U-03: 工具批次执行
+            let _ = window.emit(
+                "agent:stream",
+                AgentStreamChunk {
+                    session_id: session_id.clone(),
+                    payload: StreamPayload::Phase {
+                        phase: "checking".into(),
+                    },
+                },
+            );
 
             let (model_result, full_before, full_after) = if approved {
                 let exec = if tc.name.starts_with("mcp__") {
@@ -962,9 +1137,19 @@ pub(crate) async fn run_agent(
                         {
                             verification_pending = true;
                         }
+                        if let Ok(mut s) = settings_ref.write() {
+                            s.usage_stats.tool_calls_ok =
+                                s.usage_stats.tool_calls_ok.saturating_add(1);
+                        }
                         (output.model_result, output.full_before, output.full_after)
                     }
-                    Err(e) => (json!({ "error": e }), None, None),
+                    Err(e) => {
+                        if let Ok(mut s) = settings_ref.write() {
+                            s.usage_stats.tool_calls_fail =
+                                s.usage_stats.tool_calls_fail.saturating_add(1);
+                        }
+                        (json!({ "error": e }), None, None)
+                    }
                 }
             } else {
                 (
@@ -1034,9 +1219,60 @@ pub(crate) async fn run_agent(
         stats.today_cost_usd += cost;
         stats.week_tokens = stats.week_tokens.saturating_add(u.total_tokens);
         stats.week_cost_usd += cost;
+        // C-01: 模型/会话维度归因
+        stats.record_turn(&session_id, &active.model, u.total_tokens, cost);
+        session_cost += cost;
+        // C-02: 单会话预算超限 — 在写完用量后返回可行动错误
+        if let Some(cap) = session_budget
+            && cap > 0.0
+            && session_cost >= cap
+        {
+            let _ = window.emit(
+                "agent:stream",
+                AgentStreamChunk {
+                    session_id: session_id.clone(),
+                    payload: StreamPayload::Error {
+                        message: actionable_error(&format!(
+                            "本会话已达预算上限（${session_cost:.2} ≥ ${cap:.2}）。可在设置中调整「单会话预算」。"
+                        )),
+                    },
+                },
+            );
+        }
         let persisted = s.clone();
         drop(s);
         let _ = crate::settings::save_settings(&settings_path, &persisted);
+    }
+
+    // F-02: 任务运行摘要落盘（成本/工具/模型），便于回放与诊断
+    {
+        if let Ok(app_dir) = window.app_handle().path().app_data_dir() {
+            let tasks_dir = app_dir.join("tasks");
+            let _ = std::fs::create_dir_all(&tasks_dir);
+            let summary = serde_json::json!({
+                "session_id": session_id,
+                "model": active.model,
+                "finished_at": chrono::Utc::now().to_rfc3339(),
+                "usage": usage_accum.as_ref().map(|u| serde_json::json!({
+                    "prompt_tokens": u.prompt_tokens,
+                    "completion_tokens": u.completion_tokens,
+                    "total_tokens": u.total_tokens,
+                })),
+            });
+            let name = format!(
+                "task-{}-{}.json",
+                chrono::Utc::now().format("%Y%m%dT%H%M%SZ"),
+                &session_id[..session_id.len().min(8)]
+            );
+            let _ = std::fs::write(tasks_dir.join(name), summary.to_string());
+            // O-01: 会话结束事件
+            crate::audit::log_run_event(
+                &app_dir.join("events.jsonl"),
+                &session_id,
+                "session_end",
+                Some(summary),
+            );
+        }
     }
 
     // Hooks：响应完成（Done 事件前；失败不影响主流程）
@@ -1108,6 +1344,88 @@ fn split_messages(messages: &[Value]) -> (Vec<Value>, Vec<Value>) {
     }
     kept.extend(tail);
     (kept, history)
+}
+
+/// U-02: 生成会话内免确认缓存键（仅非危险 bash / 非敏感删除）。
+fn session_cmd_key(tc: &CollectedToolCall) -> Option<String> {
+    match tc.name.as_str() {
+        "bash" => {
+            let cmd = tc.arguments.get("command")?.as_str()?.trim();
+            if tools::is_dangerous_shell(cmd) {
+                None
+            } else {
+                Some(format!("bash:{cmd}"))
+            }
+        }
+        "file_delete" => {
+            let path = tc.arguments.get("path")?.as_str()?;
+            if tools::is_sensitive_path(path) {
+                None
+            } else {
+                Some(format!("file_delete:{path}"))
+            }
+        }
+        _ => None,
+    }
+}
+
+/// P-07: 检查 URL 是否命中网络出口白名单。空列表 = 不限制。
+fn url_allowed(url: &str, allowlist: &[String]) -> bool {
+    if allowlist.is_empty() {
+        return true;
+    }
+    let Ok(parsed) = url::Url::parse(url) else {
+        return false;
+    };
+    let Some(host) = parsed.host_str() else {
+        return false;
+    };
+    let host = host.to_ascii_lowercase();
+    allowlist.iter().any(|rule| {
+        let r = rule.trim().to_ascii_lowercase();
+        if r.is_empty() {
+            return false;
+        }
+        host == r || host.ends_with(&format!(".{r}"))
+    })
+}
+
+/// U-04: 把底层错误映射为可行动提示（前端可直接展示）。
+pub fn actionable_error(err: &str) -> String {
+    let e = err.to_ascii_lowercase();
+    if e.contains("401") || e.contains("unauthorized") || e.contains("invalid api key") {
+        format!("{err}\n→ 请到「设置 → 模型」检查 API Key 是否正确或已过期。")
+    } else if e.contains("429") || e.contains("rate limit") || e.contains("too many requests") {
+        format!("{err}\n→ 请求过于频繁，可稍后重试，或切换到其它 Provider / 本地模型。")
+    } else if e.contains("timeout") || e.contains("timed out") {
+        format!("{err}\n→ 网络或命令超时。可在「设置」增大工具超时，或检查代理/网络。")
+    } else if e.contains("404") && e.contains("model") {
+        format!("{err}\n→ 模型 ID 不存在，请在设置中核对 base_url 与 model。")
+    } else if e.contains("budget") || e.contains("预算") {
+        format!("{err}\n→ 可到「设置 → 预算」调整上限，或清除用量统计。")
+    } else if e.contains("connection refused")
+        || e.contains("dns")
+        || e.contains("connect")
+        || e.contains("连接失败")
+    {
+        format!("{err}\n→ 无法连接端点。请检查 API 地址、代理与本机网络。")
+    } else if e.contains("权限") || e.contains("permission") || e.contains("denied") {
+        format!("{err}\n→ 权限不足。可在设置中调整编辑模式，或对单次操作选择「允许」。")
+    } else {
+        err.to_string()
+    }
+}
+
+#[cfg(test)]
+mod actionable_tests {
+    use super::*;
+
+    #[test]
+    fn maps_auth_and_rate_limit() {
+        assert!(actionable_error("401 unauthorized").contains("API Key"));
+        assert!(actionable_error("429 too many requests").contains("重试"));
+        assert!(actionable_error("connection refused").contains("网络"));
+    }
 }
 
 /// 构建 HTTP 客户端：复用 NetworkConfig::build_client（G12）。

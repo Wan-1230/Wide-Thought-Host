@@ -143,6 +143,29 @@ pub async fn subagent_run(
         crate::ipc::session::save_sessions(&sessions_path, &sessions);
     }
 
+    // F-03: 并行上限 — 拒绝超过设置的子代理并发
+    {
+        let limit = state
+            .settings
+            .read()
+            .map_err(|e| e.to_string())?
+            .subagent_parallel
+            .clamp(1, 4) as usize;
+        let running = state
+            .agents
+            .lock()
+            .map_err(|e| e.to_string())?
+            .sessions
+            .values()
+            .filter(|h| h.running)
+            .count();
+        if running >= limit {
+            return Err(format!(
+                "子代理并行数已达上限（{running}/{limit}）。请等待当前任务结束，或在设置中调高「子代理并行数」。"
+            ));
+        }
+    }
+
     // 注册 agent 句柄（支持中止）
     let (abort_tx, abort_rx) = tokio::sync::mpsc::channel(1);
     {

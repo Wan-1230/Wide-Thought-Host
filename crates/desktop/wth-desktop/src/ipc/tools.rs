@@ -19,10 +19,32 @@ pub struct ApprovalRequest {
 /// 工具循环最大轮数，防止模型无限调用。
 pub const MAX_TOOL_ITERATIONS: usize = 24;
 
-/// shell 命令最长执行时间（秒）。
-const SHELL_TIMEOUT_SECS: u64 = 60;
+/// shell 命令最长执行时间（秒）。可通过设置 `shell_timeout_secs` 覆盖。
+/// 默认值见 `DesktopSettings::shell_timeout_secs`。
 /// 工具结果回传时的单字段最大长度。
+/// C-04: 超长输出剪枝，保留 head/tail，避免撑爆上下文。
 const MAX_TOOL_OUTPUT_CHARS: usize = 30_000;
+
+/// C-04: 剪枝超长工具输出 — 保留前 60% 与后 30%，中间插入省略标记。
+pub fn prune_tool_output(s: &str) -> String {
+    const MAX: usize = MAX_TOOL_OUTPUT_CHARS;
+    if s.chars().count() <= MAX {
+        return s.to_string();
+    }
+    let chars: Vec<char> = s.chars().collect();
+    let head = (MAX * 6 / 10) as usize;
+    let tail = (MAX * 3 / 10) as usize;
+    let start_tail = chars.len().saturating_sub(tail);
+    let mut out = String::with_capacity(MAX + 80);
+    out.extend(chars[..head].iter());
+    out.push_str(&format!(
+        "\n\n… [output truncated: {} of {} chars omitted] …\n\n",
+        chars.len() - head - tail,
+        chars.len()
+    ));
+    out.extend(chars[start_tail..].iter());
+    out
+}
 
 /// git 子命令风险等级。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -169,7 +191,24 @@ pub fn build_tools() -> Vec<Value> {
     ]
 }
 
+/// P-06 Phase1: 系统/用户敏感目录（写/删默认拒绝，full access 除外）。
+pub fn is_forbidden_system_path(path: &str) -> bool {
+    let p = path.replace('/', "\\").to_ascii_lowercase();
+    const MARKERS: &[&str] = &[
+        "c:\\windows",
+        "c:\\program files",
+        "c:\\program files (x86)",
+        "\\appdata\\local\\microsoft",
+        "\\appdata\\roaming\\microsoft",
+        "c:\\$recycle.bin",
+        "\\system32\\",
+        "\\syswow64\\",
+    ];
+    MARKERS.iter().any(|m| p.contains(m))
+}
+
 /// 判断某个工具调用是否需要用户确认。
+/// P-03：即使 auto/yolo，命中危险命令规则库时仍强制确认。
 pub fn needs_approval(tool_name: &str, arguments: &Value, edit_mode: &str) -> bool {
     let read_only = matches!(
         tool_name,
@@ -178,12 +217,38 @@ pub fn needs_approval(tool_name: &str, arguments: &Value, edit_mode: &str) -> bo
     if read_only {
         return false;
     }
+    // 危险命令优先于 yolo/auto：防止一键放行误伤。
+    if tool_name == "bash" {
+        if let Some(cmd) = arguments.get("command").and_then(|v| v.as_str())
+            && is_dangerous_shell(cmd)
+        {
+            return true;
+        }
+    }
+    if tool_name == "file_delete" {
+        let path = arguments.get("path").and_then(|v| v.as_str()).unwrap_or("");
+        if is_sensitive_path(path) || is_forbidden_system_path(path) {
+            return true;
+        }
+    }
+    // P-06: 非 yolo 下，系统目录写操作强制确认
+    if edit_mode != "yolo"
+        && matches!(tool_name, "file_write" | "file_edit")
+    {
+        let path = arguments.get("path").and_then(|v| v.as_str()).unwrap_or("");
+        if is_forbidden_system_path(path) {
+            return true;
+        }
+    }
     if edit_mode == "yolo" {
         return false;
     }
     match tool_name {
         // 低风险写操作：auto 模式自动执行，plan/review 需确认
-        "file_write" | "file_edit" => edit_mode != "auto",
+        "file_write" | "file_edit" => {
+            let path = arguments.get("path").and_then(|v| v.as_str()).unwrap_or("");
+            edit_mode != "auto" || is_sensitive_path(path)
+        }
         // 高风险操作：除 yolo 外一律确认
         "bash" | "file_delete" => true,
         "git" => {
@@ -195,6 +260,143 @@ pub fn needs_approval(tool_name: &str, arguments: &Value, edit_mode: &str) -> bo
             }
         }
         _ => true,
+    }
+}
+
+/// 危险 shell 命令规则库（大小写不敏感、子串匹配，偏保守）。
+pub fn is_dangerous_shell(cmd: &str) -> bool {
+    let c = cmd.to_ascii_lowercase();
+    const RULES: &[&str] = &[
+        "rm -rf",
+        "rm -fr",
+        "rm --no-preserve-root",
+        "mkfs",
+        "dd if=",
+        ":(){",
+        "fork bomb",
+        "shutdown",
+        "reboot",
+        "poweroff",
+        "halt ",
+        "format ",
+        "reg delete",
+        "reg add",
+        "remove-item -r",
+        "remove-item -force",
+        "rd /s",
+        "del /f",
+        "del /s",
+        "cipher /w",
+        "sdelete",
+        "> /dev/sd",
+        "chmod -r 777 /",
+        "chown -r",
+        "curl | sh",
+        "curl | bash",
+        "wget | sh",
+        "wget | bash",
+        "invoke-expression",
+        "iex(",
+        "start-process",
+        "git push --force",
+        "git push -f",
+        "git reset --hard",
+        "git clean -f",
+        "git clean -fd",
+        "git checkout .",
+        "docker system prune",
+        "docker volume rm",
+        "kubectl delete",
+        "drop database",
+        "drop table",
+    ];
+    RULES.iter().any(|r| c.contains(r))
+}
+
+/// 敏感路径：写/删需强制确认（相对工作区或绝对路径均检查）。
+pub fn is_sensitive_path(path: &str) -> bool {
+    let p = path.replace('\\', "/").to_ascii_lowercase();
+    const MARKERS: &[&str] = &[
+        ".env",
+        ".git/config",
+        ".git/hooks",
+        ".ssh/",
+        ".aws/",
+        ".npmrc",
+        ".pypirc",
+        "id_rsa",
+        "id_ed25519",
+        ".kube/config",
+        "credentials",
+        "secrets",
+        "/etc/",
+        "/boot/",
+        "c:/windows",
+    ];
+    MARKERS.iter().any(|m| p.contains(m))
+}
+
+/// P-01: 当前权限策略快照（供 UI / doctor 展示）。
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PermissionPolicySnapshot {
+    pub edit_mode: String,
+    pub allow_auto_file_edit: bool,
+    pub require_confirm_bash: bool,
+    pub require_confirm_dangerous_in_yolo: bool,
+    pub require_confirm_sensitive_path: bool,
+    pub shell_timeout_secs: u64,
+    pub memory_limit_mb: Option<u64>,
+    pub description: String,
+}
+
+/// 生成当前设置对应的权限策略说明。
+pub fn policy_snapshot(settings: &crate::settings::DesktopSettings) -> PermissionPolicySnapshot {
+    let mode = settings.edit_mode.as_str();
+    let desc = match mode {
+        "plan" => "计划模式：所有写操作与 shell 均需确认".into(),
+        "review" => "审查模式：写操作与 shell 需确认（同 review）".into(),
+        "auto" => "自动模式：普通文件编辑自动执行；bash/删除/敏感路径/危险命令仍确认".into(),
+        "yolo" => "YOLO 模式：尽量自动执行；危险命令与敏感路径仍强制确认".into(),
+        other => format!("未知模式 {other}，按需确认处理"),
+    };
+    PermissionPolicySnapshot {
+        edit_mode: mode.to_string(),
+        allow_auto_file_edit: mode == "auto",
+        require_confirm_bash: true,
+        require_confirm_dangerous_in_yolo: true,
+        require_confirm_sensitive_path: true,
+        shell_timeout_secs: settings.shell_timeout_secs.clamp(5, 600),
+        memory_limit_mb: settings.bash_memory_limit_mb,
+        description: desc,
+    }
+}
+
+#[cfg(test)]
+mod policy_tests {
+    use super::*;
+
+    #[test]
+    fn yolo_still_blocks_dangerous() {
+        assert!(is_dangerous_shell("rm -rf /"));
+        assert!(is_dangerous_shell("git push --force"));
+        assert!(!is_dangerous_shell("ls -la"));
+        assert!(needs_approval(
+            "bash",
+            &serde_json::json!({"command": "rm -rf build"}),
+            "yolo"
+        ));
+        assert!(!needs_approval(
+            "bash",
+            &serde_json::json!({"command": "cargo test"}),
+            "yolo"
+        ));
+    }
+
+    #[test]
+    fn sensitive_path_forced() {
+        assert!(is_sensitive_path(".env"));
+        assert!(is_sensitive_path("config/.env.local"));
+        assert!(!is_sensitive_path("src/main.rs"));
     }
 }
 
@@ -383,7 +585,15 @@ pub async fn execute_tool(
                 .get("command")
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| "缺少 command 参数".to_string())?;
-            let output = run_shell(command, &root, settings.bash_memory_limit_mb).await?;
+            let timeout = settings.shell_timeout_secs.clamp(5, 600);
+            let output = run_shell(
+                command,
+                &root,
+                settings.bash_memory_limit_mb,
+                timeout,
+                &settings.sandbox_profile,
+            )
+            .await?;
             Ok(ToolOutput::plain(json!({
                 "command": command,
                 "exit_code": output.code,
@@ -396,7 +606,8 @@ pub async fn execute_tool(
             if args.is_empty() {
                 return Err("缺少 git 参数".into());
             }
-            let output = run_git(&args, &root).await?;
+            let timeout = settings.shell_timeout_secs.clamp(5, 600);
+            let output = run_git(&args, &root, timeout).await?;
             Ok(ToolOutput::plain(json!({
                 "args": args,
                 "exit_code": output.code,
@@ -487,7 +698,31 @@ async fn run_shell(
     command: &str,
     root: &Path,
     memory_limit_mb: Option<u64>,
+    timeout_secs: u64,
+    sandbox_profile: &str,
 ) -> Result<ShellOutput, String> {
+    // P-06: restricted 档位 — 受限 Token + Job（失败自动降级 JobOnly 后走普通路径）
+    #[cfg(windows)]
+    if sandbox_profile == "restricted" {
+        use crate::ipc::sandbox_windows::{ChildSandbox, SandboxProfile};
+        let sb = ChildSandbox::create(SandboxProfile::Restricted, memory_limit_mb);
+        if sb.profile() == SandboxProfile::Restricted {
+            let timeout = std::time::Duration::from_secs(timeout_secs);
+            let args: Vec<String> = vec!["/C".into(), command.to_string()];
+            let root_owned = root.to_path_buf();
+            let result = tokio::task::spawn_blocking(move || {
+                sb.run_command_sync("cmd", &args, &root_owned, timeout)
+            })
+            .await
+            .map_err(|e| format!("sandbox task join: {e}"))?;
+            return result.map(|(code, stdout, stderr)| ShellOutput {
+                code,
+                stdout: truncate(&stdout),
+                stderr: truncate(&stderr),
+            });
+        }
+    }
+
     #[cfg(windows)]
     let mut cmd = {
         let mut c = tokio::process::Command::new("cmd");
@@ -521,11 +756,11 @@ async fn run_shell(
         }
     }
     let output = tokio::time::timeout(
-        std::time::Duration::from_secs(SHELL_TIMEOUT_SECS),
+        std::time::Duration::from_secs(timeout_secs),
         child.wait_with_output(),
     )
     .await
-    .map_err(|_| format!("命令执行超时（>{SHELL_TIMEOUT_SECS}s）"))?
+    .map_err(|_| format!("命令执行超时（>{timeout_secs}s）"))?
     .map_err(|e| format!("命令执行失败: {e}"))?;
     #[cfg(windows)]
     drop(job);
@@ -536,9 +771,9 @@ async fn run_shell(
     })
 }
 
-async fn run_git(args: &[String], root: &Path) -> Result<ShellOutput, String> {
+async fn run_git(args: &[String], root: &Path, timeout_secs: u64) -> Result<ShellOutput, String> {
     let output = tokio::time::timeout(
-        std::time::Duration::from_secs(SHELL_TIMEOUT_SECS),
+        std::time::Duration::from_secs(timeout_secs),
         tokio::process::Command::new("git")
             .arg("-C")
             .arg(root)
@@ -546,7 +781,7 @@ async fn run_git(args: &[String], root: &Path) -> Result<ShellOutput, String> {
             .output(),
     )
     .await
-    .map_err(|_| format!("git 执行超时（>{SHELL_TIMEOUT_SECS}s）"))?
+    .map_err(|_| format!("git 执行超时（>{timeout_secs}s）"))?
     .map_err(|e| format!("git 执行失败（请确认已安装 Git）: {e}"))?;
     Ok(ShellOutput {
         code: output.status.code(),
@@ -815,11 +1050,27 @@ fn strip_html(input: &str) -> String {
 }
 
 /// 截断过长文本，防止超大工具输出撑爆上下文。
+/// C-04: 采用 head/tail 剪枝，保留末尾便于看到最新输出。
 fn truncate(s: &str) -> String {
-    if s.chars().count() <= MAX_TOOL_OUTPUT_CHARS {
-        return s.to_string();
+    prune_tool_output(s)
+}
+
+#[cfg(test)]
+mod prune_tests {
+    use super::*;
+
+    #[test]
+    fn prune_keeps_short_untouched() {
+        assert_eq!(prune_tool_output("hello"), "hello");
     }
-    let mut out: String = s.chars().take(MAX_TOOL_OUTPUT_CHARS).collect();
-    out.push_str("\n…[输出过长，已截断]");
-    out
+
+    #[test]
+    fn prune_preserves_head_and_tail() {
+        let long = "A".repeat(20_000) + "NEEDLE" + &"B".repeat(20_000);
+        let out = prune_tool_output(&long);
+        assert!(out.chars().count() < long.chars().count());
+        assert!(out.starts_with('A'));
+        assert!(out.ends_with('B'));
+        assert!(out.contains("output truncated"));
+    }
 }

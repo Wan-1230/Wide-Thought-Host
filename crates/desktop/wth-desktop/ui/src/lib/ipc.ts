@@ -32,7 +32,7 @@ export interface AgentMessage {
 
 export interface StreamChunk {
   session_id: string;
-  type: "text_delta" | "tool_call_start" | "tool_call_end" | "done" | "error";
+  type: "text_delta" | "tool_call_start" | "tool_call_end" | "done" | "error" | "phase";
   delta?: string;
   tool_id?: string;
   tool_name?: string;
@@ -41,6 +41,8 @@ export interface StreamChunk {
   result?: unknown;
   usage?: UsageInfo;
   message?: string;
+  /** U-03: working / checking / verifying */
+  phase?: string;
 }
 
 /** 子智能体委派结果事件（agent:subagent_result）。 */
@@ -110,16 +112,12 @@ export interface UsageStats {
   week_tokens: number;
   week_cost_usd: number;
   last_updated?: string | null;
-}
-
-export interface UsageStats {
-  total_tokens: number;
-  total_cost_usd: number;
-  today_tokens: number;
-  today_cost_usd: number;
-  week_tokens: number;
-  week_cost_usd: number;
-  last_updated?: string | null;
+  by_model?: ModelUsage[];
+  recent_sessions?: SessionUsage[];
+  tool_calls_ok?: number;
+  tool_calls_fail?: number;
+  compaction_count?: number;
+  compaction_failures?: number;
 }
 
 export interface DesktopSettings {
@@ -143,6 +141,8 @@ export interface DesktopSettings {
   reasoning_effort: ReasoningEffort;
   edit_mode: EditMode;
   budget_usd?: number | null;
+  /** 单次会话预算上限（USD） */
+  session_budget_usd?: number | null;
   show_system_events: boolean;
   web_search_engine: string;
   headroom_enabled: boolean;
@@ -161,6 +161,14 @@ export interface DesktopSettings {
   bash_memory_limit_mb?: number | null;
   /** 自动压缩触发比例（占上下文窗口 %，30–85） */
   compaction_ratio_percent?: number;
+  /** shell/git 工具超时（秒），5–600，默认 60 */
+  shell_timeout_secs?: number;
+  /** 网络出口白名单（域名后缀），空 = 不限制 */
+  network_allowlist?: string[];
+  /** 子进程沙箱：job | restricted */
+  sandbox_profile?: "job" | "restricted";
+  /** 子代理最大并行数 1–4 */
+  subagent_parallel?: number;
   usage_stats: UsageStats;
   subagents?: SubagentConfig[];
   /** 快捷键映射（action → 按键组合） */
@@ -206,6 +214,49 @@ export interface ProviderConfig {
 export interface ProviderSummary extends ProviderConfig {
   has_api_key: boolean;
   is_default: boolean;
+}
+
+export interface ModelUsage {
+  model: string;
+  tokens: number;
+  cost_usd: number;
+  calls: number;
+}
+
+export interface SessionUsage {
+  session_id: string;
+  model: string;
+  tokens: number;
+  cost_usd: number;
+  at: string;
+}
+
+export interface PermissionPolicySnapshot {
+  edit_mode: string;
+  allow_auto_file_edit: boolean;
+  require_confirm_bash: boolean;
+  require_confirm_dangerous_in_yolo: boolean;
+  require_confirm_sensitive_path: boolean;
+  shell_timeout_secs: number;
+  memory_limit_mb?: number | null;
+  description: string;
+}
+
+export interface MetricsSummary {
+  total_tokens: number;
+  total_cost_usd: number;
+  today_tokens: number;
+  today_cost_usd: number;
+  week_tokens: number;
+  week_cost_usd: number;
+  tool_calls_ok: number;
+  tool_calls_fail: number;
+  tool_success_rate: number;
+  compaction_count: number;
+  compaction_failures: number;
+  by_model: ModelUsage[];
+  recent_sessions: SessionUsage[];
+  permission: PermissionPolicySnapshot;
 }
 
 export interface WorkspaceInfo {
@@ -353,6 +404,9 @@ export const providerUpsert = (config: ProviderConfig, apiKey?: string) =>
 export const providerDelete = (id: string) => invoke<void>("provider_delete", { id });
 export const providerSetDefault = (id: string) => invoke<void>("provider_set_default", { id });
 export const providerTest = (id: string) => invoke<string>("provider_test", { id });
+export const metricsSummary = () => invoke<MetricsSummary>("metrics_summary");
+export const tasksListRecent = () =>
+  invoke<{ name: string; content: string; mtime: string }[]>("tasks_list_recent");
 export const localProvidersDetect = () =>
   invoke<{ kind: string; base_url: string; models: string[] }[]>("local_providers_detect");
 export const workspaceGet = () => invoke<WorkspaceInfo>("workspace_get");

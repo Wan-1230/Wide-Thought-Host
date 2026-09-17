@@ -743,6 +743,8 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
     ? messages[activeSessionId] || []
     : [];
   const isStreaming = activeSessionId ? streaming[activeSessionId] || false : false;
+  const phase = useChatStore((s) => s.phase);
+  const currentPhase = activeSessionId ? phase[activeSessionId] : undefined;
 
   // 消息流变化时滚到底部
   useEffect(() => {
@@ -1613,15 +1615,31 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
               style={{ color: "var(--text-primary)" }}
             />
             {isStreaming ? (
-              <button
-                onClick={handleAbort}
-                title="中止"
-                className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center self-center
-                  transition-opacity duration-150 hover:opacity-90"
-                style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}
-              >
-                <Square size={11} fill="currentColor" />
-              </button>
+              <div className="flex items-center gap-2 self-center">
+                {currentPhase && (
+                  <span
+                    className="text-[11px] whitespace-nowrap"
+                    style={{ color: "var(--text-dim)" }}
+                  >
+                    {currentPhase === "working"
+                      ? "思考中…"
+                      : currentPhase === "checking"
+                        ? "执行工具…"
+                        : currentPhase === "verifying"
+                          ? "验证中…"
+                          : currentPhase}
+                  </span>
+                )}
+                <button
+                  onClick={handleAbort}
+                  title="中止"
+                  className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center
+                    transition-opacity duration-150 hover:opacity-90"
+                  style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}
+                >
+                  <Square size={11} fill="currentColor" />
+                </button>
+              </div>
             ) : (
               <button
                 onClick={handleSend}

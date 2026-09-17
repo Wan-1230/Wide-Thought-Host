@@ -1,3 +1,39 @@
+# v2.1.0 — 成熟 Agent 工程化（M1–M4）
+
+> 发布日期：2026-09
+> 对照 `docs/PRD-mature-agent-roadmap.md` 落地可靠性、可观测、安全、成本与扩展能力。
+
+## ✨ 新增
+
+- **Windows Restricted Token 沙箱**：设置可选 `restricted`（降权 + Job），失败自动回退
+- **审计与事件**：`audit.jsonl` 审批/高危命令；`events.jsonl` 会话生命周期
+- **Metrics**：工具成功率、按模型费用归因、压缩统计；诊断页健康摘要与最近任务
+- **预算**：累计 + 单会话预算；网络出口白名单
+- **阶段状态**：思考中 / 执行工具 / 验证中
+- **VS Code 扩展骨架**：`editors/vscode` Webview + ACP + 审批
+- **Extension Protocol v1**：handshake / intercept / slot 冲突契约
+- **子代理并行上限**（默认 2）
+- **`wth doctor` env 检查**；工具输出 head/tail 剪枝
+
+## 🔧 优化
+
+- `sessions.lock` 原子写；崩溃续跑标记
+- 工具超时可配置；压缩失败不中断会话
+- release `strip`：exe 约 258MB → 158MB
+- 危险命令与系统路径在 YOLO 下仍强制确认
+- 错误附可行动建议
+
+## 📦 安装
+
+| 平台 | 方式 |
+|------|------|
+| Windows | `Wide-Thought-Host-2.1.0-x64-setup.exe` / `.msi` |
+| 免安装 | `Wide-Thought-Host-2.1.0-x64-portable.zip` |
+
+未签名；SmartScreen 可选「仍要运行」。
+
+---
+
 # v2.0.1 — 产品闭环与 Setup 向导
 
 > 发布日期：2026-09

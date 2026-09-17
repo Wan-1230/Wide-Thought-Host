@@ -341,7 +341,11 @@ pub struct DesktopSettings {
     pub subagents: Vec<SubagentConfig>,
     pub reasoning_effort: String,
     pub edit_mode: String,
+    /// 累计预算上限（USD）。None = 不限制。
     pub budget_usd: Option<f64>,
+    /// C-02: 单次会话（单轮 agent_send）预算上限（USD）。None = 不限制。
+    #[serde(default)]
+    pub session_budget_usd: Option<f64>,
     pub show_system_events: bool,
     pub web_search_engine: String,
     pub headroom_enabled: bool,
@@ -400,6 +404,33 @@ pub struct DesktopSettings {
     /// 与 CLI 内核 CompactionPolicy 对齐。
     #[serde(default = "default_compaction_ratio")]
     pub compaction_ratio_percent: u32,
+    /// S-03: shell/git 工具超时（秒），默认 60，范围 5–600。
+    #[serde(default = "default_shell_timeout")]
+    pub shell_timeout_secs: u64,
+    /// P-07: 网络出口白名单（域名后缀）。空 = 不限制。
+    /// 仅作用于 agent 的 HTTP 请求（chat/completions、摘要等），
+    /// 不拦截本机 WebView UI 资源。
+    #[serde(default)]
+    pub network_allowlist: Vec<String>,
+    /// P-06: 子进程沙箱档位。`job`（默认）| `restricted`（受限 Token + Job）。
+    /// restricted 创建失败时自动降级 job。
+    #[serde(default = "default_sandbox_profile")]
+    pub sandbox_profile: String,
+    /// F-03: 子代理最大并行数（1–4）。默认 2，避免同时开过多 LLM 会话。
+    #[serde(default = "default_subagent_parallel")]
+    pub subagent_parallel: u32,
+}
+
+fn default_subagent_parallel() -> u32 {
+    2
+}
+
+fn default_sandbox_profile() -> String {
+    "job".into()
+}
+
+fn default_shell_timeout() -> u64 {
+    60
 }
 
 fn default_compaction_ratio() -> u32 {
@@ -441,6 +472,7 @@ impl Default for DesktopSettings {
             reasoning_effort: default_reasoning_effort(),
             edit_mode: default_edit_mode(),
             budget_usd: None,
+            session_budget_usd: None,
             show_system_events: true,
             web_search_engine: default_web_search_engine(),
             headroom_enabled: false,
@@ -464,6 +496,10 @@ impl Default for DesktopSettings {
             summary_model: None,
             bash_memory_limit_mb: None,
             compaction_ratio_percent: default_compaction_ratio(),
+            shell_timeout_secs: default_shell_timeout(),
+            network_allowlist: Vec::new(),
+            sandbox_profile: default_sandbox_profile(),
+            subagent_parallel: default_subagent_parallel(),
         }
     }
 }
@@ -479,6 +515,71 @@ pub struct UsageStats {
     pub week_cost_usd: f64,
     /// 最近一次更新的日期（YYYY-MM-DD，用于跨天重置今日统计）
     pub last_updated: Option<String>,
+    /// C-01: 按模型归因的累计用量（key = model id）
+    #[serde(default)]
+    pub by_model: Vec<ModelUsage>,
+    /// C-01: 最近会话用量（环形，最多 50 条）
+    #[serde(default)]
+    pub recent_sessions: Vec<SessionUsage>,
+    /// O-02: 工具调用累计（成功/失败）
+    #[serde(default)]
+    pub tool_calls_ok: u64,
+    #[serde(default)]
+    pub tool_calls_fail: u64,
+    /// O-02: 压缩触发次数 / 失败次数
+    #[serde(default)]
+    pub compaction_count: u64,
+    #[serde(default)]
+    pub compaction_failures: u64,
+}
+
+/// 单模型累计用量。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ModelUsage {
+    pub model: String,
+    pub tokens: u64,
+    pub cost_usd: f64,
+    pub calls: u64,
+}
+
+/// 单次会话（一轮 agent_send）的用量快照。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SessionUsage {
+    pub session_id: String,
+    pub model: String,
+    pub tokens: u64,
+    pub cost_usd: f64,
+    pub at: String,
+}
+
+impl UsageStats {
+    /// 记录一次会话用量（模型 + 会话维度）。
+    pub fn record_turn(&mut self, session_id: &str, model: &str, tokens: u64, cost: f64) {
+        match self.by_model.iter_mut().find(|m| m.model == model) {
+            Some(m) => {
+                m.tokens = m.tokens.saturating_add(tokens);
+                m.cost_usd += cost;
+                m.calls += 1;
+            }
+            None => self.by_model.push(ModelUsage {
+                model: model.to_string(),
+                tokens,
+                cost_usd: cost,
+                calls: 1,
+            }),
+        }
+        self.recent_sessions.push(SessionUsage {
+            session_id: session_id.to_string(),
+            model: model.to_string(),
+            tokens,
+            cost_usd: cost,
+            at: chrono::Utc::now().to_rfc3339(),
+        });
+        if self.recent_sessions.len() > 50 {
+            let excess = self.recent_sessions.len() - 50;
+            self.recent_sessions.drain(0..excess);
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -855,6 +956,119 @@ fn workspace_info(path: &Path, active: bool) -> WorkspaceInfo {
         exists: path.is_dir(),
         active,
     }
+}
+
+/// O-02: 本地运营指标摘要（成本 / 工具成功率 / 压缩 / 按模型归因）。
+#[derive(Debug, Clone, Serialize)]
+pub struct MetricsSummary {
+    pub total_tokens: u64,
+    pub total_cost_usd: f64,
+    pub today_tokens: u64,
+    pub today_cost_usd: f64,
+    pub week_tokens: u64,
+    pub week_cost_usd: f64,
+    pub tool_calls_ok: u64,
+    pub tool_calls_fail: u64,
+    pub tool_success_rate: f64,
+    pub compaction_count: u64,
+    pub compaction_failures: u64,
+    pub by_model: Vec<ModelUsage>,
+    pub recent_sessions: Vec<SessionUsage>,
+    /// P-01: 权限策略快照
+    pub permission: crate::ipc::tools::PermissionPolicySnapshot,
+}
+
+#[tauri::command]
+pub async fn metrics_summary(state: State<'_, AppState>) -> Result<MetricsSummary, String> {
+    let s = state.settings.read().map_err(|e| e.to_string())?;
+    let u = &s.usage_stats;
+    let total_tools = u.tool_calls_ok + u.tool_calls_fail;
+    let tool_success_rate = if total_tools == 0 {
+        1.0
+    } else {
+        u.tool_calls_ok as f64 / total_tools as f64
+    };
+    let permission = crate::ipc::tools::policy_snapshot(&s);
+    Ok(MetricsSummary {
+        total_tokens: u.total_tokens,
+        total_cost_usd: u.total_cost_usd,
+        today_tokens: u.today_tokens,
+        today_cost_usd: u.today_cost_usd,
+        week_tokens: u.week_tokens,
+        week_cost_usd: u.week_cost_usd,
+        tool_calls_ok: u.tool_calls_ok,
+        tool_calls_fail: u.tool_calls_fail,
+        tool_success_rate,
+        compaction_count: u.compaction_count,
+        compaction_failures: u.compaction_failures,
+        by_model: u.by_model.clone(),
+        recent_sessions: u.recent_sessions.clone(),
+        permission,
+    })
+}
+
+/// O-07: 最近任务摘要（诊断页健康卡片）。
+#[derive(Debug, Clone, Serialize)]
+pub struct RecentTaskInfo {
+    pub name: String,
+    pub content: String,
+    pub mtime: String,
+}
+
+#[tauri::command]
+pub async fn tasks_list_recent(state: State<'_, AppState>) -> Result<Vec<RecentTaskInfo>, String> {
+    use std::path::PathBuf;
+    let app_dir: PathBuf = {
+        // settings 路径旁即为 app data（与 sessions/settings 同目录）
+        let p = state
+            .settings_path
+            .read()
+            .map_err(|e| e.to_string())?
+            .clone();
+        p.parent().map(|d| d.to_path_buf()).unwrap_or_default()
+    };
+    let dir = app_dir.join("tasks");
+    let mut out = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        let mut files: Vec<_> = entries.filter_map(|e| e.ok()).collect();
+        files.sort_by_key(|e| {
+            e.metadata()
+                .and_then(|m| m.modified())
+                .ok()
+                .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+        });
+        files.reverse();
+        for f in files.into_iter().take(20) {
+            let path = f.path();
+            if path.extension().and_then(|s| s.to_str()) != Some("json") {
+                continue;
+            }
+            let content = std::fs::read_to_string(&path).unwrap_or_default();
+            let mtime = f
+                .metadata()
+                .and_then(|m| m.modified())
+                .ok()
+                .map(|t| {
+                    let dt: chrono::DateTime<chrono::Utc> = t.into();
+                    dt.to_rfc3339()
+                })
+                .unwrap_or_default();
+            out.push(RecentTaskInfo {
+                name: path
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or_default()
+                    .to_string(),
+                content: if content.chars().count() > 400 {
+                    content.chars().take(400).collect::<String>() + "…"
+                } else {
+                    content
+                },
+                mtime,
+            });
+        }
+    }
+    Ok(out)
 }
 
 #[tauri::command]

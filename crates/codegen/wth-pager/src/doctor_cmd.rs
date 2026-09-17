@@ -199,6 +199,54 @@ fn check_update(checks: &mut Vec<DoctorCheck>) {
     );
 }
 
+fn check_env_quality(checks: &mut Vec<DoctorCheck>) {
+    // O-03: 磁盘与关键目录可写性
+    let home = xai_grok_shell::util::grok_home::grok_home();
+    let mut notes = Vec::new();
+    let mut status = "ok";
+    if !home.exists() {
+        if let Err(e) = std::fs::create_dir_all(&home) {
+            status = "fail";
+            notes.push(format!("cannot create home: {e}"));
+        } else {
+            notes.push("home created".into());
+        }
+    } else {
+        notes.push(format!("home ok: {}", home.display()));
+    }
+    match std::env::current_dir() {
+        Ok(cwd) => {
+            let probe = cwd.join(".wth-write-probe");
+            match std::fs::write(&probe, b"ok") {
+                Ok(_) => {
+                    let _ = std::fs::remove_file(&probe);
+                    notes.push("cwd writable".into());
+                }
+                Err(e) => {
+                    status = "warn";
+                    notes.push(format!("cwd not writable: {e}"));
+                }
+            }
+        }
+        Err(e) => {
+            status = "warn";
+            notes.push(format!("cwd unavailable: {e}"));
+        }
+    }
+    push(
+        checks,
+        "env",
+        status,
+        "environment / disk checks",
+        Some(notes.join("; ")),
+        if status == "fail" {
+            Some("检查磁盘空间与目录权限".into())
+        } else {
+            None
+        },
+    );
+}
+
 async fn check_mcp(checks: &mut Vec<DoctorCheck>) {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let report = xai_grok_shell::mcp_doctor::run_doctor(&cwd, None).await;
@@ -273,6 +321,9 @@ pub async fn run(json: bool, only: Option<String>) -> Result<()> {
     }
     if want("update") {
         check_update(&mut checks);
+    }
+    if want("env") {
+        check_env_quality(&mut checks);
     }
     if want("mcp") {
         check_mcp(&mut checks).await;

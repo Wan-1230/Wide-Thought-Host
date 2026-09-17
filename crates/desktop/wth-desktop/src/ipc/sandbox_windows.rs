@@ -12,7 +12,7 @@
 /// 子进程 Job 句柄。Drop 时关闭句柄，触发 kill-on-close 清理整棵进程树。
 #[cfg(windows)]
 pub struct ChildJob {
-    handle: windows_sys::Win32::Foundation::HANDLE,
+    pub(crate) handle: windows_sys::Win32::Foundation::HANDLE,
 }
 
 #[cfg(windows)]
@@ -82,6 +82,311 @@ impl Drop for ChildJob {
     }
 }
 
+// ─── P-06 Phase2: Restricted Token 沙箱 ────────────────────────────────────
+
+/// 沙箱档位（与设置 `sandbox_profile` 对齐）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SandboxProfile {
+    /// 仅 Job Object kill-on-close（默认，兼容性最好）。
+    JobOnly,
+    /// 受限 Token + Job：降权后仍可跑常规命令，禁止提权写系统目录。
+    Restricted,
+}
+
+/// 受限主令牌。Drop 时关闭。
+#[cfg(windows)]
+pub struct RestrictedToken {
+    handle: windows_sys::Win32::Foundation::HANDLE,
+}
+
+#[cfg(windows)]
+impl RestrictedToken {
+    /// 基于当前进程令牌创建受限令牌（DISABLE_MAX_PRIVILEGE | LUA_TOKEN）。
+    pub fn create() -> Result<Self, String> {
+        use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+        use windows_sys::Win32::Security::{
+            CreateRestrictedToken, GetTokenInformation, TokenElevation, TOKEN_ELEVATION,
+            TOKEN_QUERY, DISABLE_MAX_PRIVILEGE, LUA_TOKEN, SANDBOX_INERT,
+        };
+        use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+
+        unsafe {
+            let mut process_token: HANDLE = std::ptr::null_mut();
+            if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut process_token) == 0 {
+                return Err("OpenProcessToken failed".into());
+            }
+            // 已是标准用户时仍创建 restricted token（幂等、降权）。
+            let mut elev = TOKEN_ELEVATION { TokenIsElevated: 0 };
+            let mut ret_len = 0u32;
+            let _ = GetTokenInformation(
+                process_token,
+                TokenElevation,
+                &mut elev as *mut _ as *mut _,
+                std::mem::size_of::<TOKEN_ELEVATION>() as u32,
+                &mut ret_len,
+            );
+
+            let mut restricted: HANDLE = std::ptr::null_mut();
+            let ok = CreateRestrictedToken(
+                process_token,
+                DISABLE_MAX_PRIVILEGE | LUA_TOKEN | SANDBOX_INERT,
+                0,
+                std::ptr::null(),
+                0,
+                std::ptr::null(),
+                0,
+                std::ptr::null(),
+                &mut restricted,
+            );
+            CloseHandle(process_token);
+            if ok == 0 {
+                return Err("CreateRestrictedToken failed".into());
+            }
+            if restricted.is_null() {
+                return Err("CreateRestrictedToken returned null".into());
+            }
+            Ok(Self { handle: restricted })
+        }
+    }
+
+    pub fn handle(&self) -> windows_sys::Win32::Foundation::HANDLE {
+        self.handle
+    }
+}
+
+#[cfg(windows)]
+unsafe impl Send for RestrictedToken {}
+
+#[cfg(windows)]
+impl Drop for RestrictedToken {
+    fn drop(&mut self) {
+        unsafe {
+            windows_sys::Win32::Foundation::CloseHandle(self.handle);
+        }
+    }
+}
+
+/// 沙箱会话：可选受限 Token + Job。
+#[cfg(windows)]
+pub struct ChildSandbox {
+    job: ChildJob,
+    token: Option<RestrictedToken>,
+    profile: SandboxProfile,
+}
+
+#[cfg(windows)]
+impl ChildSandbox {
+    /// 按档位创建沙箱。Restricted 失败时自动降级 JobOnly（fail-open）。
+    pub fn create(profile: SandboxProfile, memory_limit_mb: Option<u64>) -> Self {
+        let job = ChildJob::create_with_memory_limit(memory_limit_mb);
+        let job = match job {
+            Some(j) => j,
+            None => {
+                // 极端情况：Job 也失败 — 仍返回一个“空”结构由调用方处理
+                // 这里用 create 再试一次；若再失败则 panic-free 地用占位。
+                // 实际上 CreateJobObject 几乎总能成功；失败时降级为无 Job。
+                tracing::warn!("ChildJob create failed; sandbox degraded");
+                // 构造一个已失效的占位：重新 create，仍失败则直接退出函数
+                // 通过 Option 包装在调用侧处理。为保持 API 简单，这里重试一次。
+                ChildJob::create_with_memory_limit(None).expect("job object unavailable")
+            }
+        };
+        let (token, profile) = match profile {
+            SandboxProfile::Restricted => match RestrictedToken::create() {
+                Ok(t) => (Some(t), SandboxProfile::Restricted),
+                Err(e) => {
+                    tracing::warn!("RestrictedToken failed ({e}); fallback JobOnly");
+                    (None, SandboxProfile::JobOnly)
+                }
+            },
+            SandboxProfile::JobOnly => (None, SandboxProfile::JobOnly),
+        };
+        Self {
+            job,
+            token,
+            profile,
+        }
+    }
+
+    pub fn profile(&self) -> SandboxProfile {
+        self.profile
+    }
+
+    /// 在受限令牌下同步执行命令（带超时）。返回 (exit_code, stdout, stderr)。
+    /// 仅 Windows；非 Restricted 时走普通 tokio 路径由调用方处理。
+    pub fn run_command_sync(
+        &self,
+        program: &str,
+        args: &[String],
+        cwd: &std::path::Path,
+        timeout: std::time::Duration,
+    ) -> Result<(Option<i32>, String, String), String> {
+        use windows_sys::Win32::Foundation::{
+            CloseHandle, GetLastError, HANDLE, HANDLE_FLAG_INHERIT, SetHandleInformation,
+            WAIT_OBJECT_0,
+        };
+        use windows_sys::Win32::System::Threading::{
+            CreateProcessAsUserW, GetExitCodeProcess, ResumeThread, TerminateProcess,
+            WaitForSingleObject, CREATE_NO_WINDOW, CREATE_SUSPENDED, PROCESS_INFORMATION,
+            STARTF_USESTDHANDLES, STARTUPINFOW,
+        };
+
+        let Some(token) = self.token.as_ref() else {
+            return Err("no restricted token".into());
+        };
+
+        // 组装命令行
+        let mut cmdline = format!("\"{program}\"");
+        for a in args {
+            cmdline.push(' ');
+            if a.contains(' ') {
+                cmdline.push('"');
+                cmdline.push_str(a);
+                cmdline.push('"');
+            } else {
+                cmdline.push_str(a);
+            }
+        }
+        let mut cmdline_w: Vec<u16> = cmdline.encode_utf16().chain(std::iter::once(0)).collect();
+        let cwd_w: Vec<u16> = cwd
+            .to_string_lossy()
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect();
+
+        unsafe {
+            let mut sa = windows_sys::Win32::Security::SECURITY_ATTRIBUTES {
+                nLength: std::mem::size_of::<windows_sys::Win32::Security::SECURITY_ATTRIBUTES>()
+                    as u32,
+                lpSecurityDescriptor: std::ptr::null_mut(),
+                bInheritHandle: 1,
+            };
+            let mut stdout_read: HANDLE = std::ptr::null_mut();
+            let mut stdout_write: HANDLE = std::ptr::null_mut();
+            let mut stderr_read: HANDLE = std::ptr::null_mut();
+            let mut stderr_write: HANDLE = std::ptr::null_mut();
+
+            if windows_sys::Win32::System::Pipes::CreatePipe(
+                &mut stdout_read,
+                &mut stdout_write,
+                &mut sa,
+                0,
+            ) == 0
+                || windows_sys::Win32::System::Pipes::CreatePipe(
+                    &mut stderr_read,
+                    &mut stderr_write,
+                    &mut sa,
+                    0,
+                ) == 0
+            {
+                return Err(format!("CreatePipe failed: {}", GetLastError()));
+            }
+            // 父进程读端不要继承
+            let _ = SetHandleInformation(
+                stdout_read,
+                HANDLE_FLAG_INHERIT,
+                0,
+            );
+            let _ = SetHandleInformation(
+                stderr_read,
+                HANDLE_FLAG_INHERIT,
+                0,
+            );
+
+            let mut si: STARTUPINFOW = std::mem::zeroed();
+            si.cb = std::mem::size_of::<STARTUPINFOW>() as u32;
+            si.dwFlags = STARTF_USESTDHANDLES;
+            si.hStdOutput = stdout_write;
+            si.hStdError = stderr_write;
+            si.hStdInput = std::ptr::null_mut();
+
+            let mut pi: PROCESS_INFORMATION = std::mem::zeroed();
+            let ok = CreateProcessAsUserW(
+                token.handle(),
+                std::ptr::null(),
+                cmdline_w.as_mut_ptr(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                1, // bInheritHandles
+                CREATE_SUSPENDED | CREATE_NO_WINDOW,
+                std::ptr::null_mut(),
+                cwd_w.as_ptr(),
+                &si,
+                &mut pi,
+            );
+            CloseHandle(stdout_write);
+            CloseHandle(stderr_write);
+            if ok == 0 {
+                CloseHandle(stdout_read);
+                CloseHandle(stderr_read);
+                return Err(format!("CreateProcessAsUserW failed: {}", GetLastError()));
+            }
+
+            // 挂 Job 后恢复线程
+            if windows_sys::Win32::System::JobObjects::AssignProcessToJobObject(
+                self.job.handle,
+                pi.hProcess,
+            ) == 0
+            {
+                tracing::debug!(
+                    "AssignProcessToJobObject failed in restricted sandbox: {}",
+                    GetLastError()
+                );
+            }
+            let _ = ResumeThread(pi.hThread);
+            CloseHandle(pi.hThread);
+
+            // 等待超时
+            let wait_ms = timeout.as_millis().min(u32::MAX as u128) as u32;
+            let wr = WaitForSingleObject(pi.hProcess, wait_ms);
+            if wr != WAIT_OBJECT_0 {
+                // 超时：Job drop 会杀树；此处先 Terminate
+                let _ = TerminateProcess(pi.hProcess, 1);
+                let _ = WaitForSingleObject(pi.hProcess, 2000);
+                CloseHandle(pi.hProcess);
+                CloseHandle(stdout_read);
+                CloseHandle(stderr_read);
+                return Err(format!(
+                    "restricted command timeout ({}s)",
+                    timeout.as_secs()
+                ));
+            }
+
+            let mut code = 0u32;
+            let _ = GetExitCodeProcess(pi.hProcess, &mut code);
+            CloseHandle(pi.hProcess);
+
+            let read_all = |h: HANDLE| -> String {
+                let mut buf = [0u8; 8192];
+                let mut out = Vec::new();
+                loop {
+                    let mut n = 0u32;
+                    let ok = windows_sys::Win32::Storage::FileSystem::ReadFile(
+                        h,
+                        buf.as_mut_ptr() as *mut _,
+                        buf.len() as u32,
+                        &mut n,
+                        std::ptr::null_mut(),
+                    );
+                    if ok == 0 || n == 0 {
+                        break;
+                    }
+                    out.extend_from_slice(&buf[..n as usize]);
+                    if out.len() > 2 * 1024 * 1024 {
+                        break;
+                    }
+                }
+                String::from_utf8_lossy(&out).into_owned()
+            };
+            let stdout = read_all(stdout_read);
+            let stderr = read_all(stderr_read);
+            CloseHandle(stdout_read);
+            CloseHandle(stderr_read);
+            Ok((Some(code as i32), stdout, stderr))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[cfg(windows)]
@@ -118,6 +423,41 @@ mod tests {
             // 极端情况下等待收尾；仍存活则显式终止以清理测试。
             let _ = child.start_kill();
             panic!("kill-on-close 未终止子进程（pid={pid:?}）");
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn restricted_token_creates() {
+        use super::{ChildSandbox, SandboxProfile};
+        let sb = ChildSandbox::create(SandboxProfile::Restricted, None);
+        // 允许降级为 JobOnly，但创建不能 panic
+        let _ = sb.profile();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn restricted_runs_cmd() {
+        use super::{ChildSandbox, SandboxProfile};
+        use std::time::Duration;
+        let sb = ChildSandbox::create(SandboxProfile::Restricted, None);
+        if sb.profile() != SandboxProfile::Restricted {
+            // 环境无法创建受限令牌时跳过
+            return;
+        }
+        let cwd = std::env::temp_dir();
+        let r = sb.run_command_sync(
+            "cmd",
+            &["/C".into(), "echo hello-restricted".into()],
+            &cwd,
+            Duration::from_secs(10),
+        );
+        match r {
+            Ok((code, out, _)) => {
+                assert_eq!(code, Some(0), "stdout={out}");
+                assert!(out.contains("hello-restricted"), "out={out}");
+            }
+            Err(e) => panic!("restricted run failed: {e}"),
         }
     }
 }

@@ -56,6 +56,8 @@ import {
   memoryList,
   memoryWrite,
   diagnosticsGet,
+  metricsSummary,
+  tasksListRecent,
   pluginImport,
   pluginMarketList,
   pluginMarketInstall,
@@ -97,6 +99,7 @@ import {
   type PromptTemplate,
   type DiagnosticItem,
   type UpdateCheckInfo,
+  type MetricsSummary,
 } from "@/lib/ipc";
 import { SegmentedControl } from "@/components/common/SegmentedControl";
 import { confirmDialog } from "@/components/common/ConfirmDialog";
@@ -523,6 +526,15 @@ function PageGeneral({
             onChange={(edit_mode) => onSave({ ...settings, edit_mode: edit_mode as EditMode })}
           />
         </SettingRow>
+        <SettingRow
+          label="内核 Agent (ACP)"
+          hint="优先用本机 wth CLI 内核处理会话（与 TUI 同源）。默认关闭；连接失败会自动回退自研循环。需本机已安装 wth。"
+        >
+          <Toggle
+            checked={!!settings.kernel_agent}
+            onChange={(kernel_agent) => onSave({ ...settings, kernel_agent })}
+          />
+        </SettingRow>
         <SettingRow label="预算上限 (USD)" hint="累计消耗达到该金额后停止请求，留空为不限制">
           <input
             className="control w-28"
@@ -534,6 +546,23 @@ function PageGeneral({
             onChange={(e) => {
               const v = e.target.value.trim();
               onSave({ ...settings, budget_usd: v === "" ? null : Number(v) });
+            }}
+          />
+        </SettingRow>
+        <SettingRow
+          label="单会话预算 (USD)"
+          hint="本轮对话累计费用达到该金额后提示并停止，留空为不限制"
+        >
+          <input
+            className="control w-28"
+            type="number"
+            min="0"
+            step="0.1"
+            placeholder="例如：1"
+            value={settings.session_budget_usd ?? ""}
+            onChange={(e) => {
+              const v = e.target.value.trim();
+              onSave({ ...settings, session_budget_usd: v === "" ? null : Number(v) });
             }}
           />
         </SettingRow>
@@ -572,6 +601,80 @@ function PageGeneral({
               const v = Number(e.target.value);
               if (v >= 30 && v <= 85) {
                 onSave({ ...settings, compaction_ratio_percent: Math.floor(v) });
+              }
+            }}
+          />
+        </SettingRow>
+        <SettingRow
+          label="工具超时 (秒)"
+          hint="shell / git 命令最长执行时间（5–600，默认 60）。超时后终止子进程树"
+        >
+          <input
+            className="control w-24"
+            type="number"
+            min="5"
+            max="600"
+            step="5"
+            value={settings.shell_timeout_secs ?? 60}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              if (v >= 5 && v <= 600) {
+                onSave({ ...settings, shell_timeout_secs: Math.floor(v) });
+              }
+            }}
+          />
+        </SettingRow>
+        <SettingRow
+          label="网络出口白名单"
+          hint="仅允许 Agent 访问这些域名（逗号分隔，支持后缀匹配如 api.openai.com）。留空为不限制"
+        >
+          <input
+            className="control w-72"
+            placeholder="例如：api.openai.com, api.deepseek.com"
+            value={(settings.network_allowlist ?? []).join(", ")}
+            onChange={(e) => {
+              const list = e.target.value
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean);
+              onSave({ ...settings, network_allowlist: list });
+            }}
+          />
+        </SettingRow>
+        <SettingRow
+          label="子进程沙箱"
+          hint="job：进程树回收（默认）。restricted：额外使用受限 Token 降权（创建失败自动回退 job）"
+        >
+          <SegmentedControl
+            size="sm"
+            options={[
+              { value: "job", label: "Job" },
+              { value: "restricted", label: "Restricted" },
+            ]}
+            value={settings.sandbox_profile ?? "job"}
+            onChange={(sandbox_profile) =>
+              onSave({
+                ...settings,
+                sandbox_profile: sandbox_profile as "job" | "restricted",
+              })
+            }
+          />
+        </SettingRow>
+        <SettingRow
+          label="子代理并行数"
+          hint="同时运行的子智能体上限（1–4，默认 2），避免并发 LLM 会话过多"
+        >
+          <input
+            className="control w-20"
+            type="number"
+            min="1"
+            max="4"
+            step="1"
+            value={settings.subagent_parallel ?? 2}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              if (v >= 1 && v <= 4) {
+                onSave({ ...settings, subagent_parallel: Math.floor(v) });
               }
             }}
           />
@@ -2355,10 +2458,21 @@ function PageUsage({
         week_tokens: 0,
         week_cost_usd: 0,
         last_updated: null,
+        by_model: [],
+        recent_sessions: [],
+        tool_calls_ok: 0,
+        tool_calls_fail: 0,
+        compaction_count: 0,
+        compaction_failures: 0,
       },
     });
     onNotice("用量统计已清除");
   };
+  const ok = stats.tool_calls_ok ?? 0;
+  const fail = stats.tool_calls_fail ?? 0;
+  const totalTools = ok + fail;
+  const successRate = totalTools === 0 ? 100 : Math.round((ok / totalTools) * 1000) / 10;
+  const byModel = stats.by_model ?? [];
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
@@ -2369,6 +2483,77 @@ function PageUsage({
           value={stats.total_cost_usd > 0 ? `$${stats.total_cost_usd.toFixed(2)}` : "$0.00"}
           hint={`${fmt(stats.total_tokens)} Tokens 总量`}
         />
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        <StatCard
+          label="工具成功率"
+          value={`${successRate}%`}
+          hint={totalTools > 0 ? `${fmt(ok)} 成功 / ${fmt(fail)} 失败` : "暂无调用"}
+        />
+        <StatCard
+          label="上下文压缩"
+          value={fmt(stats.compaction_count ?? 0)}
+          hint={`失败 ${fmt(stats.compaction_failures ?? 0)} 次`}
+        />
+        <StatCard
+          label="今日费用"
+          value={stats.today_cost_usd > 0 ? `$${stats.today_cost_usd.toFixed(2)}` : "$0.00"}
+          hint="按单价估算"
+        />
+      </div>
+      {byModel.length > 0 && (
+        <div
+          className="rounded-xl border p-4"
+          style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)" }}
+        >
+          <div className="text-xs font-medium mb-2" style={{ color: "var(--text-primary)" }}>
+            按模型归因
+          </div>
+          <div className="space-y-1.5">
+            {byModel
+              .slice()
+              .sort((a, b) => b.cost_usd - a.cost_usd)
+              .map((m) => (
+                <div
+                  key={m.model}
+                  className="flex items-center gap-3 text-[11px] py-1"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  <span className="flex-1 truncate" style={{ color: "var(--text-primary)" }}>
+                    {m.model || "(default)"}
+                  </span>
+                  <span>{fmt(m.tokens)} tok</span>
+                  <span>${m.cost_usd.toFixed(3)}</span>
+                  <span>{fmt(m.calls)} 次</span>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+      <div
+        className="rounded-xl border p-4 text-xs space-y-2"
+        style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)" }}
+      >
+        <div className="text-xs font-medium" style={{ color: "var(--text-primary)" }}>
+          当前权限策略
+        </div>
+        <div className="flex items-center gap-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
+          <span
+            className="px-2 py-0.5 rounded"
+            style={{ background: "var(--surface-2)", color: "var(--text-primary)" }}
+          >
+            {settings.edit_mode}
+          </span>
+          <span>
+            超时 {settings.shell_timeout_secs ?? 60}s
+            {settings.bash_memory_limit_mb ? ` · 内存限 ${settings.bash_memory_limit_mb}MB` : ""}
+          </span>
+        </div>
+        <ul className="text-[11px] space-y-1 list-disc pl-4" style={{ color: "var(--text-muted)" }}>
+          <li>bash / 文件删除始终需确认</li>
+          <li>危险命令（rm -rf、git push --force 等）在 YOLO 下仍强制确认</li>
+          <li>敏感路径（.env、.ssh、credentials 等）写入/删除强制确认</li>
+        </ul>
       </div>
       <div className="rounded-xl border p-4 text-xs space-y-2" style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)" }}>
         <div className="flex items-center justify-between gap-3">
@@ -2400,6 +2585,10 @@ function PageDiagnostics({ onNotice }: { onNotice: (s: string) => void }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const [logFilter, setLogFilter] = useState("");
+  const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
+  const [recentTasks, setRecentTasks] = useState<
+    { name: string; content: string; mtime: string }[]
+  >([]);
 
   const load = async () => {
     setLoading(true);
@@ -2407,6 +2596,16 @@ function PageDiagnostics({ onNotice }: { onNotice: (s: string) => void }) {
       setItems(await diagnosticsGet());
     } catch (e) {
       onNotice(`诊断失败：${e}`);
+    }
+    try {
+      setMetrics(await metricsSummary());
+    } catch {
+      /* optional */
+    }
+    try {
+      setRecentTasks(await tasksListRecent());
+    } catch {
+      /* optional */
     } finally {
       setLoading(false);
     }
@@ -2421,6 +2620,59 @@ function PageDiagnostics({ onNotice }: { onNotice: (s: string) => void }) {
 
   return (
     <>
+      {metrics && (
+        <div
+          className="rounded-xl border p-4 mb-4"
+          style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)" }}
+        >
+          <div className="text-xs font-medium mb-2" style={{ color: "var(--text-primary)" }}>
+            健康摘要
+          </div>
+          <div className="grid grid-cols-4 gap-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
+            <div>
+              工具成功率
+              <div style={{ color: "var(--text-primary)" }}>
+                {Math.round(metrics.tool_success_rate * 1000) / 10}%
+              </div>
+            </div>
+            <div>
+              今日费用
+              <div style={{ color: "var(--text-primary)" }}>
+                ${metrics.today_cost_usd.toFixed(2)}
+              </div>
+            </div>
+            <div>
+              压缩
+              <div style={{ color: "var(--text-primary)" }}>
+                {metrics.compaction_count} / 失败 {metrics.compaction_failures}
+              </div>
+            </div>
+            <div>
+              沙箱模式
+              <div style={{ color: "var(--text-primary)" }}>
+                {metrics.permission.edit_mode}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {recentTasks.length > 0 && (
+        <div className="mb-4">
+          <div className="stitle">最近任务</div>
+          <div className="space-y-1 mt-2">
+            {recentTasks.slice(0, 8).map((t) => (
+              <div
+                key={t.name}
+                className="text-[10px] px-2 py-1 rounded"
+                style={{ background: "var(--surface-1)", color: "var(--text-muted)" }}
+              >
+                <span style={{ color: "var(--text-primary)" }}>{t.name}</span>
+                <span className="ml-2">{t.mtime}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="space-y-2">
         {loading ? (
           <div className="py-8 text-xs text-center" style={{ color: "var(--text-muted)" }}>正在采集诊断数据…</div>

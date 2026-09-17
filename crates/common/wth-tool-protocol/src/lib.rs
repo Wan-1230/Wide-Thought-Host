@@ -13,6 +13,8 @@ mod connection;
 pub mod envelope;
 pub mod error_codes;
 pub mod error_wire;
+/// F-07: Extension Protocol v1 最小契约
+pub mod extension_v1;
 pub mod frames;
 mod handshake;
 mod hook;
@@ -37,6 +39,13 @@ pub use error_codes::{
     WorkspaceUnavailableDetails, workspace_unavailable_wire,
 };
 pub use error_wire::ToolErrorWire;
+pub use extension_v1::{
+    HandshakeRequest as ExtHandshakeRequest, HandshakeResponse as ExtHandshakeResponse,
+    InterceptDecision, InterceptPoint, InterceptRequest as ExtInterceptRequest,
+    InterceptResponse as ExtInterceptResponse, ExtensionManifest,
+    accept_handshake as ext_accept_handshake, detect_slot_collisions, validate_replace,
+    PROTOCOL_VERSION as EXTENSION_PROTOCOL_VERSION,
+};
 pub use frames::{
     AttachRoute, HookFrame, HookReplyFrame, LastSeq, LogsDonateParams, MAX_DONATION_BYTES,
     MAX_LOG_RECORDS_PER_DONATION, MAX_METRICS_PER_DONATION, MAX_SPANS_PER_DONATION,

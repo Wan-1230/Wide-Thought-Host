@@ -15029,6 +15029,7 @@ dependencies = [
  "chrono",
  "dirs 5.0.1",
  "dunce",
+ "fs2",
  "futures",
  "portable-pty",
  "reqwest 0.12.24",

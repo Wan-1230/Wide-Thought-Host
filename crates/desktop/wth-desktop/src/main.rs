@@ -12,11 +12,33 @@
 mod credentials;
 mod mcp;
 mod auth;
+mod audit;
 mod headroom;
 mod ipc;
 mod settings;
 mod state;
 mod tray;
+
+/// S-02: 检查 PID 是否仍存活（崩溃续跑标记用）。
+#[cfg(windows)]
+fn crate_path_is_pid_alive(pid: u32) -> bool {
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
+    unsafe {
+        match OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
+            Ok(h) => {
+                let _ = CloseHandle(h);
+                true
+            }
+            Err(_) => false,
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn crate_path_is_pid_alive(pid: u32) -> bool {
+    std::path::Path::new(&format!("/proc/{pid}")).exists()
+}
 
 use state::AppState;
 use tauri::Manager;
@@ -119,6 +141,28 @@ pub fn run() {
                 // Store path for future persists
                 let mut path_guard = state.sessions_path.lock().unwrap();
                 *path_guard = sessions_path;
+            }
+
+            // S-02: 崩溃续跑 — 检测上次异常退出留下的 running 标记
+            {
+                if let Ok(dir) = app.path().app_data_dir() {
+                    let marker = dir.join("agent-running.json");
+                    if marker.exists() {
+                        let raw = std::fs::read_to_string(&marker).unwrap_or_default();
+                        let pid_alive = serde_json::from_str::<serde_json::Value>(&raw)
+                            .ok()
+                            .and_then(|v| v.get("pid").and_then(|p| p.as_u64()))
+                            .map(|pid| crate_path_is_pid_alive(pid as u32))
+                            .unwrap_or(false);
+                        if !pid_alive {
+                            tracing::warn!(
+                                "Detected interrupted agent run from previous session (marker: {})",
+                                marker.display()
+                            );
+                            // 保留标记供前端诊断页提示；由下次 agent 启动覆盖。
+                        }
+                    }
+                }
             }
 
             // E-01: 捆绑技能种子到 ~/.wth/bundled（不覆盖用户修改）
@@ -313,6 +357,8 @@ pub fn run() {
             settings::provider_delete,
             settings::provider_set_default,
             settings::provider_test,
+            settings::metrics_summary,
+            settings::tasks_list_recent,
             // F-01: 本地模型（Ollama/vLLM）检测
             ipc::local_models::local_providers_detect,
             settings::workspace_get,

@@ -286,6 +286,7 @@ export default function App() {
           if (chunk.usage) addUsage(sid, chunk.usage);
           finalizeAssistantMessage(sid, "（本轮没有返回内容）");
           setStreaming(sid, false);
+          useChatStore.getState().setPhase(sid, null);
           break;
         case "error":
           finalizeAssistantMessage(sid, "（请求失败）");
@@ -296,6 +297,13 @@ export default function App() {
             timestamp: new Date().toISOString(),
           });
           setStreaming(sid, false);
+          useChatStore.getState().setPhase(sid, null);
+          break;
+        case "phase":
+          // U-03: 长任务阶段提示
+          if (chunk.phase) {
+            useChatStore.getState().setPhase(sid, chunk.phase);
+          }
           break;
       }
     });
