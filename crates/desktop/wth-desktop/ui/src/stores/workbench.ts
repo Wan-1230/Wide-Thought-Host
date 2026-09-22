@@ -32,7 +32,7 @@ interface WorkbenchStore {
   closeDiff: () => void;
 }
 
-export const useWorkbenchStore = create<WorkbenchStore>((set) => ({
+export const useWorkbenchStore = create<WorkbenchStore>(set => ({
   editorVisible: false,
   openFiles: [],
   activeFile: null,
@@ -42,17 +42,17 @@ export const useWorkbenchStore = create<WorkbenchStore>((set) => ({
   closeEditor: () => set({ editorVisible: false }),
 
   openFile: (path, name, content) =>
-    set((state) => {
-      const exists = state.openFiles.some((f) => f.path === path);
+    set(state => {
+      const exists = state.openFiles.some(f => f.path === path);
       const openFiles = exists
-        ? state.openFiles.map((f) => (f.path === path ? { ...f, content } : f))
+        ? state.openFiles.map(f => (f.path === path ? { ...f, content } : f))
         : [...state.openFiles, { path, name, content, dirty: false }];
       return { editorVisible: true, openFiles, activeFile: path };
     }),
 
-  closeFile: (path) =>
-    set((state) => {
-      const openFiles = state.openFiles.filter((f) => f.path !== path);
+  closeFile: path =>
+    set(state => {
+      const openFiles = state.openFiles.filter(f => f.path !== path);
       let activeFile = state.activeFile;
       if (activeFile === path) {
         activeFile = openFiles.length > 0 ? openFiles[openFiles.length - 1].path : null;
@@ -60,22 +60,18 @@ export const useWorkbenchStore = create<WorkbenchStore>((set) => ({
       return { openFiles, activeFile };
     }),
 
-  setActiveFile: (path) => set({ activeFile: path }),
+  setActiveFile: path => set({ activeFile: path }),
 
   updateFileContent: (path, content) =>
-    set((state) => ({
-      openFiles: state.openFiles.map((f) =>
-        f.path === path ? { ...f, content, dirty: true } : f
-      ),
+    set(state => ({
+      openFiles: state.openFiles.map(f => (f.path === path ? { ...f, content, dirty: true } : f)),
     })),
 
   markSaved: (path, content) =>
-    set((state) => ({
-      openFiles: state.openFiles.map((f) =>
-        f.path === path ? { ...f, content, dirty: false } : f
-      ),
+    set(state => ({
+      openFiles: state.openFiles.map(f => (f.path === path ? { ...f, content, dirty: false } : f)),
     })),
 
-  showDiff: (data) => set({ diffModal: data }),
+  showDiff: data => set({ diffModal: data }),
   closeDiff: () => set({ diffModal: null }),
 }));

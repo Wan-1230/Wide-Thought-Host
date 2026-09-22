@@ -50,7 +50,7 @@ export interface SubagentResultEvent {
   parent_session_id: string;
   sub_session_id: string;
   subagent_name: string;
-  status: 'done' | 'error';
+  status: "done" | "error";
   error?: string;
 }
 
@@ -187,7 +187,11 @@ export interface NetworkConfig {
   retry_max: number;
 }
 
-export interface GitHubProfile { login: string; name?: string | null; avatar_url?: string | null; }
+export interface GitHubProfile {
+  login: string;
+  name?: string | null;
+  avatar_url?: string | null;
+}
 export interface GitHubAuthStatus {
   state: "signed_in" | "signed_out" | "pending" | "denied" | "expired" | "error";
   user?: GitHubProfile | null;
@@ -314,11 +318,11 @@ export async function agentAbort(sessionId: string): Promise<void> {
 }
 
 export function onAgentStream(cb: (chunk: StreamChunk) => void): Promise<UnlistenFn> {
-  return listen<StreamChunk>("agent:stream", (event) => cb(event.payload));
+  return listen<StreamChunk>("agent:stream", event => cb(event.payload));
 }
 
 export function onSubagentResult(cb: (evt: SubagentResultEvent) => void): Promise<UnlistenFn> {
-  return listen<SubagentResultEvent>("agent:subagent_result", (event) => cb(event.payload));
+  return listen<SubagentResultEvent>("agent:subagent_result", event => cb(event.payload));
 }
 
 export async function subagentRun(
@@ -330,7 +334,7 @@ export async function subagentRun(
 }
 
 export function onAgentApproval(cb: (evt: ApprovalEvent) => void): Promise<UnlistenFn> {
-  return listen<ApprovalEvent>("agent:approval", (event) => cb(event.payload));
+  return listen<ApprovalEvent>("agent:approval", event => cb(event.payload));
 }
 
 export async function agentApproveTool(sessionId: string, toolCallId: string): Promise<void> {
@@ -369,7 +373,12 @@ export async function fileList(path: string, recursive = false): Promise<FileEnt
 
 // ─── Terminal ────────────────────────────────────────
 
-export async function terminalSpawn(args?: { shell?: string; cwd?: string; cols?: number; rows?: number }): Promise<TerminalInfo> {
+export async function terminalSpawn(args?: {
+  shell?: string;
+  cwd?: string;
+  cols?: number;
+  rows?: number;
+}): Promise<TerminalInfo> {
   return invoke("terminal_spawn", { args: args ?? null });
 }
 
@@ -385,12 +394,14 @@ export async function terminalKill(id: string): Promise<void> {
   return invoke("terminal_kill", { id });
 }
 
-export function onTerminalData(cb: (event: { id: string; data: string }) => void): Promise<UnlistenFn> {
-  return listen("terminal:data", (event) => cb(event.payload as { id: string; data: string }));
+export function onTerminalData(
+  cb: (event: { id: string; data: string }) => void,
+): Promise<UnlistenFn> {
+  return listen("terminal:data", event => cb(event.payload as { id: string; data: string }));
 }
 
 export function onTerminalExit(cb: (event: TerminalExit) => void): Promise<UnlistenFn> {
-  return listen<TerminalExit>("terminal:exit", (event) => cb(event.payload));
+  return listen<TerminalExit>("terminal:exit", event => cb(event.payload));
 }
 
 // ─── 设置、模型与工作区 ─────────────────────────────
@@ -411,7 +422,8 @@ export const localProvidersDetect = () =>
   invoke<{ kind: string; base_url: string; models: string[] }[]>("local_providers_detect");
 export const workspaceGet = () => invoke<WorkspaceInfo>("workspace_get");
 export const workspaceRecent = () => invoke<WorkspaceInfo[]>("workspace_recent");
-export const workspaceSelect = (path: string) => invoke<WorkspaceInfo>("workspace_select", { path });
+export const workspaceSelect = (path: string) =>
+  invoke<WorkspaceInfo>("workspace_select", { path });
 export const workspaceClear = () => invoke<WorkspaceInfo>("workspace_clear");
 export const workspaceGitBranch = () => invoke<string | null>("workspace_git_branch");
 export const githubAuthStatus = () => invoke<GitHubAuthStatus>("github_auth_status");
@@ -484,9 +496,11 @@ export interface HookConfig {
 }
 
 export const hookList = () => invoke<HookConfig[]>("hook_list");
-export const hookAdd = (config: Omit<HookConfig, "id">) => invoke<HookConfig>("hook_add", { config });
+export const hookAdd = (config: Omit<HookConfig, "id">) =>
+  invoke<HookConfig>("hook_add", { config });
 export const hookRemove = (id: string) => invoke<void>("hook_remove", { id });
-export const hookToggle = (id: string, enabled: boolean) => invoke<void>("hook_toggle", { id, enabled });
+export const hookToggle = (id: string, enabled: boolean) =>
+  invoke<void>("hook_toggle", { id, enabled });
 
 // ─── Sub-agents ──────────────────────────────────────
 
@@ -501,9 +515,11 @@ export interface SubagentConfig {
 }
 
 export const subagentList = () => invoke<SubagentConfig[]>("subagent_list");
-export const subagentAdd = (config: Omit<SubagentConfig, "id">) => invoke<SubagentConfig>("subagent_add", { config });
+export const subagentAdd = (config: Omit<SubagentConfig, "id">) =>
+  invoke<SubagentConfig>("subagent_add", { config });
 export const subagentRemove = (id: string) => invoke<void>("subagent_remove", { id });
-export const subagentToggle = (id: string, enabled: boolean) => invoke<void>("subagent_toggle", { id, enabled });
+export const subagentToggle = (id: string, enabled: boolean) =>
+  invoke<void>("subagent_toggle", { id, enabled });
 
 // ─── Memory ──────────────────────────────────────────
 
@@ -614,10 +630,13 @@ export const workspaceIndexStatus = () => invoke<WorkspaceIndexStatus>("workspac
 export const workspaceIndexRebuild = () => invoke<WorkspaceIndexStatus>("workspace_index_rebuild");
 export const workspaceIndexClear = () => invoke<WorkspaceIndexStatus>("workspace_index_clear");
 
-
 export const memoryList = () => invoke<MemoryEntry[]>("memory_list");
-export const memoryWrite = (title: string, content: string, tags?: string[], scope?: "user" | "workspace") =>
-  invoke<MemoryEntry>("memory_write", { title, content, tags, scope });
+export const memoryWrite = (
+  title: string,
+  content: string,
+  tags?: string[],
+  scope?: "user" | "workspace",
+) => invoke<MemoryEntry>("memory_write", { title, content, tags, scope });
 export const memoryDelete = (id: string) => invoke<void>("memory_delete", { id });
 
 // ─── Headroom ────────────────────────────────────────
@@ -663,10 +682,8 @@ export const backupCreate = (targetPath: string) =>
   invoke<BackupResult>("backup_create", { targetPath });
 export const backupRestore = (sourcePath: string) =>
   invoke<string>("backup_restore", { sourcePath });
-export const configExport = (targetPath: string) =>
-  invoke<string>("config_export", { targetPath });
-export const configImport = (sourcePath: string) =>
-  invoke<string>("config_import", { sourcePath });
+export const configExport = (targetPath: string) => invoke<string>("config_export", { targetPath });
+export const configImport = (sourcePath: string) => invoke<string>("config_import", { sourcePath });
 // ─── G3: 消息持久化 / 实时日志 ───────────────────────
 
 export const sessionSaveMessages = (id: string, messages: unknown[]) =>
@@ -727,9 +744,9 @@ export const workflowRun = (configId: string, input: string) =>
 export const workflowValidate = (configId: string) =>
   invoke<string[]>("workflow_validate", { configId });
 export const onWorkflowProgress = (cb: (evt: WorkflowProgressEvent) => void) =>
-  listen<WorkflowProgressEvent>("workflow:progress", (e) => cb(e.payload));
+  listen<WorkflowProgressEvent>("workflow:progress", e => cb(e.payload));
 export const onWorkflowDone = (cb: (evt: WorkflowDoneEvent) => void) =>
-  listen<WorkflowDoneEvent>("workflow:done", (e) => cb(e.payload));
+  listen<WorkflowDoneEvent>("workflow:done", e => cb(e.payload));
 
 // ─── G10: 提示词模板与团队配置 ─────────────────────────
 

@@ -7,7 +7,6 @@
 // - 区分普通会话与 Agent 任务条目（任务条目带空闲/执行中状态标记）；
 // - 底部固定：模型快速切换下拉框 + 设置入口（不随列表滚动）。
 
-import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bot,
   Check,
@@ -24,13 +23,18 @@ import {
   Settings2,
   Trash2,
 } from "lucide-react";
-import type { ProviderSummary, SessionInfo } from "@/lib/ipc";
-import { providerList, providerSetDefault } from "@/lib/ipc";
-import { ContextMenu, contextMenuPointFromEvent, type ContextMenuPoint } from "@/components/common/ContextMenu";
-import { confirmDialog } from "@/components/common/ConfirmDialog";
+import { useEffect, useMemo, useRef, useState } from "react";
 import wthLogoDark from "@/assets/wth-logo-dark.png";
 import wthLogoLight from "@/assets/wth-logo-light.png";
 import wthMark from "@/assets/wth-mark.png";
+import { confirmDialog } from "@/components/common/ConfirmDialog";
+import {
+  ContextMenu,
+  type ContextMenuPoint,
+  contextMenuPointFromEvent,
+} from "@/components/common/ContextMenu";
+import type { ProviderSummary, SessionInfo } from "@/lib/ipc";
+import { providerList, providerSetDefault } from "@/lib/ipc";
 
 /** 判定会话是否为 Agent 任务条目（委派/子会话标题以 [ 开头约定）。可按需自定义。 */
 function isTaskSession(session: SessionInfo): boolean {
@@ -75,11 +79,17 @@ interface SidebarProps {
 }
 
 /** 底部模型快速切换下拉框（不随列表滚动）。 */
-function ModelSwitcher({ providers, onRefresh }: { providers: ProviderSummary[]; onRefresh: () => void }) {
+function ModelSwitcher({
+  providers,
+  onRefresh,
+}: {
+  providers: ProviderSummary[];
+  onRefresh: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  const current = providers.find((p) => p.is_default) ?? providers[0] ?? null;
+  const current = providers.find(p => p.is_default) ?? providers[0] ?? null;
 
   useEffect(() => {
     if (!open) return;
@@ -107,42 +117,65 @@ function ModelSwitcher({ providers, onRefresh }: { providers: ProviderSummary[];
   return (
     <div ref={rootRef} className="relative">
       <button
-        onClick={() => setOpen((v) => !v)}
+        type="button"
+        onClick={() => setOpen(v => !v)}
         className="w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[color:var(--surface-2)]"
         title="切换默认模型"
       >
         <Server size={14} style={{ color: "var(--text-muted)" }} className="flex-shrink-0" />
-        <span className="flex-1 min-w-0 text-[11.5px] truncate" style={{ color: "var(--text-primary)" }}>
+        <span
+          className="flex-1 min-w-0 text-[11.5px] truncate"
+          style={{ color: "var(--text-primary)" }}
+        >
           {current ? current.model || current.name : "未配置模型"}
         </span>
         <ChevronDown size={12} style={{ color: "var(--text-dim)" }} className="flex-shrink-0" />
       </button>
       {open && (
-        <div
-          className="glass-panel absolute bottom-full left-0 right-0 mb-1.5 rounded-xl overflow-hidden z-30"
-        >
-          <div className="px-3 py-1.5 text-[10px]" style={{ color: "var(--text-dim)" }}>选择默认模型</div>
+        <div className="glass-panel absolute bottom-full left-0 right-0 mb-1.5 rounded-xl overflow-hidden z-30">
+          <div className="px-3 py-1.5 text-[10px]" style={{ color: "var(--text-dim)" }}>
+            选择默认模型
+          </div>
           <div className="max-h-48 overflow-y-auto pb-1">
             {providers.length === 0 && (
               <div className="px-3 py-2 text-[11px]" style={{ color: "var(--text-dim)" }}>
                 暂无模型，请在设置中添加
               </div>
             )}
-            {providers.map((p) => (
+            {providers.map(p => (
               <button
+                type="button"
                 key={p.id}
                 onClick={() => void pick(p.id)}
                 disabled={Boolean(busyId)}
                 className="w-full flex items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-[color:var(--surface-2)]"
               >
                 <span className="flex-1 min-w-0">
-                  <span className="block text-[11.5px] truncate" style={{ color: "var(--text-primary)" }}>{p.name}</span>
-                  <span className="block text-[10px] truncate font-mono" style={{ color: "var(--text-dim)" }}>{p.model}</span>
+                  <span
+                    className="block text-[11.5px] truncate"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    {p.name}
+                  </span>
+                  <span
+                    className="block text-[10px] truncate font-mono"
+                    style={{ color: "var(--text-dim)" }}
+                  >
+                    {p.model}
+                  </span>
                 </span>
                 {busyId === p.id ? (
-                  <Loader2 size={12} className="animate-spin flex-shrink-0" style={{ color: "var(--text-muted)" }} />
-                ) : (p.is_default || p.id === current?.id) ? (
-                  <Check size={12} className="flex-shrink-0" style={{ color: "var(--text-primary)" }} />
+                  <Loader2
+                    size={12}
+                    className="animate-spin flex-shrink-0"
+                    style={{ color: "var(--text-muted)" }}
+                  />
+                ) : p.is_default || p.id === current?.id ? (
+                  <Check
+                    size={12}
+                    className="flex-shrink-0"
+                    style={{ color: "var(--text-primary)" }}
+                  />
                 ) : null}
               </button>
             ))}
@@ -191,16 +224,14 @@ export function Sidebar({
     const next = renameDraft.trim();
     setRenamingId(null);
     if (next && next !== (session.title || "")) {
-      void onRenameSession(session.id, next).catch((err) =>
-        console.error("重命名会话失败：", err),
-      );
+      void onRenameSession(session.id, next).catch(err => console.error("重命名会话失败：", err));
     }
   };
 
   const filteredSessions = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return sessions;
-    return sessions.filter((s) => (s.title || "未命名会话").toLowerCase().includes(q));
+    return sessions.filter(s => (s.title || "未命名会话").toLowerCase().includes(q));
   }, [sessions, searchQuery]);
 
   const closeMenu = () => {
@@ -242,7 +273,7 @@ export function Sidebar({
       { label: "今天", items: today },
       { label: "本周", items: thisWeek },
       { label: "更早", items: earlier },
-    ].filter((g) => g.items.length > 0);
+    ].filter(g => g.items.length > 0);
   }, [filteredSessions]);
 
   // ─── 折叠态：仅图标 ────────────────────────────────
@@ -257,14 +288,20 @@ export function Sidebar({
           style={{ filter: theme === "light" ? "invert(1)" : undefined, opacity: 0.9 }}
           draggable={false}
         />
-        <button onClick={onNewSession} className="sidebar-icon-btn sidebar-icon-btn-primary" title="新建会话">
+        <button
+          type="button"
+          onClick={onNewSession}
+          className="sidebar-icon-btn sidebar-icon-btn-primary"
+          title="新建会话"
+        >
           <Plus size={16} />
         </button>
         <div className="w-6 my-1 border-t" style={{ borderColor: "var(--surface-3)" }} />
-        {filteredSessions.slice(0, 12).map((s) => {
+        {filteredSessions.slice(0, 12).map(s => {
           const running = streaming[s.id];
           return (
             <button
+              type="button"
               key={s.id}
               onClick={() => onSelect(s.id)}
               title={s.title || "未命名会话"}
@@ -285,7 +322,7 @@ export function Sidebar({
           );
         })}
         <span className="flex-1" />
-        <button onClick={onOpenSettings} className="sidebar-icon-btn" title="设置">
+        <button type="button" onClick={onOpenSettings} className="sidebar-icon-btn" title="设置">
           <Settings2 size={15} />
         </button>
       </div>
@@ -308,6 +345,7 @@ export function Sidebar({
       {/* 顶部：新建会话按钮（醒目常驻） */}
       <div className="px-2.5 pt-2 pb-2 flex-shrink-0">
         <button
+          type="button"
           onClick={onNewSession}
           className="w-full flex items-center justify-center gap-1.5 rounded-lg py-2 text-[12.5px] font-medium press
             transition-opacity duration-150 hover:opacity-90"
@@ -324,21 +362,24 @@ export function Sidebar({
       {/* 会话 & 任务列表：独立内部滚动 */}
       <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-2">
         {sessions.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center px-4 text-center" style={{ color: "var(--text-dim)" }}>
+          <div
+            className="h-full flex flex-col items-center justify-center px-4 text-center"
+            style={{ color: "var(--text-dim)" }}
+          >
             <MessageSquare size={22} className="mb-2 opacity-25" />
             <p className="text-[11.5px]">还没有会话</p>
             <p className="text-[10.5px] mt-1 opacity-70">点击上方「新建会话」开始</p>
           </div>
         ) : groups.length === 0 ? (
-          <div className="text-center py-6 text-[11.5px]" style={{ color: "var(--text-dim)" }}>没有匹配的会话</div>
+          <div className="text-center py-6 text-[11.5px]" style={{ color: "var(--text-dim)" }}>
+            没有匹配的会话
+          </div>
         ) : (
-          groups.map((group) => (
+          groups.map(group => (
             <div key={group.label} className="mb-3">
-              <div className="panel-section-head !py-1 !px-2">
-                {group.label}
-              </div>
+              <div className="panel-section-head !py-1 !px-2">{group.label}</div>
               <div className="space-y-0.5">
-                {group.items.map((session) => {
+                {group.items.map(session => {
                   const isActive = session.id === activeId;
                   const running = streaming[session.id];
                   const task = isTaskSession(session);
@@ -349,7 +390,7 @@ export function Sidebar({
                         if (renamingId === session.id) return;
                         onSelect(session.id);
                       }}
-                      onContextMenu={(e) => {
+                      onContextMenu={e => {
                         e.preventDefault();
                         e.stopPropagation();
                         setMenuSession(session);
@@ -363,9 +404,9 @@ export function Sidebar({
                         <input
                           ref={renameInputRef}
                           value={renameDraft}
-                          onChange={(e) => setRenameDraft(e.target.value)}
-                          onClick={(e) => e.stopPropagation()}
-                          onKeyDown={(e) => {
+                          onChange={e => setRenameDraft(e.target.value)}
+                          onClick={e => e.stopPropagation()}
+                          onKeyDown={e => {
                             if (e.key === "Enter") {
                               e.preventDefault();
                               commitRename(session);
@@ -381,71 +422,101 @@ export function Sidebar({
                         />
                       ) : (
                         <>
-                      <div className="flex items-center gap-1.5">
-                        {task ? (
-                          <Bot size={13} className="flex-shrink-0" style={{ color: "var(--text-dim)" }} />
-                        ) : (
-                          <MessageSquare size={13} className="flex-shrink-0" style={{ color: "var(--text-dim)" }} />
-                        )}
-                        <span
-                          className="text-[12.5px] truncate flex-1 leading-snug"
-                          style={{
-                            color: isActive ? "var(--text-primary)" : "var(--text-muted)",
-                            fontWeight: isActive ? 500 : 400,
-                          }}
-                        >
-                          {session.title || "未命名会话"}
-                        </span>
-                        {session.pinned && <Pin size={10} style={{ color: "var(--text-muted)" }} className="flex-shrink-0" />}
-                      </div>
+                          <div className="flex items-center gap-1.5">
+                            {task ? (
+                              <Bot
+                                size={13}
+                                className="flex-shrink-0"
+                                style={{ color: "var(--text-dim)" }}
+                              />
+                            ) : (
+                              <MessageSquare
+                                size={13}
+                                className="flex-shrink-0"
+                                style={{ color: "var(--text-dim)" }}
+                              />
+                            )}
+                            <span
+                              className="text-[12.5px] truncate flex-1 leading-snug"
+                              style={{
+                                color: isActive ? "var(--text-primary)" : "var(--text-muted)",
+                                fontWeight: isActive ? 500 : 400,
+                              }}
+                            >
+                              {session.title || "未命名会话"}
+                            </span>
+                            {session.pinned && (
+                              <Pin
+                                size={10}
+                                style={{ color: "var(--text-muted)" }}
+                                className="flex-shrink-0"
+                              />
+                            )}
+                          </div>
 
-                      {/* 任务条目：状态标记；普通会话：相对时间 */}
-                      <div className="mt-0.5 flex items-center gap-1.5 text-[10px]" style={{ color: "var(--text-dim)" }}>
-                        {task ? (
-                          running ? (
-                            <>
-                              <Loader2 size={9} className="animate-spin" style={{ color: "var(--accent-green)" }} />
-                              <span style={{ color: "var(--accent-green)" }}>执行中</span>
-                            </>
-                          ) : (
-                            <>
-                              <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--text-dim)" }} />
-                              <span>空闲</span>
-                            </>
-                          )
-                        ) : (
-                          <span>{relativeTime(session.updated_at || session.created_at)}</span>
-                        )}
-                      </div>
+                          {/* 任务条目：状态标记；普通会话：相对时间 */}
+                          <div
+                            className="mt-0.5 flex items-center gap-1.5 text-[10px]"
+                            style={{ color: "var(--text-dim)" }}
+                          >
+                            {task ? (
+                              running ? (
+                                <>
+                                  <Loader2
+                                    size={9}
+                                    className="animate-spin"
+                                    style={{ color: "var(--accent-green)" }}
+                                  />
+                                  <span style={{ color: "var(--accent-green)" }}>执行中</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span
+                                    className="w-1.5 h-1.5 rounded-full"
+                                    style={{ background: "var(--text-dim)" }}
+                                  />
+                                  <span>空闲</span>
+                                </>
+                              )
+                            ) : (
+                              <span>{relativeTime(session.updated_at || session.created_at)}</span>
+                            )}
+                          </div>
 
-                      {/* hover 悬浮操作（重命名 / 复制）；删除收敛到右键菜单，避免误触 */}
-                      <div
-                        className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 p-0.5 rounded-lg opacity-0
+                          {/* hover 悬浮操作（重命名 / 复制）；删除收敛到右键菜单，避免误触 */}
+                          <div
+                            className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 p-0.5 rounded-lg opacity-0
                           pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto
                           transition-opacity duration-150"
-                        style={{ background: "var(--surface-1)", boxShadow: "var(--shadow-xs)", border: "1px solid var(--surface-3)" }}
-                      >
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            beginRename(session);
-                          }}
-                          title="重命名"
-                          className="sidebar-row-action"
-                        >
-                          <Pencil size={11} />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void onDuplicateSession(session.id);
-                          }}
-                          title="复制会话"
-                          className="sidebar-row-action"
-                        >
-                          <Copy size={11} />
-                        </button>
-                      </div>
+                            style={{
+                              background: "var(--surface-1)",
+                              boxShadow: "var(--shadow-xs)",
+                              border: "1px solid var(--surface-3)",
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={e => {
+                                e.stopPropagation();
+                                beginRename(session);
+                              }}
+                              title="重命名"
+                              className="sidebar-row-action"
+                            >
+                              <Pencil size={11} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={e => {
+                                e.stopPropagation();
+                                void onDuplicateSession(session.id);
+                              }}
+                              title="复制会话"
+                              className="sidebar-row-action"
+                            >
+                              <Copy size={11} />
+                            </button>
+                          </div>
                         </>
                       )}
                     </div>
@@ -458,15 +529,21 @@ export function Sidebar({
       </div>
 
       {/* 底部固定区：模型快速切换 + 设置（不随列表滚动） */}
-      <div className="flex-shrink-0 px-2 py-2 border-t space-y-0.5" style={{ borderColor: "var(--surface-3)" }}>
+      <div
+        className="flex-shrink-0 px-2 py-2 border-t space-y-0.5"
+        style={{ borderColor: "var(--surface-3)" }}
+      >
         <ModelSwitcher providers={providers} onRefresh={onRefreshProviders} />
         <button
+          type="button"
           onClick={onOpenSettings}
           className="w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[color:var(--surface-2)]"
           title="设置"
         >
           <Settings2 size={14} style={{ color: "var(--text-muted)" }} />
-          <span className="text-[11.5px]" style={{ color: "var(--text-primary)" }}>设置</span>
+          <span className="text-[11.5px]" style={{ color: "var(--text-primary)" }}>
+            设置
+          </span>
         </button>
       </div>
 

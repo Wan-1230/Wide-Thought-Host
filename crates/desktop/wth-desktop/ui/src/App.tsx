@@ -11,8 +11,6 @@
 //   └────────────────────────────────────────────┘
 // 本文件仅承担布局编排与既有业务回调接线，不含新增业务接口。
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
@@ -24,8 +22,8 @@ import {
   Database,
   Folder,
   FolderOpen,
-  Github,
   GitBranch,
+  Github,
   Home,
   MessageSquare,
   Moon,
@@ -39,29 +37,35 @@ import {
   UserCircle2,
   X,
 } from "lucide-react";
-
-import { TitleBar } from "./components/titlebar/TitleBar";
-import { Sidebar } from "./components/sidebar/Sidebar";
+import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChatView } from "./components/chat/ChatView";
-import { FileTree } from "./components/filetree/FileTree";
-import { SettingsModal } from "./components/settings/Settings";
-import { TerminalPanel } from "./components/terminal/TerminalPanel";
-import { EditorPanel } from "./components/editor/EditorPanel";
-import { DiffModal } from "./components/editor/DiffModal";
-import { InspectorPanel } from "./components/inspector/InspectorPanel";
 import { CommandPalette } from "./components/common/CommandPalette";
 import { ConfirmHost, confirmDialog } from "./components/common/ConfirmDialog";
-import { ToastHost, toast } from "./components/common/Toast";
+import {
+  ContextMenu,
+  type ContextMenuItem,
+  type ContextMenuPoint,
+  contextMenuPointFromEvent,
+} from "./components/common/ContextMenu";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { OnboardingModal } from "./components/common/OnboardingModal";
 import { QuickAskModal } from "./components/common/QuickAskModal";
-import { ContextMenu, contextMenuPointFromEvent, type ContextMenuItem, type ContextMenuPoint } from "./components/common/ContextMenu";
-import { useChatStore } from "./stores/chat";
-import { useWorkbenchStore } from "./stores/workbench";
-import { useUiStore } from "./stores/ui";
+import { ToastHost, toast } from "./components/common/Toast";
+import { DiffModal } from "./components/editor/DiffModal";
+import { EditorPanel } from "./components/editor/EditorPanel";
+import { FileTree } from "./components/filetree/FileTree";
+import { InspectorPanel } from "./components/inspector/InspectorPanel";
+import { SettingsModal } from "./components/settings/Settings";
+import { Sidebar } from "./components/sidebar/Sidebar";
+import { TerminalPanel } from "./components/terminal/TerminalPanel";
+import { TitleBar } from "./components/titlebar/TitleBar";
 import { useResizable } from "./hooks/useResizable";
 import { useResponsiveLayout } from "./hooks/useResponsiveLayout";
 import {
+  type DesktopSettings,
+  fileRead,
+  type GitHubAuthStatus,
   githubAuthCancel,
   githubAuthLogout,
   githubAuthPoll,
@@ -70,42 +74,48 @@ import {
   onAgentApproval,
   onAgentStream,
   onSubagentResult,
+  type ProviderSummary,
   providerList,
+  type StreamChunk,
   sessionCreate,
   sessionDelete,
+  sessionList,
   sessionLoadMessages,
+  sessionRename,
   sessionSaveMessages,
   sessionSearch,
-  settingsUpdate,
-  sessionList,
-  sessionRename,
-  fileRead,
   sessionSetPinned,
   settingsGet,
-  type DesktopSettings,
-  type GitHubAuthStatus,
-  type ProviderSummary,
-  type StreamChunk,
+  settingsUpdate,
   type WorkspaceInfo,
   workspaceClear,
-  workspaceGitBranch,
   workspaceGet,
+  workspaceGitBranch,
   workspaceRecent,
   workspaceSelect,
 } from "./lib/ipc";
+import { useChatStore } from "./stores/chat";
+import { useUiStore } from "./stores/ui";
+import { useWorkbenchStore } from "./stores/workbench";
 
 type NavSection = "sessions" | "files";
 
 /** 判断键盘事件是否匹配快捷键字符串（如 "Ctrl+K" / "Ctrl+Shift+T"）。 */
 function keysMatch(e: KeyboardEvent, keys: string): boolean {
-  const parts = keys.split("+").map((p) => p.trim().toLowerCase());
-  const ctrl = parts.includes("ctrl") || parts.includes("cmdorctrl") || parts.includes("cmd") || parts.includes("control");
+  const parts = keys.split("+").map(p => p.trim().toLowerCase());
+  const ctrl =
+    parts.includes("ctrl") ||
+    parts.includes("cmdorctrl") ||
+    parts.includes("cmd") ||
+    parts.includes("control");
   const alt = parts.includes("alt");
   const shift = parts.includes("shift");
   const superKey = parts.includes("super") || parts.includes("meta") || parts.includes("win");
-  if (e.ctrlKey !== ctrl || e.altKey !== alt || e.shiftKey !== shift || e.metaKey !== superKey) return false;
+  if (e.ctrlKey !== ctrl || e.altKey !== alt || e.shiftKey !== shift || e.metaKey !== superKey)
+    return false;
   const expected = parts.find(
-    (p) => !["ctrl", "alt", "shift", "super", "meta", "win", "cmdorctrl", "cmd", "control"].includes(p),
+    p =>
+      !["ctrl", "alt", "shift", "super", "meta", "win", "cmdorctrl", "cmd", "control"].includes(p),
   );
   if (!expected) return false;
   return e.key.toLowerCase() === expected;
@@ -135,12 +145,12 @@ export default function App() {
   } = useChatStore();
 
   // ─── 布局状态（stores/ui.ts） ──────────────────────
-  const sidebarCollapsed = useUiStore((s) => s.sidebarCollapsed);
-  const inspectorOpen = useUiStore((s) => s.inspectorOpen);
-  const inspectorForceCollapsed = useUiStore((s) => s.inspectorForceCollapsed);
-  const inspectorWidth = useUiStore((s) => s.inspectorWidth);
-  const setInspectorWidth = useUiStore((s) => s.setInspectorWidth);
-  const toggleInspector = useUiStore((s) => s.toggleInspector);
+  const sidebarCollapsed = useUiStore(s => s.sidebarCollapsed);
+  const inspectorOpen = useUiStore(s => s.inspectorOpen);
+  const inspectorForceCollapsed = useUiStore(s => s.inspectorForceCollapsed);
+  const inspectorWidth = useUiStore(s => s.inspectorWidth);
+  const setInspectorWidth = useUiStore(s => s.setInspectorWidth);
+  const toggleInspector = useUiStore(s => s.toggleInspector);
   const inspectorVisible = inspectorOpen && !inspectorForceCollapsed;
   const [inspectorDragging, setInspectorDragging] = useState(false);
 
@@ -153,8 +163,18 @@ export default function App() {
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showQuickAsk, setShowQuickAsk] = useState(false);
-  const terminalResize = useResizable({ initialWidth: 420, minWidth: 300, maxWidth: 800, direction: "left" });
-  const editorResize = useResizable({ initialHeight: 320, minHeight: 160, maxHeight: 620, direction: "up" });
+  const terminalResize = useResizable({
+    initialWidth: 420,
+    minWidth: 300,
+    maxWidth: 800,
+    direction: "left",
+  });
+  const editorResize = useResizable({
+    initialHeight: 320,
+    minHeight: 160,
+    maxHeight: 620,
+    direction: "up",
+  });
   const [theme, setTheme] = useState<"dark" | "light">("light");
   const [appSettings, setAppSettings] = useState<DesktopSettings | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceInfo | null>(null);
@@ -167,9 +187,9 @@ export default function App() {
   const [showGithub, setShowGithub] = useState(false);
   const [workspaceMenuPoint, setWorkspaceMenuPoint] = useState<ContextMenuPoint | null>(null);
   const [providers, setProviders] = useState<ProviderSummary[]>([]);
-  const editorVisible = useWorkbenchStore((s) => s.editorVisible);
-  const sessionUsage = useChatStore((s) => (activeSessionId ? s.usage[activeSessionId] : undefined));
-  const openFileInEditor = useWorkbenchStore((s) => s.openFile);
+  const editorVisible = useWorkbenchStore(s => s.editorVisible);
+  const sessionUsage = useChatStore(s => (activeSessionId ? s.usage[activeSessionId] : undefined));
+  const openFileInEditor = useWorkbenchStore(s => s.openFile);
 
   const workspaceActive = workspace?.active ?? true;
   const workspaceLabel = workspace
@@ -178,11 +198,11 @@ export default function App() {
       : "不在工作区中工作"
     : "正在加载工作区";
   const activeSession = activeSessionId
-    ? sessions.find((session) => session.id === activeSessionId) ?? null
+    ? (sessions.find(session => session.id === activeSessionId) ?? null)
     : null;
   const isStreaming = activeSessionId ? streaming[activeSessionId] || false : false;
   const sessionMessageCount = activeSessionId
-    ? messages[activeSessionId]?.length ?? activeSession?.message_count ?? 0
+    ? (messages[activeSessionId]?.length ?? activeSession?.message_count ?? 0)
     : 0;
 
   useEffect(() => {
@@ -192,7 +212,9 @@ export default function App() {
   }, [theme]);
 
   const refreshProviders = useCallback(() => {
-    providerList().then(setProviders).catch(() => {});
+    providerList()
+      .then(setProviders)
+      .catch(() => {});
   }, []);
 
   const refreshWorkspace = useCallback(async () => {
@@ -212,16 +234,18 @@ export default function App() {
 
   useEffect(() => {
     sessionList().then(setSessions).catch(console.error);
-    settingsGet().then((value) => {
-      setTheme(value.theme);
-      setAppSettings(value);
-      if (!value.onboarding_completed) setShowOnboarding(true);
-    }).catch(console.error);
+    settingsGet()
+      .then(value => {
+        setTheme(value.theme);
+        setAppSettings(value);
+        if (!value.onboarding_completed) setShowOnboarding(true);
+      })
+      .catch(console.error);
     refreshWorkspace().catch(console.error);
     refreshGitHub().catch(console.error);
     refreshProviders();
 
-    const unlistenApproval = onAgentApproval((evt) => {
+    const unlistenApproval = onAgentApproval(evt => {
       updateToolCall(evt.session_id, evt.tool_id, {
         arguments: evt.arguments,
         status: "pending",
@@ -229,7 +253,7 @@ export default function App() {
       });
     });
 
-    const unlistenSubagent = onSubagentResult((evt) => {
+    const unlistenSubagent = onSubagentResult(evt => {
       const sid = evt.parent_session_id;
       const ok = evt.status === "done";
       if (ok) {
@@ -251,7 +275,7 @@ export default function App() {
       useChatStore.getState().completeParallelRun(sid, evt.sub_session_id, ok, evt.subagent_name);
       const batch = useChatStore.getState().parallel[sid];
       if (batch && batch.done >= batch.total) {
-        const okCount = Object.values(batch.statuses).filter((s) => s === "done").length;
+        const okCount = Object.values(batch.statuses).filter(s => s === "done").length;
         addMessage(sid, {
           id: crypto.randomUUID(),
           role: "system",
@@ -309,9 +333,9 @@ export default function App() {
     });
 
     return () => {
-      unlisten.then((fn) => fn());
-      unlistenApproval.then((fn) => fn());
-      unlistenSubagent.then((fn) => fn());
+      unlisten.then(fn => fn());
+      unlistenApproval.then(fn => fn());
+      unlistenSubagent.then(fn => fn());
     };
   }, [
     addMessage,
@@ -333,7 +357,7 @@ export default function App() {
     const timer = window.setInterval(() => {
       githubAuthPoll()
         .then(setGithub)
-        .catch((error) => setGithub({ state: "error", message: String(error) }));
+        .catch(error => setGithub({ state: "error", message: String(error) }));
     }, 5000);
     return () => window.clearInterval(timer);
   }, [github?.state]);
@@ -343,7 +367,7 @@ export default function App() {
     if (!activeSessionId) return;
     let cancelled = false;
     sessionLoadMessages(activeSessionId)
-      .then((msgs) => {
+      .then(msgs => {
         if (!cancelled && Array.isArray(msgs)) {
           setMessages(activeSessionId, msgs as import("./stores/chat").ChatMessage[]);
         }
@@ -375,7 +399,7 @@ export default function App() {
     const disposeQuickAsk = listen("menu:quick-ask", () => {
       setShowQuickAsk(true);
     });
-    const disposeOpenSession = listen("menu:open-session", (event) => {
+    const disposeOpenSession = listen("menu:open-session", event => {
       const id = event.payload as string;
       if (id) {
         setActiveSession(id);
@@ -383,9 +407,9 @@ export default function App() {
       }
     });
     return () => {
-      dispose.then((fn) => fn());
-      disposeQuickAsk.then((fn) => fn());
-      disposeOpenSession.then((fn) => fn());
+      dispose.then(fn => fn());
+      disposeQuickAsk.then(fn => fn());
+      disposeOpenSession.then(fn => fn());
     };
   }, [setActiveSession, upsertSession]);
 
@@ -416,7 +440,7 @@ export default function App() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (keysMatch(e, sc.command_palette || "Ctrl+K")) {
         e.preventDefault();
-        setShowCommandPalette((v) => !v);
+        setShowCommandPalette(v => !v);
         return;
       }
       if (keysMatch(e, sc.open_settings || "Ctrl+,")) {
@@ -426,7 +450,7 @@ export default function App() {
       }
       if (keysMatch(e, sc.toggle_theme || "Ctrl+D")) {
         e.preventDefault();
-        setTheme((c) => (c === "dark" ? "light" : "dark"));
+        setTheme(c => (c === "dark" ? "light" : "dark"));
         return;
       }
       if (keysMatch(e, sc.new_session || "Ctrl+N")) {
@@ -436,7 +460,7 @@ export default function App() {
       }
       if (keysMatch(e, sc.toggle_terminal || "Ctrl+Shift+T")) {
         e.preventDefault();
-        setShowTerminalPanel((v) => !v);
+        setShowTerminalPanel(v => !v);
         return;
       }
       if (keysMatch(e, sc.toggle_inspector || "Ctrl+Shift+I")) {
@@ -477,51 +501,69 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [searchQuery, searchMode]);
 
-  const handleOpenFile = useCallback(async (path: string) => {
-    try {
-      const content = await fileRead(path);
-      const name = path.split(/[\\/]/).pop() || path;
-      openFileInEditor(path, name, content);
-    } catch (error) {
-      console.error("打开文件失败：", error);
-      toast(`打开文件失败：${String(error)}`, "error");
-    }
-  }, [openFileInEditor]);
+  const handleOpenFile = useCallback(
+    async (path: string) => {
+      try {
+        const content = await fileRead(path);
+        const name = path.split(/[\\/]/).pop() || path;
+        openFileInEditor(path, name, content);
+      } catch (error) {
+        console.error("打开文件失败：", error);
+        toast(`打开文件失败：${String(error)}`, "error");
+      }
+    },
+    [openFileInEditor],
+  );
 
-  const handleDeleteSession = useCallback(async (id: string) => {
-    await sessionDelete(id);
-    removeSession(id);
-  }, [removeSession]);
+  const handleDeleteSession = useCallback(
+    async (id: string) => {
+      await sessionDelete(id);
+      removeSession(id);
+    },
+    [removeSession],
+  );
 
-  const handleRenameSession = useCallback(async (id: string, title: string) => {
-    const updated = await sessionRename(id, title);
-    renameSession(updated.id, updated.title);
-  }, [renameSession]);
+  const handleRenameSession = useCallback(
+    async (id: string, title: string) => {
+      const updated = await sessionRename(id, title);
+      renameSession(updated.id, updated.title);
+    },
+    [renameSession],
+  );
 
-  const handleTogglePinSession = useCallback(async (id: string, pinned: boolean) => {
-    const updated = await sessionSetPinned(id, pinned);
-    pinSession(updated.id, Boolean(updated.pinned));
-  }, [pinSession]);
+  const handleTogglePinSession = useCallback(
+    async (id: string, pinned: boolean) => {
+      const updated = await sessionSetPinned(id, pinned);
+      pinSession(updated.id, Boolean(updated.pinned));
+    },
+    [pinSession],
+  );
 
   /** 复制会话：创建新会话并克隆消息（纯前端编排，复用既有 IPC）。 */
-  const handleDuplicateSession = useCallback(async (id: string) => {
-    const source = sessions.find((s) => s.id === id);
-    if (!source) return;
-    try {
-      const session = await sessionCreate(`${source.title || "未命名会话"}（副本）`, source.model || "");
-      const msgs = useChatStore.getState().messages[id] || [];
-      if (msgs.length > 0) {
-        const cloned = msgs.map((m) => ({ ...m, id: crypto.randomUUID() }));
-        setMessages(session.id, cloned);
-        await sessionSaveMessages(session.id, cloned).catch(() => {});
+  const handleDuplicateSession = useCallback(
+    async (id: string) => {
+      const source = sessions.find(s => s.id === id);
+      if (!source) return;
+      try {
+        const session = await sessionCreate(
+          `${source.title || "未命名会话"}（副本）`,
+          source.model || "",
+        );
+        const msgs = useChatStore.getState().messages[id] || [];
+        if (msgs.length > 0) {
+          const cloned = msgs.map(m => ({ ...m, id: crypto.randomUUID() }));
+          setMessages(session.id, cloned);
+          await sessionSaveMessages(session.id, cloned).catch(() => {});
+        }
+        upsertSession(session);
+        setActiveSession(session.id);
+        setNavSection("sessions");
+      } catch (error) {
+        console.error("复制会话失败：", error);
       }
-      upsertSession(session);
-      setActiveSession(session.id);
-      setNavSection("sessions");
-    } catch (error) {
-      console.error("复制会话失败：", error);
-    }
-  }, [sessions, setActiveSession, setMessages, upsertSession]);
+    },
+    [sessions, setActiveSession, setMessages, upsertSession],
+  );
 
   /** 清空当前会话消息（保留会话本身）。 */
   const handleClearSession = useCallback(async () => {
@@ -541,30 +583,49 @@ export default function App() {
   const handleExportSession = useCallback(
     async (id: string, format: "markdown" | "json") => {
       const msgs = useChatStore.getState().messages[id] || [];
-      const session = sessions.find((s) => s.id === id);
+      const session = sessions.find(s => s.id === id);
       const title = session?.title || "会话";
       const safeTitle = title.replace(/[\\/:*?"<>|]/g, "_") || "会话";
       const ext = format === "json" ? "json" : "md";
       const mime = format === "json" ? "application/json" : "text/markdown";
       const payload =
         format === "json"
-          ? JSON.stringify({ id, title, exported_at: new Date().toISOString(), messages: msgs }, null, 2)
+          ? JSON.stringify(
+              { id, title, exported_at: new Date().toISOString(), messages: msgs },
+              null,
+              2,
+            )
           : (() => {
               const lines: string[] = [`# ${title}`, ""];
               for (const m of msgs) {
                 const who =
-                  m.role === "user" ? "用户" : m.role === "assistant" ? "WTH" : m.role === "system" ? "系统" : "工具";
+                  m.role === "user"
+                    ? "用户"
+                    : m.role === "assistant"
+                      ? "WTH"
+                      : m.role === "system"
+                        ? "系统"
+                        : "工具";
                 lines.push(`## ${who}`, "", m.content || "", "");
                 if (m.tool_calls?.length) {
                   for (const tc of m.tool_calls) {
-                    lines.push(`> 工具调用：${tc.name}`, "", "```json", JSON.stringify(tc.arguments, null, 2), "```", "");
+                    lines.push(
+                      `> 工具调用：${tc.name}`,
+                      "",
+                      "```json",
+                      JSON.stringify(tc.arguments, null, 2),
+                      "```",
+                      "",
+                    );
                   }
                 }
               }
               return lines.join("\n");
             })();
 
-      const browserPreview = Boolean((window as unknown as Record<string, unknown>).__WTH_BROWSER_PREVIEW__);
+      const browserPreview = Boolean(
+        (window as unknown as Record<string, unknown>).__WTH_BROWSER_PREVIEW__,
+      );
       if (!browserPreview) {
         try {
           const path = await save({
@@ -685,7 +746,10 @@ export default function App() {
   );
 
   return (
-    <div className="h-full w-full flex flex-col overflow-hidden" style={{ background: "var(--bg-body)", color: "var(--text-primary)" }}>
+    <div
+      className="h-full w-full flex flex-col overflow-hidden"
+      style={{ background: "var(--bg-body)", color: "var(--text-primary)" }}
+    >
       {/* 自定义窗口标题栏 */}
       <TitleBar sessionTitle={activeSession?.title ?? null} streaming={isStreaming} />
 
@@ -704,24 +768,31 @@ export default function App() {
               {/* 搜索 */}
               <div className="px-2.5 pt-2 pb-1.5 flex-shrink-0">
                 <div className="search-box">
-                  <Search size={12} style={{ color: "var(--text-muted)" }} className="flex-shrink-0" />
+                  <Search
+                    size={12}
+                    style={{ color: "var(--text-muted)" }}
+                    className="flex-shrink-0"
+                  />
                   <input
                     type="text"
                     placeholder={searchMode === "message" ? "搜索全部消息…" : "搜索会话…"}
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={e => setSearchQuery(e.target.value)}
                     className="flex-1 min-w-0 bg-transparent border-none outline-none text-[12px]"
                     style={{ color: "var(--text-primary)" }}
                   />
                 </div>
                 <div className="mt-1.5 flex justify-center segmented w-full">
-                  {(["title", "message"] as const).map((mode) => (
+                  {(["title", "message"] as const).map(mode => (
                     <button
+                      type="button"
                       key={mode}
                       onClick={() => setSearchMode(mode)}
                       data-active={searchMode === mode}
                       className="flex-1 text-[10.5px] px-2 py-0.5"
-                      style={{ color: searchMode === mode ? "var(--text-primary)" : "var(--text-muted)" }}
+                      style={{
+                        color: searchMode === mode ? "var(--text-primary)" : "var(--text-muted)",
+                      }}
                     >
                       {mode === "title" ? "标题" : "消息内容"}
                     </button>
@@ -735,10 +806,11 @@ export default function App() {
                   {[
                     { id: "sessions" as const, label: "会话", icon: <MessageSquare size={13} /> },
                     { id: "files" as const, label: "文件", icon: <Folder size={13} /> },
-                  ].map((item) => {
+                  ].map(item => {
                     const active = navSection === item.id;
                     return (
                       <button
+                        type="button"
                         key={item.id}
                         onClick={() => setNavSection(item.id)}
                         data-active={active}
@@ -759,17 +831,24 @@ export default function App() {
             {navSection === "sessions" && searchMode === "message" && !sidebarCollapsed ? (
               <div className="h-full overflow-y-auto px-2 pb-2">
                 {searchQuery.trim() === "" ? (
-                  <div className="text-center py-6 text-[11px]" style={{ color: "var(--text-dim)" }}>
+                  <div
+                    className="text-center py-6 text-[11px]"
+                    style={{ color: "var(--text-dim)" }}
+                  >
                     输入关键词搜索全部会话消息
                   </div>
                 ) : messageHits.length === 0 ? (
-                  <div className="text-center py-6 text-[11px]" style={{ color: "var(--text-dim)" }}>
+                  <div
+                    className="text-center py-6 text-[11px]"
+                    style={{ color: "var(--text-dim)" }}
+                  >
                     没有匹配的消息
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {messageHits.map((hit, i) => (
                       <button
+                        type="button"
                         key={i}
                         className="w-full text-left p-2 rounded-lg transition-colors hover:bg-[color:var(--surface-2)]"
                         style={{ background: "var(--surface-1)" }}
@@ -786,14 +865,23 @@ export default function App() {
                         }}
                       >
                         <div className="flex items-center gap-1.5 mb-1">
-                          <span className="text-[11px] font-medium truncate" style={{ color: "var(--text-primary)" }}>
+                          <span
+                            className="text-[11px] font-medium truncate"
+                            style={{ color: "var(--text-primary)" }}
+                          >
                             {hit.session_title}
                           </span>
-                          <span className="text-[10px] shrink-0" style={{ color: "var(--text-dim)" }}>
+                          <span
+                            className="text-[10px] shrink-0"
+                            style={{ color: "var(--text-dim)" }}
+                          >
                             {hit.role === "user" ? "用户" : "助手"}
                           </span>
                         </div>
-                        <div className="text-[11px] line-clamp-2 leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                        <div
+                          className="text-[11px] line-clamp-2 leading-relaxed"
+                          style={{ color: "var(--text-muted)" }}
+                        >
                           {hit.snippet}
                         </div>
                       </button>
@@ -829,9 +917,16 @@ export default function App() {
         {/* 中间主区 */}
         <main className="flex-1 flex flex-col min-w-0 min-h-0">
           {/* 轻量工具条 */}
-          <div className="flex items-center justify-between gap-2 px-3 py-1.5 flex-shrink-0 border-b" style={{ borderColor: "var(--surface-3)" }}>
+          <div
+            className="flex items-center justify-between gap-2 px-3 py-1.5 flex-shrink-0 border-b"
+            style={{ borderColor: "var(--surface-3)" }}
+          >
             <div className="flex items-center gap-1 min-w-0">
-              <ToolbarButton icon={<Plus size={13} />} label="新建会话" onClick={() => void handleNewSession()} />
+              <ToolbarButton
+                icon={<Plus size={13} />}
+                label="新建会话"
+                onClick={() => void handleNewSession()}
+              />
               <ToolbarButton
                 icon={<FolderOpen size={12} />}
                 label={workspaceLabel}
@@ -843,16 +938,18 @@ export default function App() {
               <ToolbarButton
                 icon={theme === "dark" ? <Sun size={13} /> : <Moon size={13} />}
                 label={theme === "dark" ? "浅色" : "深色"}
-                onClick={() => setTheme((c) => (c === "dark" ? "light" : "dark"))}
+                onClick={() => setTheme(c => (c === "dark" ? "light" : "dark"))}
               />
               <ToolbarButton
                 icon={<Terminal size={13} />}
                 label="终端"
-                onClick={() => setShowTerminalPanel((current) => !current)}
+                onClick={() => setShowTerminalPanel(current => !current)}
                 active={showTerminalPanel}
               />
               <ToolbarButton
-                icon={inspectorVisible ? <PanelRightClose size={13} /> : <PanelRightOpen size={13} />}
+                icon={
+                  inspectorVisible ? <PanelRightClose size={13} /> : <PanelRightOpen size={13} />
+                }
                 label="执行面板"
                 onClick={toggleInspector}
                 active={inspectorVisible}
@@ -874,7 +971,11 @@ export default function App() {
                 <>
                   <div
                     className="w-1 shrink-0 cursor-col-resize transition-colors"
-                    style={{ background: terminalResize.isDragging ? "var(--accent-blue)" : "var(--surface-3)" }}
+                    style={{
+                      background: terminalResize.isDragging
+                        ? "var(--accent-blue)"
+                        : "var(--surface-3)",
+                    }}
                     onMouseDown={terminalResize.handleMouseDown}
                   />
                   <div
@@ -890,7 +991,9 @@ export default function App() {
               <>
                 <div
                   className="h-1 shrink-0 cursor-row-resize transition-colors"
-                  style={{ background: editorResize.isDragging ? "var(--accent-blue)" : "var(--surface-3)" }}
+                  style={{
+                    background: editorResize.isDragging ? "var(--accent-blue)" : "var(--surface-3)",
+                  }}
                   onMouseDown={editorResize.handleMouseDown}
                 />
                 <div
@@ -913,7 +1016,9 @@ export default function App() {
             <>
               <div
                 className="w-1 shrink-0 cursor-col-resize transition-colors self-stretch"
-                style={{ background: inspectorDragging ? "var(--accent-blue)" : "var(--surface-3)" }}
+                style={{
+                  background: inspectorDragging ? "var(--accent-blue)" : "var(--surface-3)",
+                }}
                 onMouseDown={handleInspectorDragStart}
               />
               <div className="flex-1 min-w-0 border-l" style={{ borderColor: "var(--surface-3)" }}>
@@ -936,7 +1041,9 @@ export default function App() {
         github={github}
         onWorkspaceClick={openWorkspaceMenu}
         onSettingsClick={() => setShowSettings(true)}
-        onGithubClick={() => (github?.state === "signed_in" ? setShowGithub(true) : void beginGitHubLogin())}
+        onGithubClick={() =>
+          github?.state === "signed_in" ? setShowGithub(true) : void beginGitHubLogin()
+        }
       />
 
       <DiffModal theme={theme} />
@@ -969,7 +1076,7 @@ export default function App() {
       <SettingsModal
         open={showSettings}
         onClose={() => setShowSettings(false)}
-        onSettingsSaved={(saved) => {
+        onSettingsSaved={saved => {
           setAppSettings(saved);
           if (!saved.onboarding_completed) setShowOnboarding(true);
         }}
@@ -1016,10 +1123,13 @@ export default function App() {
         open={showCommandPalette}
         onClose={() => setShowCommandPalette(false)}
         sessions={sessions}
-        onSelectSession={(id) => { setActiveSession(id); setNavSection("sessions"); }}
+        onSelectSession={id => {
+          setActiveSession(id);
+          setNavSection("sessions");
+        }}
         onNewSession={() => void handleNewSession()}
         onOpenSettings={() => setShowSettings(true)}
-        onToggleTheme={() => setTheme((c) => (c === "dark" ? "light" : "dark"))}
+        onToggleTheme={() => setTheme(c => (c === "dark" ? "light" : "dark"))}
       />
 
       {/* 全局反馈宿主：应用内确认弹窗 + Toast 通知 */}
@@ -1059,7 +1169,11 @@ function StatusBar({
   return (
     <div
       className="flex items-center justify-between px-3 py-1 border-t text-[11px] flex-shrink-0 tabular-nums"
-      style={{ background: "var(--surface-0)", borderColor: "var(--surface-3)", color: "var(--text-muted)" }}
+      style={{
+        background: "var(--surface-0)",
+        borderColor: "var(--surface-3)",
+        color: "var(--text-muted)",
+      }}
     >
       {/* 左侧：模型 / 工作区 / 分支 */}
       <div className="flex items-center gap-0.5 min-w-0 overflow-hidden">
@@ -1095,12 +1209,11 @@ function StatusBar({
       <div className="flex items-center gap-0.5 shrink-0">
         <span className="chip hidden lg:inline-flex">
           <Database size={11} />
-          <span>{sessionCount} 会话 · {messageCount} 消息</span>
+          <span>
+            {sessionCount} 会话 · {messageCount} 消息
+          </span>
         </span>
-        <span
-          className="chip hidden md:inline-flex"
-          title="当前会话 Token 用量"
-        >
+        <span className="chip hidden md:inline-flex" title="当前会话 Token 用量">
           <Cpu size={11} />
           <span>{sessionTokens > 0 ? `${sessionTokens.toLocaleString()} tok` : "— tok"}</span>
         </span>
@@ -1118,12 +1231,14 @@ function StatusBar({
           type="button"
           onClick={onGithubClick}
           className="chip"
-          style={{ color: github?.state === "signed_in" ? "var(--text-primary)" : "var(--text-dim)" }}
+          style={{
+            color: github?.state === "signed_in" ? "var(--text-primary)" : "var(--text-dim)",
+          }}
           title={github?.state === "signed_in" ? "GitHub 账户" : "使用 GitHub 登录"}
         >
           {github?.state === "signed_in" ? <Github size={11} /> : <UserCircle2 size={11} />}
           <span className="max-w-[80px] truncate">
-            {github?.state === "signed_in" ? (github.user?.login || "已登录") : "未登录"}
+            {github?.state === "signed_in" ? github.user?.login || "已登录" : "未登录"}
           </span>
         </button>
         <button
@@ -1157,7 +1272,7 @@ function ToolbarButton({
     <button
       type="button"
       onClick={onClick}
-      onContextMenu={(event) => {
+      onContextMenu={event => {
         if (!onContextMenu) return;
         event.preventDefault();
         onContextMenu(event);
@@ -1195,7 +1310,7 @@ function GitHubDialog({
       <div
         className="modal-card w-full max-w-sm rounded-2xl p-5"
         style={{ color: "var(--text-primary)" }}
-        onClick={(e) => e.stopPropagation()}
+        onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 text-sm font-semibold">
           <Github size={17} />
@@ -1204,7 +1319,12 @@ function GitHubDialog({
         {status?.state === "signed_in" ? (
           <>
             <p className="mt-3 text-sm">已登录为 @{status.user?.login}</p>
-            <button className="mt-4 text-xs px-3 py-2 rounded-lg" style={{ background: "var(--surface-2)" }} onClick={onLogout}>
+            <button
+              type="button"
+              className="mt-4 text-xs px-3 py-2 rounded-lg"
+              style={{ background: "var(--surface-2)" }}
+              onClick={onLogout}
+            >
               退出登录
             </button>
           </>
@@ -1221,6 +1341,7 @@ function GitHubDialog({
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               <button
+                type="button"
                 className="text-xs px-3 py-2 rounded-lg"
                 style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}
                 onClick={() => status.verification_uri && openUrl(status.verification_uri)}
@@ -1228,13 +1349,19 @@ function GitHubDialog({
                 打开 GitHub
               </button>
               <button
+                type="button"
                 className="text-xs px-3 py-2 rounded-lg"
                 style={{ background: "var(--surface-2)" }}
                 onClick={() => navigator.clipboard.writeText(status.user_code || "")}
               >
                 复制验证码
               </button>
-              <button className="text-xs px-3 py-2 rounded-lg" style={{ background: "var(--surface-2)" }} onClick={onCancel}>
+              <button
+                type="button"
+                className="text-xs px-3 py-2 rounded-lg"
+                style={{ background: "var(--surface-2)" }}
+                onClick={onCancel}
+              >
                 取消
               </button>
             </div>
@@ -1245,6 +1372,7 @@ function GitHubDialog({
               {status?.message || "登录是可选功能，不影响本地使用。"}
             </p>
             <button
+              type="button"
               className="mt-4 text-xs px-3 py-2 rounded-lg"
               style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}
               onClick={onStart}
@@ -1253,7 +1381,12 @@ function GitHubDialog({
             </button>
           </>
         )}
-        <button className="mt-4 block text-xs" style={{ color: "var(--text-muted)" }} onClick={onClose}>
+        <button
+          type="button"
+          className="mt-4 block text-xs"
+          style={{ color: "var(--text-muted)" }}
+          onClick={onClose}
+        >
           <X size={12} className="inline mr-1" />
           关闭
         </button>

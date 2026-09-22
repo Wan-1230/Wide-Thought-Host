@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
 import { MessageSquare, Moon, Plus, Search, Settings, Sun } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { SessionInfo } from "@/lib/ipc";
 
 interface CommandPaletteProps {
@@ -48,29 +48,41 @@ export function CommandPalette({
         label: "新建会话",
         hint: "Ctrl+N",
         icon: <Plus size={14} />,
-        action: () => { onNewSession(); onClose(); },
+        action: () => {
+          onNewSession();
+          onClose();
+        },
       },
       {
         id: "open-settings",
         label: "打开设置",
         hint: "Ctrl+,",
         icon: <Settings size={14} />,
-        action: () => { onOpenSettings(); onClose(); },
+        action: () => {
+          onOpenSettings();
+          onClose();
+        },
       },
       {
         id: "toggle-theme",
         label: "切换深色/浅色主题",
         icon: <Sun size={14} />,
-        action: () => { onToggleTheme(); onClose(); },
+        action: () => {
+          onToggleTheme();
+          onClose();
+        },
       },
     ];
 
-    const sessionItems: CommandItem[] = sessions.slice(0, 20).map((s) => ({
+    const sessionItems: CommandItem[] = sessions.slice(0, 20).map(s => ({
       id: `session-${s.id}`,
       label: s.title || "未命名会话",
       hint: s.model,
       icon: <MessageSquare size={14} />,
-      action: () => { onSelectSession(s.id); onClose(); },
+      action: () => {
+        onSelectSession(s.id);
+        onClose();
+      },
     }));
 
     return [...actions, ...sessionItems];
@@ -79,7 +91,9 @@ export function CommandPalette({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return commands;
-    return commands.filter((c) => c.label.toLowerCase().includes(q) || c.hint?.toLowerCase().includes(q));
+    return commands.filter(
+      c => c.label.toLowerCase().includes(q) || c.hint?.toLowerCase().includes(q),
+    );
   }, [commands, query]);
 
   useEffect(() => {
@@ -89,10 +103,10 @@ export function CommandPalette({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
+      setActiveIndex(i => Math.min(i + 1, filtered.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setActiveIndex((i) => Math.max(i - 1, 0));
+      setActiveIndex(i => Math.max(i - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
       filtered[activeIndex]?.action();
@@ -111,9 +125,12 @@ export function CommandPalette({
     >
       <div
         className="glass-panel w-full max-w-lg rounded-xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
+        onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: "var(--glass-border)" }}>
+        <div
+          className="flex items-center gap-2 px-4 py-3 border-b"
+          style={{ borderColor: "var(--glass-border)" }}
+        >
           <Search size={14} style={{ color: "var(--text-dim)" }} />
           <input
             ref={inputRef}
@@ -121,7 +138,7 @@ export function CommandPalette({
             style={{ color: "var(--text-primary)" }}
             placeholder="搜索会话或执行命令…"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
           />
         </div>
@@ -134,6 +151,7 @@ export function CommandPalette({
           ) : (
             filtered.map((item, index) => (
               <button
+                type="button"
                 key={item.id}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors"
                 style={{
@@ -143,10 +161,17 @@ export function CommandPalette({
                 onClick={item.action}
                 onMouseEnter={() => setActiveIndex(index)}
               >
-                <span className="flex-shrink-0" style={{ color: "var(--text-muted)" }}>{item.icon}</span>
+                <span className="flex-shrink-0" style={{ color: "var(--text-muted)" }}>
+                  {item.icon}
+                </span>
                 <span className="flex-1 min-w-0 text-xs font-medium truncate">{item.label}</span>
                 {item.hint && (
-                  <span className="text-[10px] whitespace-nowrap flex-shrink-0" style={{ color: "var(--text-dim)" }}>{item.hint}</span>
+                  <span
+                    className="text-[10px] whitespace-nowrap flex-shrink-0"
+                    style={{ color: "var(--text-dim)" }}
+                  >
+                    {item.hint}
+                  </span>
                 )}
               </button>
             ))

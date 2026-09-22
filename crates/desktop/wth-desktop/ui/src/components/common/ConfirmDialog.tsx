@@ -6,8 +6,8 @@
 // 用法：if (!(await confirmDialog({ message: "确定删除吗？", danger: true }))) return;
 // 需要在应用根部挂载一次 <ConfirmHost />。
 
-import { useEffect, useRef, useState } from "react";
 import { AlertTriangle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 export interface ConfirmOptions {
@@ -31,18 +31,20 @@ const listeners = new Set<(list: PendingItem[]) => void>();
 
 function notify() {
   const snapshot = [...items];
-  listeners.forEach((l) => l(snapshot));
+  listeners.forEach(l => {
+    l(snapshot);
+  });
 }
 
 export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     items = [...items, { ...opts, id: ++seq, resolve }];
     notify();
   });
 }
 
 function settle(item: PendingItem, ok: boolean) {
-  items = items.filter((i) => i.id !== item.id);
+  items = items.filter(i => i.id !== item.id);
   notify();
   item.resolve(ok);
 }
@@ -79,7 +81,7 @@ export function ConfirmHost() {
         className="modal-card w-full max-w-sm rounded-xl p-5 anim-pop"
         role="alertdialog"
         aria-modal="true"
-        onClick={(e) => e.stopPropagation()}
+        onClick={e => e.stopPropagation()}
       >
         <div className="flex items-start gap-3">
           {current.danger && (
@@ -105,10 +107,16 @@ export function ConfirmHost() {
           </div>
         </div>
         <div className="mt-5 flex justify-end gap-2">
-          <button ref={current.danger ? cancelRef : undefined} className="small-btn" onClick={() => settle(current, false)}>
+          <button
+            type="button"
+            ref={current.danger ? cancelRef : undefined}
+            className="small-btn"
+            onClick={() => settle(current, false)}
+          >
             {current.cancelText || "取消"}
           </button>
           <button
+            type="button"
             className="px-4 py-1.5 rounded-lg text-xs font-medium press"
             autoFocus={!current.danger}
             style={{

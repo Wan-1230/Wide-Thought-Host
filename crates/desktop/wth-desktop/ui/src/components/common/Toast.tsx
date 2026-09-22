@@ -4,8 +4,8 @@
 // 同时接管此前无人监听的 `wth:toast` CustomEvent（WorkflowModal 的通知
 // 一直在静默丢失）。用法：toast("已保存", "success")；根部挂载 <ToastHost />。
 
-import { useEffect, useState } from "react";
 import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 export type ToastKind = "info" | "success" | "error";
@@ -21,7 +21,9 @@ const listeners = new Set<(list: ToastItem[]) => void>();
 let items: ToastItem[] = [];
 
 function notify() {
-  listeners.forEach((l) => l([...items]));
+  listeners.forEach(l => {
+    l([...items]);
+  });
 }
 
 function push(message: string, kind: ToastKind) {
@@ -32,7 +34,7 @@ function push(message: string, kind: ToastKind) {
 }
 
 function dismiss(id: number) {
-  items = items.filter((i) => i.id !== id);
+  items = items.filter(i => i.id !== id);
   notify();
 }
 
@@ -74,7 +76,7 @@ export function ToastHost() {
 
   return createPortal(
     <div className="fixed top-12 right-4 z-[210] flex flex-col gap-2 w-[320px] max-w-[80vw]">
-      {list.map((item) => (
+      {list.map(item => (
         <div
           key={item.id}
           className="glass-panel rounded-lg px-3.5 py-2.5 flex items-start gap-2.5 anim-slide-down"
@@ -89,10 +91,14 @@ export function ToastHost() {
           }}
         >
           <span className="flex-shrink-0 mt-0.5">{icon(item.kind)}</span>
-          <span className="flex-1 text-[12px] leading-relaxed break-words" style={{ color: "var(--text-primary)" }}>
+          <span
+            className="flex-1 text-[12px] leading-relaxed break-words"
+            style={{ color: "var(--text-primary)" }}
+          >
             {item.message}
           </span>
           <button
+            type="button"
             className="flex-shrink-0 rounded-md p-0.5 transition-colors hover:bg-[color:var(--surface-3)]"
             style={{ color: "var(--text-dim)" }}
             title="关闭"

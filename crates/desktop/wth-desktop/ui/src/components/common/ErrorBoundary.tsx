@@ -1,6 +1,6 @@
-import { Component } from "react";
-import type { ErrorInfo, ReactNode } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
+import type { ErrorInfo, ReactNode } from "react";
+import { Component } from "react";
 
 interface Props {
   children: ReactNode;
@@ -53,6 +53,7 @@ export class ErrorBoundary extends Component<Props, State> {
           </div>
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={this.handleReset}
               className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-colors whitespace-nowrap"
               style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}
@@ -61,6 +62,7 @@ export class ErrorBoundary extends Component<Props, State> {
               重试
             </button>
             <button
+              type="button"
               onClick={() => window.location.reload()}
               className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-colors whitespace-nowrap"
               style={{ background: "var(--surface-2)", color: "var(--text-primary)" }}

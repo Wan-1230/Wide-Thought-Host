@@ -6,7 +6,6 @@
 // - 「上下文」页签：会话与工作区上下文摘要、Token 用量。
 // 面板开合 / 页签 / 宽度由 stores/ui.ts 管理，宽度支持左缘拖拽调整。
 
-import { useMemo, useState } from "react";
 import {
   Activity,
   CheckCircle2,
@@ -22,9 +21,10 @@ import {
   Wrench,
   XCircle,
 } from "lucide-react";
-import { useChatStore, THINKING_MESSAGE } from "@/stores/chat";
+import { useMemo, useState } from "react";
 import type { ToolCall } from "@/stores/chat";
-import { useUiStore, type InspectorTab } from "@/stores/ui";
+import { THINKING_MESSAGE, useChatStore } from "@/stores/chat";
+import { type InspectorTab, useUiStore } from "@/stores/ui";
 
 const TABS: { id: InspectorTab; label: string; icon: React.ReactNode }[] = [
   { id: "log", label: "日志", icon: <ScrollText size={13} /> },
@@ -90,33 +90,59 @@ function LogRow({ entry }: { entry: FlatToolEntry }) {
   );
 
   return (
-    <div className="rounded-lg border overflow-hidden" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
+    <div
+      className="rounded-lg border overflow-hidden"
+      style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}
+    >
       <button
+        type="button"
         className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-[color:var(--surface-2)] transition-colors"
-        onClick={() => setExpanded((v) => !v)}
+        onClick={() => setExpanded(v => !v)}
       >
-        {expanded ? <ChevronDown size={12} style={{ color: "var(--text-dim)" }} /> : <ChevronRight size={12} style={{ color: "var(--text-dim)" }} />}
+        {expanded ? (
+          <ChevronDown size={12} style={{ color: "var(--text-dim)" }} />
+        ) : (
+          <ChevronRight size={12} style={{ color: "var(--text-dim)" }} />
+        )}
         <Wrench size={12} style={{ color: "var(--text-dim)" }} className="flex-shrink-0" />
-        <span className="flex-1 min-w-0 font-mono text-[11.5px] truncate" style={{ color: "var(--text-primary)" }}>
+        <span
+          className="flex-1 min-w-0 font-mono text-[11.5px] truncate"
+          style={{ color: "var(--text-primary)" }}
+        >
           {call.name}
         </span>
         <span className="flex items-center gap-1.5 flex-shrink-0">
           <StatusDot status={status} />
-          <span className="text-[10.5px]" style={{ color: "var(--text-muted)" }}>{STATUS_TEXT[status]}</span>
+          <span className="text-[10.5px]" style={{ color: "var(--text-muted)" }}>
+            {STATUS_TEXT[status]}
+          </span>
         </span>
       </button>
       {expanded && (
-        <div className="px-2.5 pb-2.5 space-y-2 border-t" style={{ borderColor: "var(--surface-3)" }}>
+        <div
+          className="px-2.5 pb-2.5 space-y-2 border-t"
+          style={{ borderColor: "var(--surface-3)" }}
+        >
           <div className="pt-2">
-            <div className="text-[10.5px] mb-1" style={{ color: "var(--text-dim)" }}>参数</div>
-            <pre className="text-[11px] font-mono whitespace-pre-wrap break-all max-h-40 overflow-y-auto rounded-md p-2" style={{ background: "var(--surface-1)", color: "var(--text-muted)" }}>
+            <div className="text-[10.5px] mb-1" style={{ color: "var(--text-dim)" }}>
+              参数
+            </div>
+            <pre
+              className="text-[11px] font-mono whitespace-pre-wrap break-all max-h-40 overflow-y-auto rounded-md p-2"
+              style={{ background: "var(--surface-1)", color: "var(--text-muted)" }}
+            >
               {argStr || "（无）"}
             </pre>
           </div>
           {resultStr !== null && (
             <div>
-              <div className="text-[10.5px] mb-1" style={{ color: "var(--text-dim)" }}>结果</div>
-              <pre className="text-[11px] font-mono whitespace-pre-wrap break-all max-h-40 overflow-y-auto rounded-md p-2" style={{ background: "var(--surface-1)", color: "var(--text-muted)" }}>
+              <div className="text-[10.5px] mb-1" style={{ color: "var(--text-dim)" }}>
+                结果
+              </div>
+              <pre
+                className="text-[11px] font-mono whitespace-pre-wrap break-all max-h-40 overflow-y-auto rounded-md p-2"
+                style={{ background: "var(--surface-1)", color: "var(--text-muted)" }}
+              >
                 {resultStr}
               </pre>
             </div>
@@ -133,39 +159,53 @@ interface InspectorPanelProps {
 }
 
 export function InspectorPanel({ workspaceLabel, workspaceBranch }: InspectorPanelProps) {
-  const tab = useUiStore((s) => s.inspectorTab);
-  const setTab = useUiStore((s) => s.setInspectorTab);
-  const close = useUiStore((s) => s.toggleInspector);
+  const tab = useUiStore(s => s.inspectorTab);
+  const setTab = useUiStore(s => s.setInspectorTab);
+  const close = useUiStore(s => s.toggleInspector);
 
-  const activeSessionId = useChatStore((s) => s.activeSessionId);
-  const sessions = useChatStore((s) => s.sessions);
-  const messages = useChatStore((s) => s.messages);
-  const streaming = useChatStore((s) => s.streaming);
-  const usage = useChatStore((s) => s.usage);
-  const parallel = useChatStore((s) => s.parallel);
+  const activeSessionId = useChatStore(s => s.activeSessionId);
+  const sessions = useChatStore(s => s.sessions);
+  const messages = useChatStore(s => s.messages);
+  const streaming = useChatStore(s => s.streaming);
+  const usage = useChatStore(s => s.usage);
+  const parallel = useChatStore(s => s.parallel);
 
   const sessionMessages = activeSessionId ? messages[activeSessionId] || [] : [];
   const entries = useMemo(() => collectToolCalls(sessionMessages), [sessionMessages]);
-  const activeSession = activeSessionId ? sessions.find((s) => s.id === activeSessionId) : null;
+  const activeSession = activeSessionId ? sessions.find(s => s.id === activeSessionId) : null;
   const isStreaming = activeSessionId ? streaming[activeSessionId] || false : false;
   const sessionUsage = activeSessionId ? usage[activeSessionId] : undefined;
   const batch = activeSessionId ? parallel[activeSessionId] : undefined;
 
-  const runningCount = entries.filter((e) => toolStatus(e.call) === "running").length;
-  const doneCount = entries.filter((e) => toolStatus(e.call) === "done").length;
+  const runningCount = entries.filter(e => toolStatus(e.call) === "running").length;
+  const doneCount = entries.filter(e => toolStatus(e.call) === "done").length;
 
   return (
     <div className="h-full flex flex-col" style={{ background: "var(--surface-1)" }}>
       {/* 面板头：页签 + 关闭 */}
-      <div className="flex items-center gap-1 px-2.5 pt-2.5 pb-2 flex-shrink-0 border-b" style={{ borderColor: "var(--surface-3)" }}>
-        <span className="flex items-center gap-1.5 text-[12.5px] font-semibold px-1 whitespace-nowrap flex-shrink-0" style={{ color: "var(--text-primary)" }}>
-          <Activity size={13} style={{ color: isStreaming ? "var(--accent-green)" : "var(--text-dim)" }} className="flex-shrink-0" />
+      <div
+        className="flex items-center gap-1 px-2.5 pt-2.5 pb-2 flex-shrink-0 border-b"
+        style={{ borderColor: "var(--surface-3)" }}
+      >
+        <span
+          className="flex items-center gap-1.5 text-[12.5px] font-semibold px-1 whitespace-nowrap flex-shrink-0"
+          style={{ color: "var(--text-primary)" }}
+        >
+          <Activity
+            size={13}
+            style={{ color: isStreaming ? "var(--accent-green)" : "var(--text-dim)" }}
+            className="flex-shrink-0"
+          />
           执行面板
         </span>
         <span className="flex-1 min-w-0" />
-        <nav className="flex items-center rounded-lg p-0.5 flex-shrink-0" style={{ background: "var(--surface-2)", border: "1px solid var(--surface-3)" }}>
-          {TABS.map((t) => (
+        <nav
+          className="flex items-center rounded-lg p-0.5 flex-shrink-0"
+          style={{ background: "var(--surface-2)", border: "1px solid var(--surface-3)" }}
+        >
+          {TABS.map(t => (
             <button
+              type="button"
               key={t.id}
               onClick={() => setTab(t.id)}
               className="flex items-center gap-1 px-2 py-1 rounded-md text-[11.5px] transition-colors whitespace-nowrap flex-shrink-0"
@@ -180,7 +220,12 @@ export function InspectorPanel({ workspaceLabel, workspaceBranch }: InspectorPan
             </button>
           ))}
         </nav>
-        <button onClick={close} className="title-bar-btn ml-0.5 flex-shrink-0" title="收起面板">
+        <button
+          type="button"
+          onClick={close}
+          className="title-bar-btn ml-0.5 flex-shrink-0"
+          title="收起面板"
+        >
           <PanelRightClose size={14} />
         </button>
       </div>
@@ -188,13 +233,19 @@ export function InspectorPanel({ workspaceLabel, workspaceBranch }: InspectorPan
       {/* 内容区：独立滚动 */}
       <div className="flex-1 min-h-0 overflow-y-auto px-2.5 pb-3">
         {!activeSessionId ? (
-          <div className="h-full flex flex-col items-center justify-center text-center px-4" style={{ color: "var(--text-dim)" }}>
+          <div
+            className="h-full flex flex-col items-center justify-center text-center px-4"
+            style={{ color: "var(--text-dim)" }}
+          >
             <ScrollText size={20} className="mb-2 opacity-30" />
             <p className="text-[11.5px]">暂无活动会话</p>
           </div>
         ) : tab === "log" ? (
           entries.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center px-4" style={{ color: "var(--text-dim)" }}>
+            <div
+              className="h-full flex flex-col items-center justify-center text-center px-4"
+              style={{ color: "var(--text-dim)" }}
+            >
               <Wrench size={20} className="mb-2 opacity-30" />
               <p className="text-[11.5px]">还没有工具调用记录</p>
               <p className="text-[10.5px] mt-1 opacity-70">Agent 执行工具时会在此展示完整日志</p>
@@ -203,14 +254,15 @@ export function InspectorPanel({ workspaceLabel, workspaceBranch }: InspectorPan
             <div className="space-y-1.5 animate-fade-in">
               <div className="flex items-center gap-2 panel-section-head">
                 <span>调用日志</span>
-                <span className="panel-badge" data-tone={doneCount === entries.length && entries.length > 0 ? "ok" : undefined}>
+                <span
+                  className="panel-badge"
+                  data-tone={doneCount === entries.length && entries.length > 0 ? "ok" : undefined}
+                >
                   {doneCount}/{entries.length}
                 </span>
-                {runningCount > 0 && (
-                  <span className="panel-badge">{runningCount} 执行中</span>
-                )}
+                {runningCount > 0 && <span className="panel-badge">{runningCount} 执行中</span>}
               </div>
-              {entries.map((entry) => (
+              {entries.map(entry => (
                 <LogRow key={entry.call.id} entry={entry} />
               ))}
             </div>
@@ -218,16 +270,29 @@ export function InspectorPanel({ workspaceLabel, workspaceBranch }: InspectorPan
         ) : tab === "plan" ? (
           <div className="space-y-2 animate-fade-in">
             {/* 当前轮次状态 */}
-            <div className="rounded-lg border px-3 py-2.5" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
-              <div className="flex items-center gap-2 text-[12px] font-medium" style={{ color: "var(--text-primary)" }}>
+            <div
+              className="rounded-lg border px-3 py-2.5"
+              style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}
+            >
+              <div
+                className="flex items-center gap-2 text-[12px] font-medium"
+                style={{ color: "var(--text-primary)" }}
+              >
                 {isStreaming ? (
-                  <Loader2 size={13} className="animate-spin" style={{ color: "var(--text-muted)" }} />
+                  <Loader2
+                    size={13}
+                    className="animate-spin"
+                    style={{ color: "var(--text-muted)" }}
+                  />
                 ) : (
                   <CheckCircle2 size={13} style={{ color: "var(--accent-green)" }} />
                 )}
                 {isStreaming ? "任务执行中" : "当前空闲"}
               </div>
-              <p className="text-[11px] mt-1.5 leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              <p
+                className="text-[11px] mt-1.5 leading-relaxed"
+                style={{ color: "var(--text-muted)" }}
+              >
                 {isStreaming
                   ? "Agent 正在处理请求，可在输入区点击停止按钮随时中断。"
                   : "等待新的指令。执行多步骤任务时，此处会展示步骤进度。"}
@@ -236,10 +301,21 @@ export function InspectorPanel({ workspaceLabel, workspaceBranch }: InspectorPan
 
             {/* 步骤时间线（按工具调用顺序） */}
             {entries.length > 0 && (
-              <div className="rounded-lg border px-3 py-2.5" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
+              <div
+                className="rounded-lg border px-3 py-2.5"
+                style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}
+              >
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>执行步骤</span>
-                  <span className="panel-badge" data-tone={doneCount === entries.length ? "ok" : undefined}>
+                  <span
+                    className="text-[11px] font-semibold"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    执行步骤
+                  </span>
+                  <span
+                    className="panel-badge"
+                    data-tone={doneCount === entries.length ? "ok" : undefined}
+                  >
                     {doneCount}/{entries.length}
                   </span>
                 </div>
@@ -247,17 +323,39 @@ export function InspectorPanel({ workspaceLabel, workspaceBranch }: InspectorPan
                   {entries.slice(-12).map((entry, idx) => {
                     const status = toolStatus(entry.call);
                     return (
-                      <li key={entry.call.id} className="flex items-center gap-2 text-[11.5px]" style={{ color: "var(--text-muted)" }}>
+                      <li
+                        key={entry.call.id}
+                        className="flex items-center gap-2 text-[11.5px]"
+                        style={{ color: "var(--text-muted)" }}
+                      >
                         {status === "done" ? (
-                          <CheckCircle2 size={12} style={{ color: "var(--accent-green)" }} className="flex-shrink-0" />
+                          <CheckCircle2
+                            size={12}
+                            style={{ color: "var(--accent-green)" }}
+                            className="flex-shrink-0"
+                          />
                         ) : status === "error" ? (
-                          <XCircle size={12} style={{ color: "var(--accent-red)" }} className="flex-shrink-0" />
+                          <XCircle
+                            size={12}
+                            style={{ color: "var(--accent-red)" }}
+                            className="flex-shrink-0"
+                          />
                         ) : status === "running" ? (
-                          <Loader2 size={12} className="animate-spin flex-shrink-0" style={{ color: "var(--text-muted)" }} />
+                          <Loader2
+                            size={12}
+                            className="animate-spin flex-shrink-0"
+                            style={{ color: "var(--text-muted)" }}
+                          />
                         ) : (
-                          <Circle size={12} style={{ color: "var(--text-dim)" }} className="flex-shrink-0" />
+                          <Circle
+                            size={12}
+                            style={{ color: "var(--text-dim)" }}
+                            className="flex-shrink-0"
+                          />
                         )}
-                        <span className="font-mono truncate">{idx + 1}. {entry.call.name}</span>
+                        <span className="font-mono truncate">
+                          {idx + 1}. {entry.call.name}
+                        </span>
                       </li>
                     );
                   })}
@@ -267,20 +365,41 @@ export function InspectorPanel({ workspaceLabel, workspaceBranch }: InspectorPan
 
             {/* 并行批次进度 */}
             {batch && (
-              <div className="rounded-lg border px-3 py-2.5" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
+              <div
+                className="rounded-lg border px-3 py-2.5"
+                style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}
+              >
                 <div className="flex items-center gap-2 mb-1.5">
-                  <span className="text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>并行委派批次</span>
-                  <span className="panel-badge" data-tone={batch.done >= batch.total ? "ok" : undefined}>
+                  <span
+                    className="text-[11px] font-semibold"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    并行委派批次
+                  </span>
+                  <span
+                    className="panel-badge"
+                    data-tone={batch.done >= batch.total ? "ok" : undefined}
+                  >
                     {batch.done}/{batch.total}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 text-[12px]" style={{ color: "var(--text-primary)" }}>
+                <div
+                  className="flex items-center gap-2 text-[12px]"
+                  style={{ color: "var(--text-primary)" }}
+                >
                   {batch.done < batch.total && (
-                    <Loader2 size={12} className="animate-spin" style={{ color: "var(--text-muted)" }} />
+                    <Loader2
+                      size={12}
+                      className="animate-spin"
+                      style={{ color: "var(--text-muted)" }}
+                    />
                   )}
                   {batch.done >= batch.total ? "全部完成" : "进行中"}
                 </div>
-                <div className="text-[11px] mt-1 leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                <div
+                  className="text-[11px] mt-1 leading-relaxed"
+                  style={{ color: "var(--text-muted)" }}
+                >
                   {batch.names.join("、")}
                 </div>
               </div>
@@ -292,7 +411,10 @@ export function InspectorPanel({ workspaceLabel, workspaceBranch }: InspectorPan
             <ContextCard label="会话">
               <Row k="标题" v={activeSession?.title || "未命名会话"} />
               <Row k="模型" v={activeSession?.model || "默认模型"} />
-              <Row k="消息数" v={String(sessionMessages.filter((m) => m.content !== THINKING_MESSAGE).length)} />
+              <Row
+                k="消息数"
+                v={String(sessionMessages.filter(m => m.content !== THINKING_MESSAGE).length)}
+              />
               <Row k="Token" v={sessionUsage ? sessionUsage.total_tokens.toLocaleString() : "0"} />
             </ContextCard>
             <ContextCard label="工作区">
@@ -308,7 +430,10 @@ export function InspectorPanel({ workspaceLabel, workspaceBranch }: InspectorPan
 
 function ContextCard({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border px-3 py-2.5" style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}>
+    <div
+      className="rounded-lg border px-3 py-2.5"
+      style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)" }}
+    >
       <div className="panel-section-head !pt-0 !pb-2 !px-0">{label}</div>
       <div className="space-y-1.5">{children}</div>
     </div>
@@ -318,8 +443,12 @@ function ContextCard({ label, children }: { label: string; children: React.React
 function Row({ k, v }: { k: string; v: string }) {
   return (
     <div className="flex items-start gap-2 text-[11.5px]">
-      <span className="w-12 flex-shrink-0" style={{ color: "var(--text-dim)" }}>{k}</span>
-      <span className="min-w-0 break-all" style={{ color: "var(--text-primary)" }}>{v}</span>
+      <span className="w-12 flex-shrink-0" style={{ color: "var(--text-dim)" }}>
+        {k}
+      </span>
+      <span className="min-w-0 break-all" style={{ color: "var(--text-primary)" }}>
+        {v}
+      </span>
     </div>
   );
 }

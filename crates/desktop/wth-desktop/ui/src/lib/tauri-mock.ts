@@ -69,7 +69,13 @@ const MOCK_SETTINGS = {
   onboarding_completed: true,
   prompt_templates: [],
   workflows: [],
-  network: { proxy_mode: "off", proxy_url: null, request_timeout_secs: 120, retry_enabled: true, retry_max: 2 },
+  network: {
+    proxy_mode: "off",
+    proxy_url: null,
+    request_timeout_secs: 120,
+    retry_enabled: true,
+    retry_max: 2,
+  },
 };
 
 const MOCK_SESSIONS: MockSession[] = [
@@ -145,13 +151,30 @@ const MOCK_DEMO_MESSAGES = [
 ];
 
 const MOCK_FILE_TREE = [
-  { name: "src", path: "D:\\demo-project\\src", is_dir: true, size: 0, children: [
-    { name: "App.tsx", path: "D:\\demo-project\\src\\App.tsx", is_dir: false, size: 4096 },
-    { name: "main.tsx", path: "D:\\demo-project\\src\\main.tsx", is_dir: false, size: 512 },
-    { name: "components", path: "D:\\demo-project\\src\\components", is_dir: true, size: 0, children: [
-      { name: "Button.tsx", path: "D:\\demo-project\\src\\components\\Button.tsx", is_dir: false, size: 2048 },
-    ] },
-  ] },
+  {
+    name: "src",
+    path: "D:\\demo-project\\src",
+    is_dir: true,
+    size: 0,
+    children: [
+      { name: "App.tsx", path: "D:\\demo-project\\src\\App.tsx", is_dir: false, size: 4096 },
+      { name: "main.tsx", path: "D:\\demo-project\\src\\main.tsx", is_dir: false, size: 512 },
+      {
+        name: "components",
+        path: "D:\\demo-project\\src\\components",
+        is_dir: true,
+        size: 0,
+        children: [
+          {
+            name: "Button.tsx",
+            path: "D:\\demo-project\\src\\components\\Button.tsx",
+            is_dir: false,
+            size: 2048,
+          },
+        ],
+      },
+    ],
+  },
   { name: "package.json", path: "D:\\demo-project\\package.json", is_dir: false, size: 1024 },
   { name: "README.md", path: "D:\\demo-project\\README.md", is_dir: false, size: 2048 },
 ];
@@ -207,7 +230,7 @@ function emitEvent(name: string, payload: unknown) {
 }
 
 function sleep(ms: number) {
-  return new Promise((r) => window.setTimeout(r, ms));
+  return new Promise(r => window.setTimeout(r, ms));
 }
 
 /** 模拟一轮真实 Agent 回复：工具调用卡 + Markdown 流式正文 + 用量。 */
@@ -241,7 +264,7 @@ async function simulateReply(sessionId: string, question: string) {
     "",
     "```rust",
     "fn main() {",
-    "    println!(\"Wide Thought Host\");",
+    '    println!("Wide Thought Host");',
     "}",
     "```",
     "",
@@ -289,12 +312,12 @@ function mockInvoke(cmd: string, args: Record<string, unknown>): Promise<unknown
     case "session_save_messages":
       return Promise.resolve(null);
     case "session_delete": {
-      const idx = MOCK_SESSIONS.findIndex((s) => s.id === args?.id);
+      const idx = MOCK_SESSIONS.findIndex(s => s.id === args?.id);
       if (idx >= 0) MOCK_SESSIONS.splice(idx, 1);
       return Promise.resolve(null);
     }
     case "session_rename": {
-      const s = MOCK_SESSIONS.find((x) => x.id === args?.id);
+      const s = MOCK_SESSIONS.find(x => x.id === args?.id);
       if (s) {
         s.title = String(args?.title ?? s.title);
         s.updated_at = now();
@@ -302,7 +325,7 @@ function mockInvoke(cmd: string, args: Record<string, unknown>): Promise<unknown
       return Promise.resolve(s ?? null);
     }
     case "session_set_pinned": {
-      const s = MOCK_SESSIONS.find((x) => x.id === args?.id);
+      const s = MOCK_SESSIONS.find(x => x.id === args?.id);
       if (s) {
         s.pinned = Boolean(args?.pinned);
         s.updated_at = now();
@@ -311,14 +334,22 @@ function mockInvoke(cmd: string, args: Record<string, unknown>): Promise<unknown
     }
     case "agent_send": {
       // ipc.ts: invoke("agent_send", { message: AgentMessage })
-      const msg = ((args as { message?: unknown })?.message ?? {}) as { session_id?: string; content?: string };
+      const msg = ((args as { message?: unknown })?.message ?? {}) as {
+        session_id?: string;
+        content?: string;
+      };
       if (msg.session_id) void simulateReply(msg.session_id, msg.content || "");
       return Promise.resolve(null);
     }
     case "agent_abort":
       return Promise.resolve(null);
     case "workspace_get":
-      return Promise.resolve({ path: "D:\\demo-project", name: "demo-project", exists: true, active: true });
+      return Promise.resolve({
+        path: "D:\\demo-project",
+        name: "demo-project",
+        exists: true,
+        active: true,
+      });
     case "workspace_recent":
       return Promise.resolve([]);
     case "workspace_git_branch":
@@ -373,7 +404,10 @@ export function installTauriBrowserMock(): void {
     plugins: {},
     transformCallback(callback: unknown) {
       const id = nextCallbackId++;
-      callbacks.set(id, typeof callback === "function" ? (callback as (e: unknown) => void) : () => {});
+      callbacks.set(
+        id,
+        typeof callback === "function" ? (callback as (e: unknown) => void) : () => {},
+      );
       return id;
     },
     invoke(cmd: string, args: Record<string, unknown> = {}) {

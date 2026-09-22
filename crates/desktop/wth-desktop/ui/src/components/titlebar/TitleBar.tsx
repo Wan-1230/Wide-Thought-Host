@@ -5,18 +5,11 @@
 // 右侧：窗口控制按钮（最小化 / 最大化-还原 / 关闭）。
 // 整栏作为窗口拖拽区域（data-tauri-drag-region）。
 
-import { useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import {
-  Copy,
-  Minus,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Square,
-  X,
-} from "lucide-react";
-import { useUiStore } from "@/stores/ui";
+import { Copy, Minus, PanelLeftClose, PanelLeftOpen, Square, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import wthIcon from "@/assets/wth-icon.png";
+import { useUiStore } from "@/stores/ui";
 
 interface TitleBarProps {
   /** 中间展示的当前会话 / 任务名称 */
@@ -27,22 +20,28 @@ interface TitleBarProps {
 
 export function TitleBar({ sessionTitle, streaming = false }: TitleBarProps) {
   const [maximized, setMaximized] = useState(false);
-  const collapsed = useUiStore((s) => s.sidebarCollapsed);
-  const toggleSidebar = useUiStore((s) => s.toggleSidebar);
+  const collapsed = useUiStore(s => s.sidebarCollapsed);
+  const toggleSidebar = useUiStore(s => s.toggleSidebar);
 
   useEffect(() => {
     const appWindow = getCurrentWindow();
     let disposed = false;
-    appWindow.isMaximized().then((m) => {
-      if (!disposed) setMaximized(m);
-    }).catch(() => {});
+    appWindow
+      .isMaximized()
+      .then(m => {
+        if (!disposed) setMaximized(m);
+      })
+      .catch(() => {});
     // 监听窗口最大化状态变化（含双击标题栏、Win+↑ 等系统行为）
     const unlisten = appWindow.onResized(() => {
-      appWindow.isMaximized().then((m) => setMaximized(m)).catch(() => {});
+      appWindow
+        .isMaximized()
+        .then(m => setMaximized(m))
+        .catch(() => {});
     });
     return () => {
       disposed = true;
-      unlisten.then((fn) => fn()).catch(() => {});
+      unlisten.then(fn => fn()).catch(() => {});
     };
   }, []);
 
@@ -58,23 +57,29 @@ export function TitleBar({ sessionTitle, streaming = false }: TitleBarProps) {
       {/* 左侧：折叠按钮 + 软件名称 */}
       <div className="flex items-center gap-1.5 pl-2.5 pr-3 min-w-0" data-tauri-drag-region>
         <button
+          type="button"
           onClick={toggleSidebar}
           title={collapsed ? "展开侧边栏" : "折叠侧边栏"}
           className="title-bar-btn"
         >
           {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
         </button>
-        <img src={wthIcon} alt="WTH" className="w-5 h-5 rounded-md theme-logo flex-shrink-0" draggable={false} />
-        <span className="text-[12.5px] font-semibold tracking-wide whitespace-nowrap" style={{ color: "var(--text-primary)" }}>
+        <img
+          src={wthIcon}
+          alt="WTH"
+          className="w-5 h-5 rounded-md theme-logo flex-shrink-0"
+          draggable={false}
+        />
+        <span
+          className="text-[12.5px] font-semibold tracking-wide whitespace-nowrap"
+          style={{ color: "var(--text-primary)" }}
+        >
           Wide Thought Host
         </span>
       </div>
 
       {/* 中间：当前会话 / 任务名称（胶囊底以聚焦视线） */}
-      <div
-        data-tauri-drag-region
-        className="flex-1 flex items-center justify-center min-w-0 px-2"
-      >
+      <div data-tauri-drag-region className="flex-1 flex items-center justify-center min-w-0 px-2">
         {sessionTitle ? (
           <div
             className="flex items-center gap-2 min-w-0 max-w-[52%] px-3 py-1 rounded-lg"
@@ -104,10 +109,17 @@ export function TitleBar({ sessionTitle, streaming = false }: TitleBarProps) {
 
       {/* 右侧：窗口控制按钮 */}
       <div className="flex items-center h-full flex-shrink-0">
-        <button onClick={handleMinimize} className="win-ctrl" title="最小化" aria-label="最小化">
+        <button
+          type="button"
+          onClick={handleMinimize}
+          className="win-ctrl"
+          title="最小化"
+          aria-label="最小化"
+        >
           <Minus size={14} />
         </button>
         <button
+          type="button"
           onClick={handleToggleMaximize}
           className="win-ctrl"
           title={maximized ? "向下还原" : "最大化"}
@@ -116,6 +128,7 @@ export function TitleBar({ sessionTitle, streaming = false }: TitleBarProps) {
           {maximized ? <Copy size={11} /> : <Square size={11} />}
         </button>
         <button
+          type="button"
           onClick={handleClose}
           className="win-ctrl win-ctrl-close"
           title="关闭"

@@ -1,7 +1,7 @@
 // chat store 单元测试：会话排序、消息追加/截断、并行子智能体、用量累积。
-import { describe, expect, it, beforeEach } from "vitest";
-import { useChatStore, THINKING_MESSAGE, type ChatMessage } from "./chat";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { UsageInfo } from "@/lib/ipc";
+import { type ChatMessage, THINKING_MESSAGE, useChatStore } from "./chat";
 
 function resetStore() {
   useChatStore.setState({
@@ -23,24 +23,64 @@ beforeEach(resetStore);
 describe("会话管理", () => {
   it("setSessions 按置顶优先、更新时间倒序排序", () => {
     useChatStore.getState().setSessions([
-      { id: "old", title: "旧", created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z", message_count: 0, model: "", pinned: false },
-      { id: "new", title: "新", created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-03T00:00:00Z", message_count: 0, model: "", pinned: false },
-      { id: "pin", title: "置顶", created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-02T00:00:00Z", message_count: 0, model: "", pinned: true },
+      {
+        id: "old",
+        title: "旧",
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+        message_count: 0,
+        model: "",
+        pinned: false,
+      },
+      {
+        id: "new",
+        title: "新",
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-03T00:00:00Z",
+        message_count: 0,
+        model: "",
+        pinned: false,
+      },
+      {
+        id: "pin",
+        title: "置顶",
+        created_at: "2026-01-01T00:00:00Z",
+        updated_at: "2026-01-02T00:00:00Z",
+        message_count: 0,
+        model: "",
+        pinned: true,
+      },
     ]);
-    const ids = useChatStore.getState().sessions.map((s) => s.id);
+    const ids = useChatStore.getState().sessions.map(s => s.id);
     expect(ids).toEqual(["pin", "new", "old"]);
   });
 
   it("removeSession 清理消息与激活会话", () => {
     useChatStore.getState().setSessions([
-      { id: "a", title: "A", created_at: "", updated_at: "2026-01-01T00:00:00Z", message_count: 0, model: "", pinned: false },
-      { id: "b", title: "B", created_at: "", updated_at: "2026-01-02T00:00:00Z", message_count: 0, model: "", pinned: false },
+      {
+        id: "a",
+        title: "A",
+        created_at: "",
+        updated_at: "2026-01-01T00:00:00Z",
+        message_count: 0,
+        model: "",
+        pinned: false,
+      },
+      {
+        id: "b",
+        title: "B",
+        created_at: "",
+        updated_at: "2026-01-02T00:00:00Z",
+        message_count: 0,
+        model: "",
+        pinned: false,
+      },
     ]);
     useChatStore.getState().setActiveSession("a");
     useChatStore.getState().addMessage("a", msg("user", "你好"));
     useChatStore.getState().removeSession("a");
     const state = useChatStore.getState();
-    expect(state.sessions.map((s) => s.id)).toEqual(["b"]);
+    expect(state.sessions.map(s => s.id)).toEqual(["b"]);
     expect(state.messages["a"]).toBeUndefined();
     expect(state.activeSessionId).toBe("b");
   });
@@ -81,13 +121,15 @@ describe("消息流", () => {
   });
 
   it("truncateMessages 截断到指定消息之前", () => {
-    useChatStore.getState().setMessages("s1", [
-      msg("user", "a", "m1"),
-      msg("assistant", "b", "m2"),
-      msg("user", "c", "m3"),
-    ]);
+    useChatStore
+      .getState()
+      .setMessages("s1", [
+        msg("user", "a", "m1"),
+        msg("assistant", "b", "m2"),
+        msg("user", "c", "m3"),
+      ]);
     useChatStore.getState().truncateMessages("s1", "m3");
-    const ids = useChatStore.getState().messages["s1"].map((m) => m.id);
+    const ids = useChatStore.getState().messages["s1"].map(m => m.id);
     expect(ids).toEqual(["m1", "m2"]);
   });
 });
@@ -136,7 +178,10 @@ describe("工具调用生命周期（Q-02）", () => {
   it("addToolCall 只挂在最后一条 assistant 消息上", () => {
     useChatStore.getState().setMessages("s1", [assistantMsg()]);
     useChatStore.getState().addToolCall("s1", {
-      id: "t1", name: "file_read", arguments: { path: "a.rs" }, status: "running",
+      id: "t1",
+      name: "file_read",
+      arguments: { path: "a.rs" },
+      status: "running",
     });
     const last = useChatStore.getState().messages["s1"][0];
     expect(last.tool_calls).toHaveLength(1);
@@ -144,7 +189,10 @@ describe("工具调用生命周期（Q-02）", () => {
 
     // 没有 assistant 消息时不产生副作用
     useChatStore.getState().addToolCall("s2", {
-      id: "t2", name: "bash", arguments: {}, status: "running",
+      id: "t2",
+      name: "bash",
+      arguments: {},
+      status: "running",
     });
     expect(useChatStore.getState().messages["s2"]).toBeUndefined();
   });
@@ -152,7 +200,11 @@ describe("工具调用生命周期（Q-02）", () => {
   it("updateToolCall 更新状态，updateToolCallResult 写入结果", () => {
     useChatStore.getState().setMessages("s1", [assistantMsg()]);
     useChatStore.getState().addToolCall("s1", {
-      id: "t1", name: "file_edit", arguments: {}, status: "pending", needsApproval: true,
+      id: "t1",
+      name: "file_edit",
+      arguments: {},
+      status: "pending",
+      needsApproval: true,
     });
     useChatStore.getState().updateToolCall("s1", "t1", { status: "done" });
     let tc = useChatStore.getState().messages["s1"][0].tool_calls![0];
@@ -167,7 +219,10 @@ describe("工具调用生命周期（Q-02）", () => {
   it("未知 toolId 的更新无副作用", () => {
     useChatStore.getState().setMessages("s1", [assistantMsg()]);
     useChatStore.getState().addToolCall("s1", {
-      id: "t1", name: "git_status", arguments: {}, status: "running",
+      id: "t1",
+      name: "git_status",
+      arguments: {},
+      status: "running",
     });
     useChatStore.getState().updateToolCall("s1", "nope", { status: "done" });
     const tc = useChatStore.getState().messages["s1"][0].tool_calls![0];
@@ -177,15 +232,17 @@ describe("工具调用生命周期（Q-02）", () => {
 
 describe("消息截断（Q-02，重新生成/rewind 基础）", () => {
   it("truncateMessages 保留目标消息之前的内容", () => {
-    useChatStore.getState().setMessages("s1", [
-      msg("user", "第一问", "m1"),
-      msg("assistant", "第一答", "m2"),
-      msg("user", "第二问", "m3"),
-      msg("assistant", "第二答", "m4"),
-    ]);
+    useChatStore
+      .getState()
+      .setMessages("s1", [
+        msg("user", "第一问", "m1"),
+        msg("assistant", "第一答", "m2"),
+        msg("user", "第二问", "m3"),
+        msg("assistant", "第二答", "m4"),
+      ]);
     useChatStore.getState().truncateMessages("s1", "m3");
     const left = useChatStore.getState().messages["s1"];
-    expect(left.map((m) => m.id)).toEqual(["m1", "m2"]);
+    expect(left.map(m => m.id)).toEqual(["m1", "m2"]);
   });
 
   it("truncateMessages 对不存在的消息 id 无副作用", () => {

@@ -68,32 +68,48 @@ export const useUiStore = create<UiStore>((set, get) => ({
 
   toggleSidebar: () => get().setSidebarCollapsed(!get().sidebarCollapsed),
 
-  setSidebarCollapsed: (collapsed) => {
+  setSidebarCollapsed: collapsed => {
     set({ sidebarCollapsed: collapsed });
     const s = get();
-    persist({ sidebarCollapsed: s.sidebarCollapsed, inspectorOpen: s.inspectorOpen, inspectorTab: s.inspectorTab });
+    persist({
+      sidebarCollapsed: s.sidebarCollapsed,
+      inspectorOpen: s.inspectorOpen,
+      inspectorTab: s.inspectorTab,
+    });
   },
 
   toggleInspector: () => {
     const next = !(get().inspectorOpen && !get().inspectorForceCollapsed);
     set({ inspectorOpen: next, inspectorForceCollapsed: false });
     const s = get();
-    persist({ sidebarCollapsed: s.sidebarCollapsed, inspectorOpen: s.inspectorOpen, inspectorTab: s.inspectorTab });
+    persist({
+      sidebarCollapsed: s.sidebarCollapsed,
+      inspectorOpen: s.inspectorOpen,
+      inspectorTab: s.inspectorTab,
+    });
   },
 
-  setInspectorOpen: (open) => {
+  setInspectorOpen: open => {
     set({ inspectorOpen: open, inspectorForceCollapsed: false });
     const s = get();
-    persist({ sidebarCollapsed: s.sidebarCollapsed, inspectorOpen: s.inspectorOpen, inspectorTab: s.inspectorTab });
+    persist({
+      sidebarCollapsed: s.sidebarCollapsed,
+      inspectorOpen: s.inspectorOpen,
+      inspectorTab: s.inspectorTab,
+    });
   },
 
-  setInspectorTab: (tab) => {
+  setInspectorTab: tab => {
     set({ inspectorTab: tab });
     const s = get();
-    persist({ sidebarCollapsed: s.sidebarCollapsed, inspectorOpen: s.inspectorOpen, inspectorTab: s.inspectorTab });
+    persist({
+      sidebarCollapsed: s.sidebarCollapsed,
+      inspectorOpen: s.inspectorOpen,
+      inspectorTab: s.inspectorTab,
+    });
   },
 
-  setInspectorForceCollapsed: (forced) => set({ inspectorForceCollapsed: forced }),
+  setInspectorForceCollapsed: forced => set({ inspectorForceCollapsed: forced }),
 
-  setInspectorWidth: (width) => set({ inspectorWidth: Math.min(560, Math.max(260, width)) }),
+  setInspectorWidth: width => set({ inspectorWidth: Math.min(560, Math.max(260, width)) }),
 }));

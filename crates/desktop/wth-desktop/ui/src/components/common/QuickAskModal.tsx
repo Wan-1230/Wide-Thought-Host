@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
 import { Send, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { sessionCreate } from "@/lib/ipc";
 
 interface Props {
@@ -27,9 +27,7 @@ export function QuickAskModal({ open, onClose, onSent }: Props) {
     if (!content) return;
     try {
       const session = await sessionCreate("新会话", "");
-      window.dispatchEvent(
-        new CustomEvent("wth:send-example", { detail: content }),
-      );
+      window.dispatchEvent(new CustomEvent("wth:send-example", { detail: content }));
       onSent();
       onClose();
       void session;
@@ -39,19 +37,21 @@ export function QuickAskModal({ open, onClose, onSent }: Props) {
   };
 
   return (
-    <div
-      className="modal-mask z-[150] p-6"
-      onClick={onClose}
-    >
+    <div className="modal-mask z-[150] p-6" onClick={onClose}>
       <div
         className="modal-card w-full max-w-md rounded-2xl p-5"
-        onClick={(e) => e.stopPropagation()}
+        onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
             快速提问
           </h2>
-          <button onClick={onClose} className="p-1 rounded hover:bg-surface-2" style={{ color: "var(--text-muted)" }}>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 rounded hover:bg-surface-2"
+            style={{ color: "var(--text-muted)" }}
+          >
             <X size={15} />
           </button>
         </div>
@@ -66,8 +66,8 @@ export function QuickAskModal({ open, onClose, onSent }: Props) {
           rows={3}
           placeholder="输入问题，回车发送（将在新会话中执行）"
           value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
+          onChange={e => setText(e.target.value)}
+          onKeyDown={e => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               void send();
@@ -77,6 +77,7 @@ export function QuickAskModal({ open, onClose, onSent }: Props) {
         />
         <div className="mt-3 flex items-center justify-end gap-2">
           <button
+            type="button"
             className="px-3 py-1.5 rounded-lg text-xs whitespace-nowrap"
             style={{ color: "var(--text-muted)" }}
             onClick={onClose}
@@ -84,6 +85,7 @@ export function QuickAskModal({ open, onClose, onSent }: Props) {
             取消
           </button>
           <button
+            type="button"
             className="px-4 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 whitespace-nowrap"
             style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}
             disabled={!text.trim()}

@@ -7,6 +7,7 @@ function omitKey<T>(obj: Record<string, T>, key: string): Record<string, T> {
   void _removed;
   return rest;
 }
+
 import type { SessionInfo, StreamChunk, UsageInfo } from "@/lib/ipc";
 
 export const THINKING_MESSAGE = "模型正在思考…";
@@ -38,7 +39,10 @@ interface ChatStore {
   phase: Record<string, string>;
   usage: Record<string, UsageInfo>;
   /** 并行子智能体运行跟踪（session_id → 批次状态），用于结果汇总 */
-  parallel: Record<string, { total: number; done: number; names: string[]; statuses: Record<string, "done" | "error"> }>;
+  parallel: Record<
+    string,
+    { total: number; done: number; names: string[]; statuses: Record<string, "done" | "error"> }
+  >;
 
   setSessions: (sessions: SessionInfo[]) => void;
   setActiveSession: (id: string) => void;
@@ -62,7 +66,7 @@ interface ChatStore {
   updateToolCallResult: (sessionId: string, toolId: string, result: unknown) => void;
 }
 
-export const useChatStore = create<ChatStore>((set) => ({
+export const useChatStore = create<ChatStore>(set => ({
   sessions: [],
   activeSessionId: null,
   messages: {},
@@ -72,7 +76,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   parallel: {},
 
   registerParallelRun: (sessionId, names) =>
-    set((state) => ({
+    set(state => ({
       parallel: {
         ...state.parallel,
         [sessionId]: { total: names.length, done: 0, names, statuses: {} },
@@ -80,7 +84,7 @@ export const useChatStore = create<ChatStore>((set) => ({
     })),
 
   completeParallelRun: (sessionId, subSessionId, ok, name) =>
-    set((state) => {
+    set(state => {
       const p = state.parallel[sessionId];
       if (!p) return state;
       return {
@@ -95,14 +99,14 @@ export const useChatStore = create<ChatStore>((set) => ({
       };
     }),
 
-  clearParallelRun: (sessionId) =>
-    set((state) => {
+  clearParallelRun: sessionId =>
+    set(state => {
       const { [sessionId]: removed, ...parallel } = state.parallel;
       void removed;
       return { parallel };
     }),
 
-  setSessions: (sessions) =>
+  setSessions: sessions =>
     set({
       sessions: [...sessions].sort((a, b) => {
         const pinDelta = Number(Boolean(b.pinned)) - Number(Boolean(a.pinned));
@@ -111,11 +115,11 @@ export const useChatStore = create<ChatStore>((set) => ({
       }),
     }),
 
-  setActiveSession: (id) => set({ activeSessionId: id }),
+  setActiveSession: id => set({ activeSessionId: id }),
 
-  upsertSession: (session) =>
-    set((state) => {
-      const sessions = state.sessions.filter((item) => item.id !== session.id);
+  upsertSession: session =>
+    set(state => {
+      const sessions = state.sessions.filter(item => item.id !== session.id);
       sessions.push(session);
       sessions.sort((a, b) => {
         const pinDelta = Number(Boolean(b.pinned)) - Number(Boolean(a.pinned));
@@ -125,9 +129,9 @@ export const useChatStore = create<ChatStore>((set) => ({
       return { sessions };
     }),
 
-  removeSession: (sessionId) =>
-    set((state) => {
-      const sessions = state.sessions.filter((item) => item.id !== sessionId);
+  removeSession: sessionId =>
+    set(state => {
+      const sessions = state.sessions.filter(item => item.id !== sessionId);
       const { [sessionId]: removedMessages, ...messages } = state.messages;
       const { [sessionId]: removedStreaming, ...streaming } = state.streaming;
       const { [sessionId]: removedUsage, ...usage } = state.usage;
@@ -139,14 +143,15 @@ export const useChatStore = create<ChatStore>((set) => ({
         messages,
         streaming,
         usage,
-        activeSessionId: state.activeSessionId === sessionId ? sessions[0]?.id ?? null : state.activeSessionId,
+        activeSessionId:
+          state.activeSessionId === sessionId ? (sessions[0]?.id ?? null) : state.activeSessionId,
       };
     }),
 
   renameSession: (sessionId, title) =>
-    set((state) => ({
+    set(state => ({
       sessions: state.sessions
-        .map((session) => (session.id === sessionId ? { ...session, title } : session))
+        .map(session => (session.id === sessionId ? { ...session, title } : session))
         .sort((a, b) => {
           const pinDelta = Number(Boolean(b.pinned)) - Number(Boolean(a.pinned));
           if (pinDelta !== 0) return pinDelta;
@@ -155,9 +160,9 @@ export const useChatStore = create<ChatStore>((set) => ({
     })),
 
   pinSession: (sessionId, pinned) =>
-    set((state) => ({
+    set(state => ({
       sessions: state.sessions
-        .map((session) => (session.id === sessionId ? { ...session, pinned } : session))
+        .map(session => (session.id === sessionId ? { ...session, pinned } : session))
         .sort((a, b) => {
           const pinDelta = Number(Boolean(b.pinned)) - Number(Boolean(a.pinned));
           if (pinDelta !== 0) return pinDelta;
@@ -166,7 +171,7 @@ export const useChatStore = create<ChatStore>((set) => ({
     })),
 
   addMessage: (sessionId, msg) =>
-    set((state) => ({
+    set(state => ({
       messages: {
         ...state.messages,
         [sessionId]: [...(state.messages[sessionId] || []), msg],
@@ -174,14 +179,14 @@ export const useChatStore = create<ChatStore>((set) => ({
     })),
 
   setMessages: (sessionId, msgs) =>
-    set((state) => ({
+    set(state => ({
       messages: { ...state.messages, [sessionId]: msgs },
     })),
 
   truncateMessages: (sessionId, fromMessageId) =>
-    set((state) => {
+    set(state => {
       const msgs = state.messages[sessionId] || [];
-      const idx = msgs.findIndex((m) => m.id === fromMessageId);
+      const idx = msgs.findIndex(m => m.id === fromMessageId);
       if (idx < 0) return state;
       return {
         messages: {
@@ -192,7 +197,7 @@ export const useChatStore = create<ChatStore>((set) => ({
     }),
 
   appendToLastMessage: (sessionId, delta) =>
-    set((state) => {
+    set(state => {
       const msgs = state.messages[sessionId] || [];
       if (msgs.length === 0) return state;
       const last = msgs[msgs.length - 1];
@@ -209,7 +214,7 @@ export const useChatStore = create<ChatStore>((set) => ({
     }),
 
   finalizeAssistantMessage: (sessionId, fallback) =>
-    set((state) => {
+    set(state => {
       const msgs = state.messages[sessionId] || [];
       if (msgs.length === 0) return state;
       const last = msgs[msgs.length - 1];
@@ -218,22 +223,19 @@ export const useChatStore = create<ChatStore>((set) => ({
       return {
         messages: {
           ...state.messages,
-          [sessionId]: [
-            ...msgs.slice(0, -1),
-            { ...last, content: fallback },
-          ],
+          [sessionId]: [...msgs.slice(0, -1), { ...last, content: fallback }],
         },
       };
     }),
 
   setStreaming: (sessionId, active) =>
-    set((state) => ({
+    set(state => ({
       streaming: { ...state.streaming, [sessionId]: active },
       phase: active ? state.phase : omitKey(state.phase, sessionId),
     })),
 
   setPhase: (sessionId, phase) =>
-    set((state) => {
+    set(state => {
       if (phase === null) {
         return { phase: omitKey(state.phase, sessionId) };
       }
@@ -241,7 +243,7 @@ export const useChatStore = create<ChatStore>((set) => ({
     }),
 
   addUsage: (sessionId, usage) =>
-    set((state) => {
+    set(state => {
       const prev = state.usage[sessionId];
       const next = prev
         ? {
@@ -254,7 +256,7 @@ export const useChatStore = create<ChatStore>((set) => ({
     }),
 
   addToolCall: (sessionId, call) =>
-    set((state) => {
+    set(state => {
       const msgs = state.messages[sessionId] || [];
       const last = msgs[msgs.length - 1];
       if (last && last.role === "assistant") {
@@ -275,7 +277,7 @@ export const useChatStore = create<ChatStore>((set) => ({
     }),
 
   updateToolCall: (sessionId, toolId, patch) =>
-    set((state) => {
+    set(state => {
       const msgs = state.messages[sessionId] || [];
       const last = msgs[msgs.length - 1];
       if (last?.tool_calls) {
@@ -286,8 +288,8 @@ export const useChatStore = create<ChatStore>((set) => ({
               ...msgs.slice(0, -1),
               {
                 ...last,
-                tool_calls: last.tool_calls.map((tc) =>
-                  tc.id === toolId ? { ...tc, ...patch } : tc
+                tool_calls: last.tool_calls.map(tc =>
+                  tc.id === toolId ? { ...tc, ...patch } : tc,
                 ),
               },
             ],
@@ -298,7 +300,7 @@ export const useChatStore = create<ChatStore>((set) => ({
     }),
 
   updateToolCallResult: (sessionId, toolId, result) =>
-    set((state) => {
+    set(state => {
       const msgs = state.messages[sessionId] || [];
       const last = msgs[msgs.length - 1];
       if (last?.tool_calls) {
@@ -309,8 +311,8 @@ export const useChatStore = create<ChatStore>((set) => ({
               ...msgs.slice(0, -1),
               {
                 ...last,
-                tool_calls: last.tool_calls.map((tc) =>
-                  tc.id === toolId ? { ...tc, result, status: "done" as const } : tc
+                tool_calls: last.tool_calls.map(tc =>
+                  tc.id === toolId ? { ...tc, result, status: "done" as const } : tc,
                 ),
               },
             ],

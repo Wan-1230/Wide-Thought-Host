@@ -107,7 +107,9 @@
   box-sizing: border-box;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   width: 100%;
   overflow: hidden;
@@ -115,7 +117,18 @@ html, body, #root {
 
 body {
   font-size: calc(13px * var(--font-scale, 1));
-  font-family: var(--ui-font-family, "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif);
+  font-family: var(
+    --ui-font-family,
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Microsoft YaHei",
+    "Noto Sans SC",
+    sans-serif
+  );
   line-height: 1.55;
   background: var(--bg-body);
   color: var(--text-primary);
@@ -188,32 +201,70 @@ input[type="radio"] {
    ============================================================ */
 
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 @keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.98); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 @keyframes popIn {
-  from { opacity: 0; transform: scale(0.98); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 @keyframes slideDown {
-  from { opacity: 0; transform: translateY(-3px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 @keyframes caretBlink {
-  0%, 55% { opacity: 1; }
-  56%, 100% { opacity: 0.15; }
+  0%,
+  55% {
+    opacity: 1;
+  }
+  56%,
+  100% {
+    opacity: 0.15;
+  }
 }
 @keyframes shimmer {
-  from { background-position: 200% 0; }
-  to { background-position: -200% 0; }
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
 }
 
 .animate-fade-in {
@@ -305,7 +356,9 @@ input[type="radio"] {
   border-radius: var(--radius-md);
   color: var(--text-muted);
   flex-shrink: 0;
-  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 .title-bar-btn:hover {
   background: var(--surface-2);
@@ -320,7 +373,9 @@ input[type="radio"] {
   height: 100%;
   color: var(--text-muted);
   flex-shrink: 0;
-  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 .win-ctrl:hover {
   background: var(--surface-2);
@@ -344,7 +399,9 @@ input[type="radio"] {
   border-radius: var(--radius-md);
   color: var(--text-muted);
   flex-shrink: 0;
-  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 .sidebar-icon-btn:hover {
   background: var(--surface-2);
@@ -370,7 +427,9 @@ input[type="radio"] {
   color: var(--text-muted);
   background: var(--surface-2);
   flex-shrink: 0;
-  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 .sidebar-row-action:hover {
   background: var(--surface-3);
@@ -402,7 +461,9 @@ input[type="radio"] {
   border-radius: var(--radius-md);
   color: var(--text-muted);
   flex-shrink: 0;
-  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 .chat-head-btn:hover {
   background: var(--surface-2);
@@ -424,7 +485,9 @@ input[type="radio"] {
   background: transparent;
   white-space: nowrap;
   flex-shrink: 0;
-  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 button.chip:hover {
   background: var(--surface-2);
@@ -441,37 +504,66 @@ button.chip:hover {
   color: var(--text-primary);
   word-break: break-word;
 }
-.md-body > *:first-child { margin-top: 0 !important; }
-.md-body > *:last-child { margin-bottom: 0 !important; }
+.md-body > *:first-child {
+  margin-top: 0 !important;
+}
+.md-body > *:last-child {
+  margin-bottom: 0 !important;
+}
 
 .md-body p {
   margin: 0.5em 0;
 }
-.md-body h1, .md-body h2, .md-body h3, .md-body h4, .md-body h5, .md-body h6 {
+.md-body h1,
+.md-body h2,
+.md-body h3,
+.md-body h4,
+.md-body h5,
+.md-body h6 {
   margin: 1.2em 0 0.45em;
   font-weight: 600;
   line-height: 1.35;
   color: var(--text-primary);
 }
-.md-body h1 { font-size: 1.3em; letter-spacing: -0.01em; }
-.md-body h2 { font-size: 1.15em; letter-spacing: -0.01em; }
-.md-body h3 { font-size: 1.05em; }
-.md-body h4, .md-body h5, .md-body h6 { font-size: 1em; }
+.md-body h1 {
+  font-size: 1.3em;
+  letter-spacing: -0.01em;
+}
+.md-body h2 {
+  font-size: 1.15em;
+  letter-spacing: -0.01em;
+}
+.md-body h3 {
+  font-size: 1.05em;
+}
+.md-body h4,
+.md-body h5,
+.md-body h6 {
+  font-size: 1em;
+}
 
-.md-body ul, .md-body ol {
+.md-body ul,
+.md-body ol {
   margin: 0.5em 0;
   padding-left: 1.4em;
   display: flex;
   flex-direction: column;
   gap: 0.25em;
 }
-.md-body ul { list-style: disc; }
-.md-body ul ul { list-style: circle; }
-.md-body ol { list-style: decimal; }
+.md-body ul {
+  list-style: disc;
+}
+.md-body ul ul {
+  list-style: circle;
+}
+.md-body ol {
+  list-style: decimal;
+}
 .md-body li::marker {
   color: var(--text-dim);
 }
-.md-body li > ul, .md-body li > ol {
+.md-body li > ul,
+.md-body li > ol {
   margin: 0.25em 0 0;
 }
 
@@ -483,7 +575,9 @@ button.chip:hover {
   background: var(--surface-1);
   color: var(--text-muted);
 }
-.md-body blockquote p { margin: 0.25em 0; }
+.md-body blockquote p {
+  margin: 0.25em 0;
+}
 
 .md-body a {
   color: var(--text-primary);
@@ -514,7 +608,8 @@ button.chip:hover {
   display: block;
   overflow-x: auto;
 }
-.md-body th, .md-body td {
+.md-body th,
+.md-body td {
   border: 1px solid var(--surface-3);
   padding: 6px 12px;
   text-align: left;
@@ -529,7 +624,9 @@ button.chip:hover {
   background: color-mix(in srgb, var(--surface-1) 55%, transparent);
 }
 
-.md-body strong { font-weight: 600; }
+.md-body strong {
+  font-weight: 600;
+}
 
 pre {
   background: var(--surface-1);
@@ -557,11 +654,12 @@ code {
    ============================================================ */
 
 .btn-transition {
-  transition: background var(--duration-fast) var(--ease-out),
-              color var(--duration-fast) var(--ease-out),
-              border-color var(--duration-fast) var(--ease-out),
-              opacity var(--duration-fast) var(--ease-out),
-              transform var(--duration-fast) var(--ease-out);
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
 }
 
 @layer components {
@@ -572,8 +670,12 @@ code {
     color: var(--text-primary);
     transition: border-color var(--duration-fast) var(--ease-out);
   }
-  .control::placeholder { color: var(--text-dim); }
-  .control:focus { border-color: var(--text-muted); }
+  .control::placeholder {
+    color: var(--text-dim);
+  }
+  .control:focus {
+    border-color: var(--text-muted);
+  }
 
   .panel-row {
     @apply flex items-center gap-3 rounded-lg border px-4 py-3;
@@ -586,26 +688,42 @@ code {
     background: transparent;
     color: var(--text-primary);
     border: 1px solid var(--surface-3);
-    transition: background var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+    transition:
+      background var(--duration-fast) var(--ease-out),
+      border-color var(--duration-fast) var(--ease-out);
   }
-  .small-btn:hover { background: var(--surface-2); border-color: var(--surface-4); }
+  .small-btn:hover {
+    background: var(--surface-2);
+    border-color: var(--surface-4);
+  }
 
   .icon-btn {
     @apply rounded-lg p-2 flex-shrink-0;
     color: var(--text-muted);
-    transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+    transition:
+      background var(--duration-fast) var(--ease-out),
+      color var(--duration-fast) var(--ease-out);
   }
-  .icon-btn:hover { background: var(--surface-2); color: var(--text-primary); }
+  .icon-btn:hover {
+    background: var(--surface-2);
+    color: var(--text-primary);
+  }
 
   /* 主按钮：反色实心，无渐变无光晕 */
   .primary-btn {
     @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-xs font-medium disabled:opacity-40 whitespace-nowrap;
     background: var(--accent-primary);
     color: var(--bg-body);
-    transition: opacity var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
+    transition:
+      opacity var(--duration-fast) var(--ease-out),
+      transform var(--duration-fast) var(--ease-out);
   }
-  .primary-btn:hover:not(:disabled) { opacity: 0.86; }
-  .primary-btn:active:not(:disabled) { transform: scale(0.985); }
+  .primary-btn:hover:not(:disabled) {
+    opacity: 0.86;
+  }
+  .primary-btn:active:not(:disabled) {
+    transform: scale(0.985);
+  }
 
   /* 次按钮：描边 + hover 抬升 */
   .secondary-btn {
@@ -613,7 +731,9 @@ code {
     background: transparent;
     color: var(--text-primary);
     border: 1px solid var(--surface-3);
-    transition: background var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+    transition:
+      background var(--duration-fast) var(--ease-out),
+      border-color var(--duration-fast) var(--ease-out);
   }
   .secondary-btn:hover:not(:disabled) {
     background: var(--surface-2);
@@ -718,7 +838,9 @@ button,
   cursor: pointer;
   color: var(--text-muted);
   white-space: nowrap;
-  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .settings-side .row:hover {
@@ -768,7 +890,10 @@ button,
   margin-top: 2px;
 }
 
-.settings-head .grow { flex: 1; min-width: 0; }
+.settings-head .grow {
+  flex: 1;
+  min-width: 0;
+}
 
 .settings-head .close-btn {
   display: flex;
@@ -779,7 +904,9 @@ button,
   border-radius: var(--radius-md);
   color: var(--text-muted);
   flex-shrink: 0;
-  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .settings-head .close-btn:hover {
@@ -888,7 +1015,9 @@ button,
   border-radius: var(--radius-md);
   white-space: nowrap;
   flex-shrink: 0;
-  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 .segmented button[data-active="true"] {
   background: var(--surface-0);
@@ -901,12 +1030,15 @@ button,
   border: 1px solid var(--surface-3);
   border-radius: var(--radius-2xl);
   box-shadow: var(--shadow-sm);
-  transition: border-color var(--duration-normal) var(--ease-out),
-              box-shadow var(--duration-normal) var(--ease-out);
+  transition:
+    border-color var(--duration-normal) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-out);
 }
 .composer:focus-within {
   border-color: var(--surface-4);
-  box-shadow: var(--shadow-sm), 0 0 0 3px var(--surface-2);
+  box-shadow:
+    var(--shadow-sm),
+    0 0 0 3px var(--surface-2);
 }
 
 .search-box {
@@ -917,7 +1049,9 @@ button,
   border-radius: var(--radius-lg);
   background: var(--surface-2);
   border: 1px solid transparent;
-  transition: border-color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
 }
 .search-box:focus-within {
   background: var(--surface-1);

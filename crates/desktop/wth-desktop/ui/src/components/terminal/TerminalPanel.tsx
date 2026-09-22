@@ -3,10 +3,16 @@
 // 基于 xterm.js，通过 Rust PTY IPC 与系统 shell 通信。
 // 目前 PTY 集成待完成，显示欢迎信息并支持基础交互。
 
-import { useEffect, useRef, useCallback, useState } from "react";
-import { Terminal as XTerm } from "xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Terminal as XTerm } from "xterm";
 import "xterm/css/xterm.css";
+import { Copy, Plus, Terminal as TerminalIcon, Trash2, X } from "lucide-react";
+import {
+  ContextMenu,
+  type ContextMenuPoint,
+  contextMenuPointFromEvent,
+} from "@/components/common/ContextMenu";
 import {
   onTerminalData,
   onTerminalExit,
@@ -15,8 +21,6 @@ import {
   terminalSpawn,
   terminalWrite,
 } from "@/lib/ipc";
-import { Terminal as TerminalIcon, Trash2, Plus, Copy, X } from "lucide-react";
-import { ContextMenu, contextMenuPointFromEvent, type ContextMenuPoint } from "@/components/common/ContextMenu";
 
 interface TabInfo {
   id: string;
@@ -47,7 +51,7 @@ export function TerminalPanel() {
         shell: info.shell,
         cwd: info.cwd,
       };
-      setTabs((prev) => [...prev, newTab]);
+      setTabs(prev => [...prev, newTab]);
       setActiveTab(info.id);
       return info.id;
     } catch (e) {
@@ -93,7 +97,7 @@ export function TerminalPanel() {
     term.open(termRef.current);
     fitAddon.fit();
 
-    term.onData((data) => {
+    term.onData(data => {
       terminalWrite(activeTab, data).catch(() => {});
     });
 
@@ -123,17 +127,27 @@ export function TerminalPanel() {
 
     let unsubData: (() => void) | undefined;
     let unsubExit: (() => void) | undefined;
-    onTerminalData((event) => {
+    onTerminalData(event => {
       if (event.id === activeTab) xtermRef.current?.write(event.data);
-    }).then((fn) => { unsubData = fn; });
-    onTerminalExit((event) => {
-      setTabs((current) => current.map((tab) => tab.id === event.id
-        ? { ...tab, exited: event.message || `进程已退出（代码 ${event.exit_code ?? "未知"}）` }
-        : tab));
+    }).then(fn => {
+      unsubData = fn;
+    });
+    onTerminalExit(event => {
+      setTabs(current =>
+        current.map(tab =>
+          tab.id === event.id
+            ? { ...tab, exited: event.message || `进程已退出（代码 ${event.exit_code ?? "未知"}）` }
+            : tab,
+        ),
+      );
       if (event.id === activeTab) {
-        xtermRef.current?.writeln(`\r\n\x1b[33m${event.message || `进程已退出（代码 ${event.exit_code ?? "未知"}）`}\x1b[0m`);
+        xtermRef.current?.writeln(
+          `\r\n\x1b[33m${event.message || `进程已退出（代码 ${event.exit_code ?? "未知"}）`}\x1b[0m`,
+        );
       }
-    }).then((fn) => { unsubExit = fn; });
+    }).then(fn => {
+      unsubExit = fn;
+    });
 
     return () => {
       unsubData?.();
@@ -141,18 +155,21 @@ export function TerminalPanel() {
     };
   }, [activeTab]);
 
-  const handleCloseTab = useCallback(async (id: string) => {
-    try {
-      await terminalKill(id);
-    } catch {}
-    setTabs((prev) => {
-      const next = prev.filter((t) => t.id !== id);
-      if (activeTab === id) {
-        setActiveTab(next.length > 0 ? next[next.length - 1].id : null);
-      }
-      return next;
-    });
-  }, [activeTab]);
+  const handleCloseTab = useCallback(
+    async (id: string) => {
+      try {
+        await terminalKill(id);
+      } catch {}
+      setTabs(prev => {
+        const next = prev.filter(t => t.id !== id);
+        if (activeTab === id) {
+          setActiveTab(next.length > 0 ? next[next.length - 1].id : null);
+        }
+        return next;
+      });
+    },
+    [activeTab],
+  );
 
   const closeMenu = useCallback(() => {
     setMenuPoint(null);
@@ -166,11 +183,11 @@ export function TerminalPanel() {
         className="flex items-center border-b px-1 gap-0.5"
         style={{ background: "var(--surface-1)", borderColor: "var(--surface-4)" }}
       >
-        {tabs.map((tab) => (
+        {tabs.map(tab => (
           <div
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            onContextMenu={(event) => {
+            onContextMenu={event => {
               event.preventDefault();
               event.stopPropagation();
               setMenuTab(tab);
@@ -187,9 +204,17 @@ export function TerminalPanel() {
           >
             <TerminalIcon size={11} className="flex-shrink-0" />
             <span className="truncate max-w-[120px]">{tab.title}</span>
-            {tab.exited && <span className="text-[9px] flex-shrink-0" style={{ color: "var(--text-dim)" }}>已退出</span>}
+            {tab.exited && (
+              <span className="text-[9px] flex-shrink-0" style={{ color: "var(--text-dim)" }}>
+                已退出
+              </span>
+            )}
             <button
-              onClick={(e) => { e.stopPropagation(); handleCloseTab(tab.id); }}
+              type="button"
+              onClick={e => {
+                e.stopPropagation();
+                handleCloseTab(tab.id);
+              }}
               className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-surface-3 transition-opacity"
               style={{ color: "var(--text-dim)" }}
             >
@@ -198,6 +223,7 @@ export function TerminalPanel() {
           </div>
         ))}
         <button
+          type="button"
           onClick={createTab}
           className="p-1.5 ml-1 rounded hover:bg-surface-2 transition-colors"
           style={{ color: "var(--text-muted)" }}
@@ -255,12 +281,12 @@ export function TerminalPanel() {
       {/* 终端容器 */}
       <div className="flex-1 overflow-hidden p-1">
         {activeTab ? (
-          <div
-            ref={termRef}
-            className="h-full w-full rounded-md overflow-hidden"
-          />
+          <div ref={termRef} className="h-full w-full rounded-md overflow-hidden" />
         ) : (
-          <div className="h-full flex items-center justify-center" style={{ color: "var(--text-muted)" }}>
+          <div
+            className="h-full flex items-center justify-center"
+            style={{ color: "var(--text-muted)" }}
+          >
             <p className="text-sm">点击 + 创建终端</p>
           </div>
         )}

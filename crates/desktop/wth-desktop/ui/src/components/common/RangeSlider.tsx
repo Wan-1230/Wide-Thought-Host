@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface RangeSliderOption<T extends string = string> {
   value: T;
@@ -27,7 +27,7 @@ export function RangeSlider<T extends string = string>({
 }: RangeSliderProps<T>) {
   const trackRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
-  const currentIndex = options.findIndex((opt) => opt.value === value);
+  const currentIndex = options.findIndex(opt => opt.value === value);
   const activeIdx = currentIndex >= 0 ? currentIndex : 0;
   const total = options.length;
   // Progress 0..1 — thumb sits at the center of the step
@@ -136,9 +136,7 @@ export function RangeSlider<T extends string = string>({
           className="absolute top-0 left-0 h-full rounded-full transition-[width] duration-150"
           style={{
             width: `${percent}%`,
-            background: disabled
-              ? "var(--surface-4)"
-              : "var(--text-primary)",
+            background: disabled ? "var(--surface-4)" : "var(--text-primary)",
           }}
         />
         {/* Thumb */}
@@ -151,9 +149,7 @@ export function RangeSlider<T extends string = string>({
             marginTop: -thumbR,
             left: `${percent}%`,
             background: disabled ? "var(--surface-4)" : "var(--text-primary)",
-            boxShadow: disabled
-              ? "none"
-              : "0 1px 4px rgba(0,0,0,0.25), 0 0 0 2px var(--surface-0)",
+            boxShadow: disabled ? "none" : "0 1px 4px rgba(0,0,0,0.25), 0 0 0 2px var(--surface-0)",
           }}
         />
       </div>
@@ -196,7 +192,7 @@ export function RangeSlider<T extends string = string>({
                 cursor: disabled ? "default" : "pointer",
                 pointerEvents: disabled ? "none" : "auto",
               }}
-              onClick={(e) => {
+              onClick={e => {
                 e.stopPropagation();
                 if (!disabled) commit(i);
               }}

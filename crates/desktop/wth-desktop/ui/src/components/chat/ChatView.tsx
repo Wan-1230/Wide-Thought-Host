@@ -7,59 +7,114 @@
 //
 // 配色沿用 Tailwind surface-N + accent-N 色板。
 
-import { useState, useRef, useEffect } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from "react";
-import ReactMarkdown from "react-markdown";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import {
-  Send,
-  Square,
-  Bot,
-  AlertCircle,
-  ChevronRight,
-  ChevronDown,
-  ChevronUp,
-  Brain,
-  Copy,
-  Check,
-  RotateCcw,
-  FileText,
-  Slash,
-  AtSign,
-  Paperclip,
-  GitBranch,
-  Search,
-  Users,
-  X,
-  BookOpen,
-  Download,
-  Eraser,
-  PanelRightOpen,
-  Loader2,
-  MessageSquareDashed,
-} from "lucide-react";
-import { THINKING_MESSAGE, useChatStore } from "@/stores/chat";
-import { useWorkbenchStore } from "@/stores/workbench";
-import { useUiStore } from "@/stores/ui";
-import { agentSend, agentAbort, agentApproveTool, agentDenyTool, fileList, listSlashCommands, resolveSkill, subagentList, subagentRun, memoryWrite, sessionCreate, sessionSaveMessages, workspaceSearch, settingsGet, workspaceGet } from "@/lib/ipc";
-import type { ChatMessage, ToolCall } from "@/stores/chat";
-import type { FileEntry, HistoryMessage, PromptTemplate, SlashCommandInfo, SubagentConfig, WorkspaceSearchHit } from "@/lib/ipc";
-import wthBanner from "@/assets/wth-banner.png";
-import { ContextMenu, contextMenuPointFromEvent, type ContextMenuPoint } from "@/components/common/ContextMenu";
-import { WorkflowModal } from "@/components/common/WorkflowModal";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { readFile, readTextFile } from "@tauri-apps/plugin-fs";
-import type { Attachment } from "@/lib/ipc";
+import {
+  AlertCircle,
+  AtSign,
+  BookOpen,
+  Bot,
+  Brain,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Copy,
+  Download,
+  Eraser,
+  FileText,
+  GitBranch,
+  Loader2,
+  MessageSquareDashed,
+  PanelRightOpen,
+  Paperclip,
+  RotateCcw,
+  Search,
+  Send,
+  Slash,
+  Square,
+  Users,
+  X,
+} from "lucide-react";
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import wthBanner from "@/assets/wth-banner.png";
+import {
+  ContextMenu,
+  type ContextMenuPoint,
+  contextMenuPointFromEvent,
+} from "@/components/common/ContextMenu";
+import { WorkflowModal } from "@/components/common/WorkflowModal";
+import { SyntaxHighlighter } from "@/lib/highlight";
+import type {
+  Attachment,
+  FileEntry,
+  HistoryMessage,
+  PromptTemplate,
+  SlashCommandInfo,
+  SubagentConfig,
+  WorkspaceSearchHit,
+} from "@/lib/ipc";
+import {
+  agentAbort,
+  agentApproveTool,
+  agentDenyTool,
+  agentSend,
+  fileList,
+  listSlashCommands,
+  memoryWrite,
+  resolveSkill,
+  sessionCreate,
+  sessionSaveMessages,
+  settingsGet,
+  subagentList,
+  subagentRun,
+  workspaceGet,
+  workspaceSearch,
+} from "@/lib/ipc";
+import type { ChatMessage, ToolCall } from "@/stores/chat";
+import { THINKING_MESSAGE, useChatStore } from "@/stores/chat";
+import { useUiStore } from "@/stores/ui";
+import { useWorkbenchStore } from "@/stores/workbench";
 
 // ─── 附件工具 ─────────────────────────────────────────
 
 const IMAGE_EXT = ["png", "jpg", "jpeg", "webp", "gif"];
 const TEXT_EXT = [
-  "md", "txt", "json", "toml", "yaml", "yml", "ini", "csv",
-  "rs", "ts", "tsx", "js", "jsx", "py", "go", "c", "cpp", "h", "hpp",
-  "java", "kt", "swift", "html", "css", "scss", "vue", "svelte",
-  "sh", "bat", "ps1", "sql", "xml",
+  "md",
+  "txt",
+  "json",
+  "toml",
+  "yaml",
+  "yml",
+  "ini",
+  "csv",
+  "rs",
+  "ts",
+  "tsx",
+  "js",
+  "jsx",
+  "py",
+  "go",
+  "c",
+  "cpp",
+  "h",
+  "hpp",
+  "java",
+  "kt",
+  "swift",
+  "html",
+  "css",
+  "scss",
+  "vue",
+  "svelte",
+  "sh",
+  "bat",
+  "ps1",
+  "sql",
+  "xml",
 ];
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -74,9 +129,15 @@ function bytesToBase64(bytes: Uint8Array): string {
 function mimeFromName(name: string, fallback: string): string {
   const ext = name.split(".").pop()?.toLowerCase() || "";
   const map: Record<string, string> = {
-    png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg",
-    webp: "image/webp", gif: "image/gif", bmp: "image/bmp",
-    md: "text/markdown", txt: "text/plain", json: "application/json",
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    webp: "image/webp",
+    gif: "image/gif",
+    bmp: "image/bmp",
+    md: "text/markdown",
+    txt: "text/plain",
+    json: "application/json",
   };
   return map[ext] || fallback || "text/plain";
 }
@@ -101,7 +162,12 @@ async function buildAttachment(
     if (bytes.length > 10 * 1024 * 1024) {
       throw new Error(`图片 ${name} 超过 10MB 限制`);
     }
-    return { name, path: path ?? undefined, mime_type, data_url: `data:${mime_type};base64,${bytesToBase64(bytes)}` };
+    return {
+      name,
+      path: path ?? undefined,
+      mime_type,
+      data_url: `data:${mime_type};base64,${bytesToBase64(bytes)}`,
+    };
   }
   if (TEXT_EXT.includes(ext) || !file) {
     let text: string;
@@ -138,12 +204,11 @@ function summarizeToolArgs(call: ToolCall): string {
 function ToolCallCard({ call }: { call: ToolCall }) {
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
-  const activeSessionId = useChatStore((s) => s.activeSessionId);
-  const updateToolCall = useChatStore((s) => s.updateToolCall);
-  const showDiff = useWorkbenchStore((s) => s.showDiff);
+  const activeSessionId = useChatStore(s => s.activeSessionId);
+  const updateToolCall = useChatStore(s => s.updateToolCall);
+  const showDiff = useWorkbenchStore(s => s.showDiff);
   const argStr = JSON.stringify(call.arguments, null, 2);
-  const resultStr =
-    call.result !== undefined ? JSON.stringify(call.result, null, 2) : null;
+  const resultStr = call.result !== undefined ? JSON.stringify(call.result, null, 2) : null;
 
   const pending = call.status === "pending";
   const running = call.status === "running" || (resultStr === null && !pending);
@@ -162,7 +227,10 @@ function ToolCallCard({ call }: { call: ToolCall }) {
   } else if (running) {
     statusColor = "var(--accent-orange)";
     statusLabel = "运行中…";
-  } else if (resultStr !== null && (String(call.result).includes("error") || String(call.result).includes("Error"))) {
+  } else if (
+    resultStr !== null &&
+    (String(call.result).includes("error") || String(call.result).includes("Error"))
+  ) {
     statusColor = "var(--accent-red)";
   }
 
@@ -208,20 +276,35 @@ function ToolCallCard({ call }: { call: ToolCall }) {
   return (
     <div
       className="my-1.5 rounded-lg overflow-hidden text-xs anim-scale-in"
-      style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)", border: "1px solid var(--surface-3)" }}
+      style={{
+        borderColor: "var(--surface-3)",
+        background: "var(--surface-1)",
+        border: "1px solid var(--surface-3)",
+      }}
     >
       <button
+        type="button"
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-surface-2 transition-colors"
       >
         <span className="flex-shrink-0">{statusIcon}</span>
-        <span className="font-mono font-medium flex-shrink-0" style={{ color: "var(--text-primary)" }}>{call.name}</span>
-        <span className="truncate font-mono text-[11px] min-w-0 flex-1" style={{ color: "var(--text-dim)" }}>
+        <span
+          className="font-mono font-medium flex-shrink-0"
+          style={{ color: "var(--text-primary)" }}
+        >
+          {call.name}
+        </span>
+        <span
+          className="truncate font-mono text-[11px] min-w-0 flex-1"
+          style={{ color: "var(--text-dim)" }}
+        >
           {summarizeToolArgs(call)}
         </span>
         <span className="ml-auto flex items-center gap-1.5 flex-shrink-0">
           {statusLabel && (
-            <span className="text-[10.5px]" style={{ color: statusColor }}>{statusLabel}</span>
+            <span className="text-[10.5px]" style={{ color: statusColor }}>
+              {statusLabel}
+            </span>
           )}
           {expanded ? (
             <ChevronDown size={12} style={{ color: "var(--text-muted)" }} />
@@ -234,9 +317,15 @@ function ToolCallCard({ call }: { call: ToolCall }) {
       {pending && (
         <div
           className="border-t px-3 py-2.5 space-y-2"
-          style={{ borderColor: "var(--surface-3)", background: "color-mix(in srgb, var(--accent-yellow) 7%, var(--surface-1))" }}
+          style={{
+            borderColor: "var(--surface-3)",
+            background: "color-mix(in srgb, var(--accent-yellow) 7%, var(--surface-1))",
+          }}
         >
-          <div className="flex items-center gap-1.5 text-[11px] font-medium" style={{ color: "var(--accent-yellow)" }}>
+          <div
+            className="flex items-center gap-1.5 text-[11px] font-medium"
+            style={{ color: "var(--accent-yellow)" }}
+          >
             <AlertCircle size={12} className="flex-shrink-0" />
             高危操作待确认 · <span className="font-mono">{call.name}</span>，确认前不会执行
           </div>
@@ -245,7 +334,11 @@ function ToolCallCard({ call }: { call: ToolCall }) {
             return summary ? (
               <pre
                 className="font-mono text-[11px] whitespace-pre-wrap break-all rounded-md px-2.5 py-1.5 max-h-32 overflow-y-auto"
-                style={{ background: "var(--surface-0)", border: "1px solid var(--surface-3)", color: "var(--text-primary)" }}
+                style={{
+                  background: "var(--surface-0)",
+                  border: "1px solid var(--surface-3)",
+                  color: "var(--text-primary)",
+                }}
               >
                 {summary}
               </pre>
@@ -253,6 +346,7 @@ function ToolCallCard({ call }: { call: ToolCall }) {
           })()}
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={handleApprove}
               disabled={busy}
               className="px-3 py-1.5 rounded-lg text-[11px] font-medium press disabled:opacity-50 whitespace-nowrap flex-shrink-0"
@@ -261,6 +355,7 @@ function ToolCallCard({ call }: { call: ToolCall }) {
               确认执行
             </button>
             <button
+              type="button"
               onClick={handleDeny}
               disabled={busy}
               className="small-btn disabled:opacity-50"
@@ -273,19 +368,36 @@ function ToolCallCard({ call }: { call: ToolCall }) {
       {expanded && (
         <div className="border-t px-3 py-2 space-y-2" style={{ borderColor: "var(--surface-3)" }}>
           <div>
-            <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: "var(--text-dim)" }}>参数</div>
-            <pre className="font-mono overflow-x-auto text-[11px] rounded-md p-2" style={{ background: "var(--surface-0)", color: "var(--text-primary)" }}>
+            <div
+              className="text-[10px] uppercase tracking-wider mb-1"
+              style={{ color: "var(--text-dim)" }}
+            >
+              参数
+            </div>
+            <pre
+              className="font-mono overflow-x-auto text-[11px] rounded-md p-2"
+              style={{ background: "var(--surface-0)", color: "var(--text-primary)" }}
+            >
               {argStr}
             </pre>
           </div>
           {resultStr !== null && (
             <div>
-              <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: "var(--text-dim)" }}>结果</div>
-              <pre className="font-mono overflow-x-auto text-[11px] max-h-48 overflow-y-auto rounded-md p-2" style={{ background: "var(--surface-0)", color: "var(--text-primary)" }}>
+              <div
+                className="text-[10px] uppercase tracking-wider mb-1"
+                style={{ color: "var(--text-dim)" }}
+              >
+                结果
+              </div>
+              <pre
+                className="font-mono overflow-x-auto text-[11px] max-h-48 overflow-y-auto rounded-md p-2"
+                style={{ background: "var(--surface-0)", color: "var(--text-primary)" }}
+              >
                 {resultStr}
               </pre>
               {hasDiff && (
                 <button
+                  type="button"
                   onClick={() =>
                     showDiff({
                       path: String(resultObj.path),
@@ -317,10 +429,15 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
     >
       <div
         className="flex items-center justify-between px-3 py-1.5 text-[10.5px]"
-        style={{ background: "var(--surface-1)", borderBottom: "1px solid var(--surface-3)", color: "var(--text-dim)" }}
+        style={{
+          background: "var(--surface-1)",
+          borderBottom: "1px solid var(--surface-3)",
+          color: "var(--text-dim)",
+        }}
       >
         <span className="font-mono">{language}</span>
         <button
+          type="button"
           className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md transition-colors hover:bg-[color:var(--surface-3)]"
           style={{ color: copied ? "var(--accent-green)" : "var(--text-muted)" }}
           onClick={() => {
@@ -356,13 +473,15 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
 /// 待确认的调用不随卡片折叠，直接在主对话流展示审批控件。
 function StepProgressCard({ calls }: { calls: ToolCall[] }) {
   const [expanded, setExpanded] = useState(false);
-  const activeSessionId = useChatStore((s) => s.activeSessionId);
-  const setStreaming = useChatStore((s) => s.setStreaming);
-  const finalizeAssistantMessage = useChatStore((s) => s.finalizeAssistantMessage);
-  const pendingCalls = calls.filter((c) => c.status === "pending");
-  const running = calls.some((c) => c.status === "running" || c.status === "pending" || c.result === undefined);
-  const failed = calls.some((c) => /error/i.test(String(JSON.stringify(c.result ?? ""))));
-  const doneCount = calls.filter((c) => c.result !== undefined).length;
+  const activeSessionId = useChatStore(s => s.activeSessionId);
+  const setStreaming = useChatStore(s => s.setStreaming);
+  const finalizeAssistantMessage = useChatStore(s => s.finalizeAssistantMessage);
+  const pendingCalls = calls.filter(c => c.status === "pending");
+  const running = calls.some(
+    c => c.status === "running" || c.status === "pending" || c.result === undefined,
+  );
+  const failed = calls.some(c => /error/i.test(String(JSON.stringify(c.result ?? ""))));
+  const doneCount = calls.filter(c => c.result !== undefined).length;
 
   const abort = async () => {
     if (!activeSessionId) return;
@@ -376,12 +495,24 @@ function StepProgressCard({ calls }: { calls: ToolCall[] }) {
   };
 
   return (
-    <div className="my-1.5 rounded-lg overflow-hidden" style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)", border: "1px solid var(--surface-3)" }}>
+    <div
+      className="my-1.5 rounded-lg overflow-hidden"
+      style={{
+        borderColor: "var(--surface-3)",
+        background: "var(--surface-1)",
+        border: "1px solid var(--surface-3)",
+      }}
+    >
       <button
-        onClick={() => setExpanded((v) => !v)}
+        type="button"
+        onClick={() => setExpanded(v => !v)}
         className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[color:var(--surface-2)] transition-colors"
       >
-        {expanded ? <ChevronUp size={12} style={{ color: "var(--text-muted)" }} /> : <ChevronDown size={12} style={{ color: "var(--text-muted)" }} />}
+        {expanded ? (
+          <ChevronUp size={12} style={{ color: "var(--text-muted)" }} />
+        ) : (
+          <ChevronDown size={12} style={{ color: "var(--text-muted)" }} />
+        )}
         {running ? (
           <Loader2 size={12} className="animate-spin" style={{ color: "var(--text-muted)" }} />
         ) : failed ? (
@@ -389,13 +520,21 @@ function StepProgressCard({ calls }: { calls: ToolCall[] }) {
         ) : (
           <Check size={12} style={{ color: "var(--accent-green)" }} />
         )}
-        <span className="text-[12px] font-medium flex-1 text-left" style={{ color: "var(--text-primary)" }}>
-          {running ? `正在执行步骤 ${Math.min(doneCount + 1, calls.length)}/${calls.length}` : `任务完成 · ${calls.length} 个步骤`}
+        <span
+          className="text-[12px] font-medium flex-1 text-left"
+          style={{ color: "var(--text-primary)" }}
+        >
+          {running
+            ? `正在执行步骤 ${Math.min(doneCount + 1, calls.length)}/${calls.length}`
+            : `任务完成 · ${calls.length} 个步骤`}
         </span>
         {pendingCalls.length > 0 && (
           <span
             className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-medium animate-pulse whitespace-nowrap flex-shrink-0"
-            style={{ background: "color-mix(in srgb, var(--accent-yellow) 16%, transparent)", color: "var(--accent-yellow)" }}
+            style={{
+              background: "color-mix(in srgb, var(--accent-yellow) 16%, transparent)",
+              color: "var(--accent-yellow)",
+            }}
           >
             待确认
           </span>
@@ -404,7 +543,7 @@ function StepProgressCard({ calls }: { calls: ToolCall[] }) {
           <span
             className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-medium transition-colors hover:opacity-80 whitespace-nowrap flex-shrink-0"
             style={{ background: "var(--surface-2)", color: "var(--accent-red)" }}
-            onClick={(e) => {
+            onClick={e => {
               e.stopPropagation();
               void abort();
             }}
@@ -417,14 +556,16 @@ function StepProgressCard({ calls }: { calls: ToolCall[] }) {
         )}
       </button>
       {/* 待确认的调用直接外露在主对话流，不进入折叠区 */}
-      {pendingCalls.map((call) => (
+      {pendingCalls.map(call => (
         <ToolCallCard key={call.id} call={call} />
       ))}
       {expanded && (
         <div className="px-3 pb-2 space-y-0.5 border-t" style={{ borderColor: "var(--surface-3)" }}>
-          {calls.filter((c) => c.status !== "pending").map((call) => (
-            <ToolCallCard key={call.id} call={call} />
-          ))}
+          {calls
+            .filter(c => c.status !== "pending")
+            .map(call => (
+              <ToolCallCard key={call.id} call={call} />
+            ))}
         </div>
       )}
     </div>
@@ -442,21 +583,22 @@ function extractQuickOptions(content: string): string[] {
     const line = raw.trim();
     if (!line) continue;
     // 编号列表：1. / 1) / 1、/ **1.** ；符号列表：- / * / •
-    const m =
-      /^(?:\*\*)?\d+[.)、．.](?:\*\*)?\s*(.+)$/.exec(line) ||
-      /^[-*•]\s+(.+)$/.exec(line);
+    const m = /^(?:\*\*)?\d+[.)、．.](?:\*\*)?\s*(.+)$/.exec(line) || /^[-*•]\s+(.+)$/.exec(line);
     if (!m) {
       // 选项列表开始前的引导语（如“请选择：”）允许忽略；列表后出现正文则放弃提取
       if (opts.length > 0) return [];
       continue;
     }
-    let text = m[1].trim().replace(/^\*+|\*+$/g, "").trim();
+    let text = m[1]
+      .trim()
+      .replace(/^\*+|\*+$/g, "")
+      .trim();
     if (text.length > 80) text = `${text.slice(0, 80)}…`;
     if (text) opts.push(text);
   }
   if (opts.length < 2 || opts.length > 8) return [];
   // 排除长段落式列表（多为说明文档而非选项）
-  if (opts.some((o) => o.length > 60)) return [];
+  if (opts.some(o => o.length > 60)) return [];
   return opts;
 }
 
@@ -468,7 +610,23 @@ function stabilizeStreamingMarkdown(src: string): string {
 }
 
 /// 渲染单条消息。live=true 表示正在流式输出，此时长消息不自动折叠。
-function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live, onQuickReply, quickReplyDisabled }: { msg: ChatMessage; onContextMenu?: (e: ReactMouseEvent<HTMLElement>) => void; onRegenerate?: () => void; canRegenerate?: boolean; live?: boolean; onQuickReply?: (text: string) => void; quickReplyDisabled?: boolean }) {
+function MessageBubble({
+  msg,
+  onContextMenu,
+  onRegenerate,
+  canRegenerate,
+  live,
+  onQuickReply,
+  quickReplyDisabled,
+}: {
+  msg: ChatMessage;
+  onContextMenu?: (e: ReactMouseEvent<HTMLElement>) => void;
+  onRegenerate?: () => void;
+  canRegenerate?: boolean;
+  live?: boolean;
+  onQuickReply?: (text: string) => void;
+  quickReplyDisabled?: boolean;
+}) {
   // Hook 必须在任何条件早退之前调用（消息从思考占位 → 正式内容时 hooks 数量不变）
   const [collapsedView, setCollapsedView] = useState<boolean | null>(null);
   if (msg.role === "user") {
@@ -512,7 +670,11 @@ function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live, 
       <div className="flex items-start gap-3 mb-4 anim-fade-up">
         <div
           className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center mt-0.5"
-          style={{ background: "var(--surface-2)", border: "1px solid var(--surface-3)", color: "var(--text-muted)" }}
+          style={{
+            background: "var(--surface-2)",
+            border: "1px solid var(--surface-3)",
+            color: "var(--text-muted)",
+          }}
         >
           <Bot size={14} />
         </div>
@@ -538,7 +700,11 @@ function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live, 
     <div className="group flex items-start gap-3 mb-6 anim-fade-up" onContextMenu={onContextMenu}>
       <div
         className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center mt-0.5"
-        style={{ background: "var(--surface-2)", border: "1px solid var(--surface-3)", color: "var(--text-muted)" }}
+        style={{
+          background: "var(--surface-2)",
+          border: "1px solid var(--surface-3)",
+          color: "var(--text-muted)",
+        }}
       >
         <Bot size={14} />
       </div>
@@ -556,7 +722,11 @@ function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live, 
                   return (
                     <code
                       className="px-1.5 py-0.5 rounded-md font-mono text-[12px]"
-                      style={{ background: "var(--surface-2)", border: "1px solid var(--surface-3)", color: "var(--text-primary)" }}
+                      style={{
+                        background: "var(--surface-2)",
+                        border: "1px solid var(--surface-3)",
+                        color: "var(--text-primary)",
+                      }}
                       {...props}
                     >
                       {children}
@@ -582,32 +752,38 @@ function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live, 
             />
           )}
         </div>
-          {isLong && (
-            <button
-              onClick={() => setCollapsedView(!isCollapsed)}
-              className="mt-1.5 inline-flex items-center gap-1 text-[11px] transition-colors hover:opacity-75 whitespace-nowrap"
-              style={{ color: "var(--text-muted)" }}
-            >
-              {isCollapsed ? <ChevronDown size={11} /> : <ChevronUp size={11} />}
-              {isCollapsed ? "展开全文" : "收起"}
-            </button>
-          )}
+        {isLong && (
+          <button
+            type="button"
+            onClick={() => setCollapsedView(!isCollapsed)}
+            className="mt-1.5 inline-flex items-center gap-1 text-[11px] transition-colors hover:opacity-75 whitespace-nowrap"
+            style={{ color: "var(--text-muted)" }}
+          >
+            {isCollapsed ? <ChevronDown size={11} /> : <ChevronUp size={11} />}
+            {isCollapsed ? "展开全文" : "收起"}
+          </button>
+        )}
         {msg.tool_calls && msg.tool_calls.length > 0 && <StepProgressCard calls={msg.tool_calls} />}
         {/* 交互式任务选项按钮：点击即作为回复发送 */}
         {quickOptions.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {quickOptions.map((opt, i) => (
               <button
+                type="button"
                 key={`${i}-${opt}`}
                 disabled={quickReplyDisabled}
                 onClick={() => onQuickReply?.(opt)}
                 title={opt}
                 className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap"
-                style={{ background: "var(--surface-2)", border: "1px solid var(--surface-3)", color: "var(--text-primary)" }}
-                onMouseEnter={(e) => {
+                style={{
+                  background: "var(--surface-2)",
+                  border: "1px solid var(--surface-3)",
+                  color: "var(--text-primary)",
+                }}
+                onMouseEnter={e => {
                   e.currentTarget.style.borderColor = "var(--surface-4)";
                 }}
-                onMouseLeave={(e) => {
+                onMouseLeave={e => {
                   e.currentTarget.style.borderColor = "var(--surface-3)";
                 }}
               >
@@ -625,6 +801,7 @@ function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live, 
           />
           {canRegenerate && onRegenerate && (
             <button
+              type="button"
               className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[10px] transition-colors hover:bg-[color:var(--surface-2)] whitespace-nowrap"
               style={{ color: "var(--text-dim)" }}
               title="重新生成这条回复"
@@ -640,14 +817,27 @@ function MessageBubble({ msg, onContextMenu, onRegenerate, canRegenerate, live, 
   );
 }
 
-function MessageActionBtn({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+function MessageActionBtn({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
   const [done, setDone] = useState(false);
   return (
     <button
+      type="button"
       className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[10px] transition-colors hover:bg-[color:var(--surface-2)] whitespace-nowrap"
       style={{ color: "var(--text-dim)" }}
       title={label}
-      onClick={() => { onClick(); setDone(true); setTimeout(() => setDone(false), 1500); }}
+      onClick={() => {
+        onClick();
+        setDone(true);
+        setTimeout(() => setDone(false), 1500);
+      }}
     >
       {done ? <Check size={11} /> : icon}
       {done ? "已复制" : label}
@@ -665,7 +855,12 @@ interface ChatViewProps {
   sessionTitle?: string | null;
 }
 
-export function ChatView({ onNewSession, onClearSession, onExportSession, sessionTitle }: ChatViewProps) {
+export function ChatView({
+  onNewSession,
+  onClearSession,
+  onExportSession,
+  sessionTitle,
+}: ChatViewProps) {
   const {
     activeSessionId,
     messages,
@@ -683,10 +878,20 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
 
   const [input, setInput] = useState("");
   const [showPopup, setShowPopup] = useState<"none" | "file" | "command">("none");
-  type PopupItem = { label: string; value: string; kind: "file" | "subagent" | "command" | "search"; hit?: WorkspaceSearchHit };
+  type PopupItem = {
+    label: string;
+    value: string;
+    kind: "file" | "subagent" | "command" | "search";
+    hit?: WorkspaceSearchHit;
+  };
   const [popupItems, setPopupItems] = useState<PopupItem[]>([]);
   const [popupIndex, setPopupIndex] = useState(0);
-  const [msgMenu, setMsgMenu] = useState<{ point: ContextMenuPoint; content: string; role: ChatMessage["role"]; id: string } | null>(null);
+  const [msgMenu, setMsgMenu] = useState<{
+    point: ContextMenuPoint;
+    content: string;
+    role: ChatMessage["role"];
+    id: string;
+  } | null>(null);
   const [slashCommands, setSlashCommands] = useState<SlashCommandInfo[]>([]);
   const [subagents, setSubagents] = useState<SubagentConfig[]>([]);
   const [delegatingTo, setDelegatingTo] = useState<SubagentConfig | null>(null);
@@ -739,11 +944,9 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
     return () => window.removeEventListener("wth:scroll-to-message", onScrollTo);
   }, []);
 
-  const sessionMessages = activeSessionId
-    ? messages[activeSessionId] || []
-    : [];
+  const sessionMessages = activeSessionId ? messages[activeSessionId] || [] : [];
   const isStreaming = activeSessionId ? streaming[activeSessionId] || false : false;
-  const phase = useChatStore((s) => s.phase);
+  const phase = useChatStore(s => s.phase);
   const currentPhase = activeSessionId ? phase[activeSessionId] : undefined;
 
   // 消息流变化时滚到底部
@@ -766,16 +969,20 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
   // G10: 加载提示词模板与工作区名
   useEffect(() => {
     settingsGet()
-      .then((s) => setTemplates(s.prompt_templates || []))
+      .then(s => setTemplates(s.prompt_templates || []))
       .catch(() => {});
     workspaceGet()
-      .then((w) => setWorkspaceName(w.active ? w.name : ""))
+      .then(w => setWorkspaceName(w.active ? w.name : ""))
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    listSlashCommands().then(setSlashCommands).catch(() => {});
-    subagentList().then(setSubagents).catch(() => {});
+    listSlashCommands()
+      .then(setSlashCommands)
+      .catch(() => {});
+    subagentList()
+      .then(setSubagents)
+      .catch(() => {});
   }, []);
 
   const handleInputChange = async (value: string) => {
@@ -787,10 +994,12 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
       setPopupIndex(0);
       try {
         const files = await fileList(".", false);
-        const fileItems = files.slice(0, 8).map((f: FileEntry) => ({ label: f.name, value: f.name, kind: "file" as const }));
+        const fileItems = files
+          .slice(0, 8)
+          .map((f: FileEntry) => ({ label: f.name, value: f.name, kind: "file" as const }));
         const subItems = subagents
-          .filter((s) => s.enabled)
-          .map((s) => ({ label: s.name, value: s.id, kind: "subagent" as const }));
+          .filter(s => s.enabled)
+          .map(s => ({ label: s.name, value: s.id, kind: "subagent" as const }));
         setPopupItems([...fileItems, ...subItems]);
       } catch {
         setPopupItems([]);
@@ -798,11 +1007,13 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
     } else if (lastChar === "/" && value.trim() === "/") {
       setShowPopup("command");
       setPopupIndex(0);
-      setPopupItems(slashCommands.map((c) => ({
-        label: `/${c.name}${c.source === "skill" ? ` [${c.scope}]` : ""} — ${c.description.slice(0, 40)}`,
-        value: `/${c.name}`,
-        kind: "command" as const,
-      })));
+      setPopupItems(
+        slashCommands.map(c => ({
+          label: `/${c.name}${c.source === "skill" ? ` [${c.scope}]` : ""} — ${c.description.slice(0, 40)}`,
+          value: `/${c.name}`,
+          kind: "command" as const,
+        })),
+      );
     } else if (showPopup !== "none") {
       // Filter popup items
       const trigger = showPopup === "file" ? "@" : "/";
@@ -812,24 +1023,24 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
       } else {
         const query = value.slice(lastTriggerIdx + 1).toLowerCase();
         if (showPopup === "command") {
-          const candidates = slashCommands.map((c) => ({
+          const candidates = slashCommands.map(c => ({
             label: `/${c.name}${c.source === "skill" ? ` [${c.scope}]` : ""} — ${c.description.slice(0, 40)}`,
             value: `/${c.name}`,
             kind: "command" as const,
           }));
-          setPopupItems(candidates.filter((c) => c.label.toLowerCase().includes(query)));
+          setPopupItems(candidates.filter(c => c.label.toLowerCase().includes(query)));
         } else if (showPopup === "file" && query.length > 0) {
           // 代码检索：文件名 + 内容关键词命中
           try {
             const hits = await workspaceSearch(query, 6);
-            const searchItems: PopupItem[] = hits.map((h) => ({
+            const searchItems: PopupItem[] = hits.map(h => ({
               label: `${h.path}:${h.line}`,
               value: `${h.path}:${h.line}`,
               kind: "search" as const,
               hit: h,
             }));
-            const fileItems = popupItems.filter((p) => p.kind === "file");
-            const subItems = popupItems.filter((p) => p.kind === "subagent");
+            const fileItems = popupItems.filter(p => p.kind === "file");
+            const subItems = popupItems.filter(p => p.kind === "subagent");
             setPopupItems([...searchItems, ...fileItems, ...subItems]);
           } catch {
             // 检索失败时保留原列表
@@ -843,7 +1054,8 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
   const handlePickAttachments = async () => {
     try {
       const selected = await openDialog({ multiple: true, directory: false, title: "选择附件" });
-      const paths = typeof selected === "string" ? [selected] : Array.isArray(selected) ? selected : [];
+      const paths =
+        typeof selected === "string" ? [selected] : Array.isArray(selected) ? selected : [];
       const fresh: Attachment[] = [];
       for (const p of paths) {
         if (attachments.length + fresh.length >= 5) break;
@@ -859,7 +1071,7 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
           });
         }
       }
-      setAttachments((prev) => [...prev, ...fresh].slice(0, 5));
+      setAttachments(prev => [...prev, ...fresh].slice(0, 5));
     } catch (err) {
       console.error("选择附件失败：", err);
     }
@@ -883,13 +1095,13 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
         });
       }
     }
-    setAttachments((prev) => [...prev, ...fresh].slice(0, 5));
+    setAttachments(prev => [...prev, ...fresh].slice(0, 5));
   };
 
   /** 并行委派：同一任务同时运行多个子智能体，结果由 App 汇总。 */
   const runParallel = async () => {
     if (!activeSessionId || !parallelTask.trim()) return;
-    const selected = subagents.filter((s) => s.enabled && parallelSelection.has(s.id));
+    const selected = subagents.filter(s => s.enabled && parallelSelection.has(s.id));
     if (selected.length === 0) return;
     const task = parallelTask.trim();
     addMessage(activeSessionId, {
@@ -898,7 +1110,10 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
       content: `[并行委派] ${task}`,
       timestamp: new Date().toISOString(),
     });
-    registerParallelRun(activeSessionId, selected.map((s) => s.name));
+    registerParallelRun(
+      activeSessionId,
+      selected.map(s => s.name),
+    );
     for (const s of selected) {
       addMessage(activeSessionId, {
         id: crypto.randomUUID(),
@@ -915,7 +1130,9 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
           content: `委派「${s.name}」失败：${err}`,
           timestamp: new Date().toISOString(),
         });
-        useChatStore.getState().completeParallelRun(activeSessionId, crypto.randomUUID(), false, s.name);
+        useChatStore
+          .getState()
+          .completeParallelRun(activeSessionId, crypto.randomUUID(), false, s.name);
       }
     }
     setShowParallel(false);
@@ -928,7 +1145,7 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
       const lastAt = input.lastIndexOf("@");
       setInput(input.slice(0, lastAt) + `@${item.value} `);
     } else if (item.kind === "subagent") {
-      const sub = subagents.find((s) => s.id === item.value);
+      const sub = subagents.find(s => s.id === item.value);
       if (sub) {
         setDelegatingTo(sub);
         setInput("");
@@ -936,8 +1153,15 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
     } else if (item.kind === "search" && item.hit) {
       const h = item.hit;
       const base = h.path.split(/[\\/]/).pop() || h.path;
-      setAttachments((prev) =>
-        [...prev, { name: `${base}:${h.line}`, mime_type: "text/plain", content: `[代码引用：${h.path}:${h.line}]\n${h.snippet}` }].slice(0, 5),
+      setAttachments(prev =>
+        [
+          ...prev,
+          {
+            name: `${base}:${h.line}`,
+            mime_type: "text/plain",
+            content: `[代码引用：${h.path}:${h.line}]\n${h.snippet}`,
+          },
+        ].slice(0, 5),
       );
       const lastAt = input.lastIndexOf("@");
       setInput(input.slice(0, lastAt) + `已引用 ${base}:${h.line} `);
@@ -951,9 +1175,9 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
   /** 构造历史上下文（仅 user/assistant 文本消息）。 */
   const buildHistory = (msgs: ChatMessage[]): HistoryMessage[] =>
     msgs
-      .filter((m) => m.role === "user" || m.role === "assistant")
-      .filter((m) => m.content && m.content !== THINKING_MESSAGE)
-      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+      .filter(m => m.role === "user" || m.role === "assistant")
+      .filter(m => m.content && m.content !== THINKING_MESSAGE)
+      .map(m => ({ role: m.role as "user" | "assistant", content: m.content }));
 
   /** 发送核心：添加消息 → 占位 → agentSend（带历史上下文）。 */
   const runAgentRequest = async (
@@ -967,9 +1191,7 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
     addMessage(activeSessionId, {
       id: crypto.randomUUID(),
       role: "user",
-      content: atts.length
-        ? `${content}\n\n[附件：${atts.map((a) => a.name).join("、")}]`
-        : content,
+      content: atts.length ? `${content}\n\n[附件：${atts.map(a => a.name).join("、")}]` : content,
       timestamp: new Date().toISOString(),
     });
     // 添加占位的 assistant 消息（流式 chunk 会 appendToLastMessage）
@@ -1059,9 +1281,7 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
     if (content.startsWith("/")) {
       const parts = content.slice(1).split(/\s+/);
       const cmdName = parts[0];
-      const skillMatch = slashCommands.find(
-        (c) => c.name === cmdName && c.source === "skill"
-      );
+      const skillMatch = slashCommands.find(c => c.name === cmdName && c.source === "skill");
       if (skillMatch) {
         try {
           const skillContent = await resolveSkill(cmdName);
@@ -1089,7 +1309,7 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
   const regenerateFrom = async (target: ChatMessage) => {
     if (!activeSessionId || isStreaming) return;
     const msgs = sessionMessages;
-    const idx = msgs.findIndex((m) => m.id === target.id);
+    const idx = msgs.findIndex(m => m.id === target.id);
     if (idx <= 0) return;
     let userIdx = -1;
     for (let i = idx - 1; i >= 0; i--) {
@@ -1109,14 +1329,17 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
   const forkFrom = async (target: ChatMessage) => {
     if (!activeSessionId) return;
     const msgs = sessionMessages;
-    const idx = msgs.findIndex((m) => m.id === target.id);
+    const idx = msgs.findIndex(m => m.id === target.id);
     const prefix = idx >= 0 ? msgs.slice(0, idx) : msgs;
     try {
       // 源会话标题继承，便于在侧栏识别分支来源
       const sourceTitle =
-        useChatStore.getState().sessions.find((s) => s.id === activeSessionId)?.title ?? "会话";
+        useChatStore.getState().sessions.find(s => s.id === activeSessionId)?.title ?? "会话";
       const session = await sessionCreate(`${sourceTitle}（分支）`, "");
-      setMessages(session.id, prefix.map((m) => ({ ...m })));
+      setMessages(
+        session.id,
+        prefix.map(m => ({ ...m })),
+      );
       // U-01 修复：立即持久化分支消息——此前仅写内存，重启后分支内容丢失
       if (prefix.length > 0) {
         await sessionSaveMessages(session.id, prefix).catch(() => {});
@@ -1150,12 +1373,12 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
     if (showPopup !== "none" && popupItems.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setPopupIndex((i) => Math.min(i + 1, popupItems.length - 1));
+        setPopupIndex(i => Math.min(i + 1, popupItems.length - 1));
         return;
       }
       if (e.key === "ArrowUp") {
         e.preventDefault();
-        setPopupIndex((i) => Math.max(i - 1, 0));
+        setPopupIndex(i => Math.max(i - 1, 0));
         return;
       }
       if (e.key === "Enter" || e.key === "Tab") {
@@ -1216,8 +1439,12 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
         </p>
 
         {/* 居中输入提示 + 按钮 */}
-        <div className="relative w-full max-w-md px-6 anim-fade-up" style={{ animationDelay: "180ms" }}>
+        <div
+          className="relative w-full max-w-md px-6 anim-fade-up"
+          style={{ animationDelay: "180ms" }}
+        >
           <button
+            type="button"
             onClick={onNewSession}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl press
               transition-all duration-200"
@@ -1232,10 +1459,7 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
             >
               <Brain size={12} />
             </span>
-            <span
-              className="text-sm flex-1 text-left"
-              style={{ color: "var(--text-muted)" }}
-            >
+            <span className="text-sm flex-1 text-left" style={{ color: "var(--text-muted)" }}>
               你今天想做什么？
             </span>
             <span
@@ -1248,9 +1472,13 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
         </div>
 
         {/* 示例问题快捷入口 */}
-        <div className="relative flex flex-wrap items-center justify-center gap-1.5 mt-4 px-6 max-w-xl anim-fade-up" style={{ animationDelay: "240ms" }}>
-          {suggestions.map((s) => (
+        <div
+          className="relative flex flex-wrap items-center justify-center gap-1.5 mt-4 px-6 max-w-xl anim-fade-up"
+          style={{ animationDelay: "240ms" }}
+        >
+          {suggestions.map(s => (
             <button
+              type="button"
               key={s}
               onClick={() => startWithExample(s)}
               className="px-3 py-1.5 rounded-lg text-[11.5px] transition-colors duration-150 press"
@@ -1259,11 +1487,11 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
                 border: "1px solid var(--surface-3)",
                 color: "var(--text-muted)",
               }}
-              onMouseEnter={(e) => {
+              onMouseEnter={e => {
                 e.currentTarget.style.borderColor = "var(--surface-4)";
                 e.currentTarget.style.color = "var(--text-primary)";
               }}
-              onMouseLeave={(e) => {
+              onMouseLeave={e => {
                 e.currentTarget.style.borderColor = "var(--surface-3)";
                 e.currentTarget.style.color = "var(--text-muted)";
               }}
@@ -1274,11 +1502,20 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
         </div>
 
         {/* 推荐操作 */}
-        <div className="flex items-center gap-2 mt-6 text-[11px] anim-fade-up" style={{ color: "var(--text-dim)", animationDelay: "300ms" }}>
+        <div
+          className="flex items-center gap-2 mt-6 text-[11px] anim-fade-up"
+          style={{ color: "var(--text-dim)", animationDelay: "300ms" }}
+        >
           <span>支持</span>
-          <span className="px-1.5 py-0.5 rounded-md" style={{ background: "var(--surface-2)" }}>GPT-4.1</span>
-          <span className="px-1.5 py-0.5 rounded-md" style={{ background: "var(--surface-2)" }}>Claude 4</span>
-          <span className="px-1.5 py-0.5 rounded-md" style={{ background: "var(--surface-2)" }}>DeepSeek</span>
+          <span className="px-1.5 py-0.5 rounded-md" style={{ background: "var(--surface-2)" }}>
+            GPT-4.1
+          </span>
+          <span className="px-1.5 py-0.5 rounded-md" style={{ background: "var(--surface-2)" }}>
+            Claude 4
+          </span>
+          <span className="px-1.5 py-0.5 rounded-md" style={{ background: "var(--surface-2)" }}>
+            DeepSeek
+          </span>
         </div>
       </div>
     );
@@ -1291,12 +1528,16 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
         className="flex items-center gap-1 px-4 py-2 flex-shrink-0 border-b"
         style={{ borderColor: "var(--surface-3)" }}
       >
-        <span className="flex-1 min-w-0 text-[12.5px] font-medium truncate" style={{ color: "var(--text-primary)" }}>
+        <span
+          className="flex-1 min-w-0 text-[12.5px] font-medium truncate"
+          style={{ color: "var(--text-primary)" }}
+        >
           {sessionTitle || "新会话"}
         </span>
         {activeSessionId && (
           <>
             <button
+              type="button"
               className="chat-head-btn"
               title="清空当前会话"
               onClick={onClearSession}
@@ -1304,6 +1545,7 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
               <Eraser size={13} />
             </button>
             <button
+              type="button"
               className="chat-head-btn"
               title="导出会话（Markdown）"
               onClick={() => onExportSession?.(activeSessionId, "markdown")}
@@ -1311,6 +1553,7 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
               <Download size={13} />
             </button>
             <button
+              type="button"
               className="chat-head-btn"
               title="打开执行面板（Ctrl+Shift+I）"
               onClick={() => useUiStore.getState().setInspectorOpen(true)}
@@ -1324,50 +1567,52 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
       {/* 消息流 — 限宽居中的阅读列（参照主流 AI 客户端的排版宽度） */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-5">
         <div className="w-full max-w-3xl mx-auto">
-        {sessionMessages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center gap-2 select-none" style={{ color: "var(--text-dim)" }}>
-            <MessageSquareDashed size={20} className="opacity-40" />
-            <p className="text-[12px]">输入消息开始对话 · @ 提及文件 · / 调用指令</p>
-          </div>
-        ) : (
-          sessionMessages.map((msg, idx) => {
-            const isLast = idx === sessionMessages.length - 1;
-            // 仅最新一条未续答的助手消息展示可点选项；后续已有用户回复则不再展示
-            const hasNextUserReply = sessionMessages
-              .slice(idx + 1)
-              .some((m) => m.role === "user");
-            const quickReplyProps =
-              msg.role === "assistant" && !hasNextUserReply
-                ? { onQuickReply: sendQuickReply, quickReplyDisabled: isStreaming }
-                : {};
-            return (
-              <div
-                key={msg.id}
-                data-message-index={idx}
-                className="rounded-xl transition-colors duration-500"
-                style={
-                  highlightIndex === idx
-                    ? { background: "var(--surface-2)" }
-                    : undefined
-                }
-              >
-                <MessageBubble
-                  msg={msg}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    setMsgMenu({ point: contextMenuPointFromEvent(e), content: msg.content || "", role: msg.role, id: msg.id });
-                  }}
-                  canRegenerate={
-                    msg.role === "assistant" && msg.content !== THINKING_MESSAGE && !isStreaming
-                  }
-                  onRegenerate={() => void regenerateFrom(msg)}
-                  live={isLast && isStreaming}
-                  {...quickReplyProps}
-                />
-              </div>
-            );
-          })
-        )}
+          {sessionMessages.length === 0 ? (
+            <div
+              className="h-full flex flex-col items-center justify-center gap-2 select-none"
+              style={{ color: "var(--text-dim)" }}
+            >
+              <MessageSquareDashed size={20} className="opacity-40" />
+              <p className="text-[12px]">输入消息开始对话 · @ 提及文件 · / 调用指令</p>
+            </div>
+          ) : (
+            sessionMessages.map((msg, idx) => {
+              const isLast = idx === sessionMessages.length - 1;
+              // 仅最新一条未续答的助手消息展示可点选项；后续已有用户回复则不再展示
+              const hasNextUserReply = sessionMessages.slice(idx + 1).some(m => m.role === "user");
+              const quickReplyProps =
+                msg.role === "assistant" && !hasNextUserReply
+                  ? { onQuickReply: sendQuickReply, quickReplyDisabled: isStreaming }
+                  : {};
+              return (
+                <div
+                  key={msg.id}
+                  data-message-index={idx}
+                  className="rounded-xl transition-colors duration-500"
+                  style={highlightIndex === idx ? { background: "var(--surface-2)" } : undefined}
+                >
+                  <MessageBubble
+                    msg={msg}
+                    onContextMenu={e => {
+                      e.preventDefault();
+                      setMsgMenu({
+                        point: contextMenuPointFromEvent(e),
+                        content: msg.content || "",
+                        role: msg.role,
+                        id: msg.id,
+                      });
+                    }}
+                    canRegenerate={
+                      msg.role === "assistant" && msg.content !== THINKING_MESSAGE && !isStreaming
+                    }
+                    onRegenerate={() => void regenerateFrom(msg)}
+                    live={isLast && isStreaming}
+                    {...quickReplyProps}
+                  />
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 
@@ -1376,18 +1621,23 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
         <div className="max-w-2xl mx-auto relative">
           {/* @提及 / /指令 弹出层 */}
           {showPopup !== "none" && popupItems.length > 0 && (
-            <div
-              className="glass-panel absolute bottom-full left-0 right-0 mb-2 rounded-xl overflow-hidden z-20"
-            >
-              <div className="px-3 py-1.5 text-[10px] font-medium" style={{ color: "var(--text-dim)" }}>
+            <div className="glass-panel absolute bottom-full left-0 right-0 mb-2 rounded-xl overflow-hidden z-20">
+              <div
+                className="px-3 py-1.5 text-[10px] font-medium"
+                style={{ color: "var(--text-dim)" }}
+              >
                 {showPopup === "file" ? "选择文件 / 委派子智能体" : "快捷指令"}
               </div>
               <div className="max-h-40 overflow-y-auto pb-1">
                 {popupItems.map((item, idx) => (
                   <button
+                    type="button"
                     key={item.value + item.kind}
                     className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs transition-colors"
-                    style={{ background: idx === popupIndex ? "var(--surface-2)" : "transparent", color: "var(--text-primary)" }}
+                    style={{
+                      background: idx === popupIndex ? "var(--surface-2)" : "transparent",
+                      color: "var(--text-primary)",
+                    }}
                     onClick={() => selectPopupItem(item)}
                     onMouseEnter={() => setPopupIndex(idx)}
                   >
@@ -1402,7 +1652,10 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
                     )}
                     <span className="truncate">{item.label}</span>
                     {item.kind === "subagent" && (
-                      <span className="ml-auto shrink-0 text-[10px] rounded px-1.5 py-0.5" style={{ background: "var(--surface-2)", color: "var(--text-dim)" }}>
+                      <span
+                        className="ml-auto shrink-0 text-[10px] rounded px-1.5 py-0.5"
+                        style={{ background: "var(--surface-2)", color: "var(--text-dim)" }}
+                      >
                         子智能体
                       </span>
                     )}
@@ -1413,10 +1666,18 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
           )}
 
           {delegatingTo && (
-            <div className="mb-2 flex items-center gap-2 rounded-lg px-3 py-2 text-xs anim-fade-up" style={{ background: "var(--surface-2)", color: "var(--text-primary)", border: "1px solid var(--surface-3)" }}>
+            <div
+              className="mb-2 flex items-center gap-2 rounded-lg px-3 py-2 text-xs anim-fade-up"
+              style={{
+                background: "var(--surface-2)",
+                color: "var(--text-primary)",
+                border: "1px solid var(--surface-3)",
+              }}
+            >
               <Bot size={13} style={{ color: "var(--text-muted)" }} />
               <span className="truncate">正在委派给「{delegatingTo.name}」— 输入任务后发送</span>
               <button
+                type="button"
                 className="ml-auto flex items-center gap-1 text-[10px] rounded-md px-2 py-1 hover:bg-[color:var(--surface-3)]"
                 style={{ color: "var(--text-dim)" }}
                 onClick={() => setDelegatingTo(null)}
@@ -1429,60 +1690,78 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
           <WorkflowModal
             open={showWorkflow}
             onClose={() => setShowWorkflow(false)}
-            onNotice={(msg) => window.dispatchEvent(new CustomEvent("wth:toast", { detail: msg }))}
+            onNotice={msg => window.dispatchEvent(new CustomEvent("wth:toast", { detail: msg }))}
           />
           {showParallel && (
-            <div className="mb-2 rounded-xl border p-3 space-y-2" style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)" }}>
-              <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: "var(--text-primary)" }}>
+            <div
+              className="mb-2 rounded-xl border p-3 space-y-2"
+              style={{ borderColor: "var(--surface-3)", background: "var(--surface-1)" }}
+            >
+              <div
+                className="flex items-center gap-2 text-xs font-semibold"
+                style={{ color: "var(--text-primary)" }}
+              >
                 <Users size={13} style={{ color: "var(--text-muted)" }} />
                 并行委派多智能体
               </div>
               <textarea
                 className="w-full rounded-lg border px-3 py-2 text-xs resize-none"
-                style={{ borderColor: "var(--surface-3)", background: "var(--surface-0)", color: "var(--text-primary)" }}
+                style={{
+                  borderColor: "var(--surface-3)",
+                  background: "var(--surface-0)",
+                  color: "var(--text-primary)",
+                }}
                 placeholder="输入任务，将同时交给所选子智能体执行…"
                 rows={2}
                 value={parallelTask}
-                onChange={(e) => setParallelTask(e.target.value)}
+                onChange={e => setParallelTask(e.target.value)}
               />
               <div className="flex flex-wrap gap-1.5">
-                {subagents.filter((s) => s.enabled).map((s) => {
-                  const active = parallelSelection.has(s.id);
-                  return (
-                    <button
-                      key={s.id}
-                      className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[10px] transition-colors whitespace-nowrap"
-                      style={{
-                        background: active ? "var(--text-primary)" : "var(--surface-2)",
-                        color: active ? "var(--bg-body)" : "var(--text-primary)",
-                        border: `1px solid ${active ? "var(--text-primary)" : "var(--surface-3)"}`,
-                      }}
-                      onClick={() =>
-                        setParallelSelection((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(s.id)) next.delete(s.id);
-                          else next.add(s.id);
-                          return next;
-                        })
-                      }
-                    >
-                      {s.name}
-                    </button>
-                  );
-                })}
-                {subagents.filter((s) => s.enabled).length === 0 && (
-                  <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>没有已启用的子智能体，请先在设置中启用。</span>
+                {subagents
+                  .filter(s => s.enabled)
+                  .map(s => {
+                    const active = parallelSelection.has(s.id);
+                    return (
+                      <button
+                        type="button"
+                        key={s.id}
+                        className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[10px] transition-colors whitespace-nowrap"
+                        style={{
+                          background: active ? "var(--text-primary)" : "var(--surface-2)",
+                          color: active ? "var(--bg-body)" : "var(--text-primary)",
+                          border: `1px solid ${active ? "var(--text-primary)" : "var(--surface-3)"}`,
+                        }}
+                        onClick={() =>
+                          setParallelSelection(prev => {
+                            const next = new Set(prev);
+                            if (next.has(s.id)) next.delete(s.id);
+                            else next.add(s.id);
+                            return next;
+                          })
+                        }
+                      >
+                        {s.name}
+                      </button>
+                    );
+                  })}
+                {subagents.filter(s => s.enabled).length === 0 && (
+                  <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>
+                    没有已启用的子智能体，请先在设置中启用。
+                  </span>
                 )}
               </div>
               <div className="flex gap-2">
                 <button
+                  type="button"
                   className="small-btn font-semibold"
                   disabled={!parallelTask.trim() || parallelSelection.size === 0}
                   onClick={() => void runParallel()}
                 >
                   并行运行（{parallelSelection.size}）
                 </button>
-                <button className="small-btn" onClick={() => setShowParallel(false)}>取消</button>
+                <button type="button" className="small-btn" onClick={() => setShowParallel(false)}>
+                  取消
+                </button>
               </div>
             </div>
           )}
@@ -1493,15 +1772,24 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
                 <span
                   key={a.name + idx}
                   className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[10px] anim-scale-in"
-                  style={{ background: "var(--surface-2)", border: "1px solid var(--surface-3)", color: "var(--text-primary)" }}
+                  style={{
+                    background: "var(--surface-2)",
+                    border: "1px solid var(--surface-3)",
+                    color: "var(--text-primary)",
+                  }}
                 >
                   <Paperclip size={10} style={{ color: "var(--text-muted)" }} />
                   <span className="max-w-[160px] truncate">{a.name}</span>
-                  {a.data_url ? <span className="text-[9px]" style={{ color: "var(--text-dim)" }}>图片</span> : null}
+                  {a.data_url ? (
+                    <span className="text-[9px]" style={{ color: "var(--text-dim)" }}>
+                      图片
+                    </span>
+                  ) : null}
                   <button
+                    type="button"
                     className="hover:opacity-70"
                     title="移除附件"
-                    onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                    onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
                   >
                     <X size={10} />
                   </button>
@@ -1512,10 +1800,11 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
 
           <div
             className="composer flex items-center gap-1.5 pl-3 pr-2 py-2"
-            onDragOver={(e) => e.preventDefault()}
+            onDragOver={e => e.preventDefault()}
             onDrop={handleDropFiles}
           >
             <button
+              type="button"
               onClick={() => setShowWorkflow(true)}
               title="多 Agent 工作流编排"
               className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center
@@ -1525,7 +1814,8 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
               <GitBranch size={14} />
             </button>
             <button
-              onClick={() => setShowParallel((v) => !v)}
+              type="button"
+              onClick={() => setShowParallel(v => !v)}
               title="并行委派多智能体"
               className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center
                 transition-colors hover:bg-[color:var(--surface-2)]"
@@ -1537,6 +1827,7 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
               <Users size={14} />
             </button>
             <button
+              type="button"
               onClick={handlePickAttachments}
               title="添加附件（图片 / 文本）"
               className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center
@@ -1547,7 +1838,8 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
             </button>
             <div className="relative">
               <button
-                onClick={() => setShowTemplateMenu((v) => !v)}
+                type="button"
+                onClick={() => setShowTemplateMenu(v => !v)}
                 title="插入提示词模板"
                 className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center
                   transition-colors hover:bg-[color:var(--surface-2)]"
@@ -1561,21 +1853,28 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
               {showTemplateMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowTemplateMenu(false)} />
-                  <div
-                    className="glass-panel absolute bottom-full left-0 mb-2 w-72 rounded-xl overflow-hidden z-20"
-                  >
-                    <div className="px-3 py-1.5 text-[10.5px] font-medium flex items-center justify-between" style={{ color: "var(--text-dim)" }}>
+                  <div className="glass-panel absolute bottom-full left-0 mb-2 w-72 rounded-xl overflow-hidden z-20">
+                    <div
+                      className="px-3 py-1.5 text-[10.5px] font-medium flex items-center justify-between"
+                      style={{ color: "var(--text-dim)" }}
+                    >
                       <span>提示词模板</span>
-                      <span className="font-normal">支持 {'{{workspace}}'} / {'{{file}}'} / {'{{language}}'} 变量</span>
+                      <span className="font-normal">
+                        支持 {"{{workspace}}"} / {"{{file}}"} / {"{{language}}"} 变量
+                      </span>
                     </div>
                     <div className="max-h-56 overflow-y-auto pb-1">
                       {templates.length === 0 ? (
-                        <div className="px-3 py-2 text-[11.5px]" style={{ color: "var(--text-dim)" }}>
+                        <div
+                          className="px-3 py-2 text-[11.5px]"
+                          style={{ color: "var(--text-dim)" }}
+                        >
                           暂无模板，可在 设置 → 通用 中管理
                         </div>
                       ) : (
-                        templates.map((tpl) => (
+                        templates.map(tpl => (
                           <button
+                            type="button"
                             key={tpl.id}
                             className="w-full flex items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-[color:var(--surface-2)]"
                             onClick={() => {
@@ -1588,10 +1887,23 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
                               textareaRef.current?.focus();
                             }}
                           >
-                            <BookOpen size={12} style={{ color: "var(--text-dim)", marginTop: 2 }} />
+                            <BookOpen
+                              size={12}
+                              style={{ color: "var(--text-dim)", marginTop: 2 }}
+                            />
                             <span>
-                              <span className="block text-xs" style={{ color: "var(--text-primary)" }}>{tpl.name}</span>
-                              <span className="block text-[10.5px] mt-0.5" style={{ color: "var(--text-muted)" }}>{tpl.description}</span>
+                              <span
+                                className="block text-xs"
+                                style={{ color: "var(--text-primary)" }}
+                              >
+                                {tpl.name}
+                              </span>
+                              <span
+                                className="block text-[10.5px] mt-0.5"
+                                style={{ color: "var(--text-muted)" }}
+                              >
+                                {tpl.description}
+                              </span>
                             </span>
                           </button>
                         ))
@@ -1604,10 +1916,16 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
             <textarea
               ref={textareaRef}
               value={input}
-              onChange={(e) => handleInputChange(e.target.value)}
+              onChange={e => handleInputChange(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={isStreaming}
-              placeholder={isStreaming ? "正在生成…" : delegatingTo ? `委派给 ${delegatingTo.name}：输入任务…` : "输入消息… @ 提及文件 / 指令"}
+              placeholder={
+                isStreaming
+                  ? "正在生成…"
+                  : delegatingTo
+                    ? `委派给 ${delegatingTo.name}：输入任务…`
+                    : "输入消息… @ 提及文件 / 指令"
+              }
               rows={1}
               className="flex-1 resize-none bg-transparent border-none px-1.5 py-1.5 text-[13.5px] leading-relaxed
                 placeholder:text-[13px] focus:outline-none
@@ -1631,6 +1949,7 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
                   </span>
                 )}
                 <button
+                  type="button"
                   onClick={handleAbort}
                   title="中止"
                   className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center
@@ -1642,6 +1961,7 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
               </div>
             ) : (
               <button
+                type="button"
                 onClick={handleSend}
                 disabled={!input.trim()}
                 title="发送"
@@ -1654,10 +1974,7 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
               </button>
             )}
           </div>
-          <div
-            className="text-center text-[10.5px] mt-2"
-            style={{ color: "var(--text-dim)" }}
-          >
+          <div className="text-center text-[10.5px] mt-2" style={{ color: "var(--text-dim)" }}>
             Enter 发送 · Shift+Enter 换行 · @ 提及文件/子智能体 · / 指令
           </div>
         </div>
@@ -1689,7 +2006,7 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
                   icon: <GitBranch size={14} />,
                   label: "从此处分支",
                   onSelect: () => {
-                    const target = sessionMessages.find((m) => m.id === msgMenu.id);
+                    const target = sessionMessages.find(m => m.id === msgMenu.id);
                     if (target) void forkFrom(target);
                     setMsgMenu(null);
                   },
@@ -1701,7 +2018,7 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
                         icon: <RotateCcw size={14} />,
                         label: "重新生成",
                         onSelect: () => {
-                          const target = sessionMessages.find((m) => m.id === msgMenu.id);
+                          const target = sessionMessages.find(m => m.id === msgMenu.id);
                           if (target) void regenerateFrom(target);
                           setMsgMenu(null);
                         },
@@ -1717,7 +2034,10 @@ export function ChatView({ onNewSession, onClearSession, onExportSession, sessio
                         onSelect: async () => {
                           try {
                             const title =
-                              msgMenu.content.replace(/[#*`>\n]/g, " ").trim().slice(0, 24) || "记忆";
+                              msgMenu.content
+                                .replace(/[#*`>\n]/g, " ")
+                                .trim()
+                                .slice(0, 24) || "记忆";
                             await memoryWrite(title, msgMenu.content);
                             addMessage(activeSessionId!, {
                               id: crypto.randomUUID(),

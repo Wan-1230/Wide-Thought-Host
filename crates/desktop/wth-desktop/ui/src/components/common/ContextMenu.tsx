@@ -1,7 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
-import { createPortal } from "react-dom";
-import type { ReactNode, MouseEvent as ReactMouseEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
 import { ChevronRight } from "lucide-react";
+import type {
+  KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent as ReactMouseEvent,
+  ReactNode,
+} from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 export type ContextMenuPoint = { left: number; top: number };
 
@@ -38,8 +42,14 @@ export function contextMenuPointFromEvent(
 function clampPoint(left: number, top: number, width: number, height: number): ContextMenuPoint {
   if (typeof window === "undefined") return { left, top };
   return {
-    left: Math.min(Math.max(EDGE_GAP, left), Math.max(EDGE_GAP, window.innerWidth - width - EDGE_GAP)),
-    top: Math.min(Math.max(EDGE_GAP, top), Math.max(EDGE_GAP, window.innerHeight - height - EDGE_GAP)),
+    left: Math.min(
+      Math.max(EDGE_GAP, left),
+      Math.max(EDGE_GAP, window.innerWidth - width - EDGE_GAP),
+    ),
+    top: Math.min(
+      Math.max(EDGE_GAP, top),
+      Math.max(EDGE_GAP, window.innerHeight - height - EDGE_GAP),
+    ),
   };
 }
 
@@ -67,9 +77,7 @@ export function ContextMenu({
   const submenuTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Flatten items (excluding children) for keyboard navigation
-  const flatItems = items.filter(
-    (item) => item.type !== "separator" || items.indexOf(item) !== 0,
-  );
+  const flatItems = items.filter(item => item.type !== "separator" || items.indexOf(item) !== 0);
 
   // Position clamping
   useLayoutEffect(() => {
@@ -111,7 +119,7 @@ export function ContextMenu({
 
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setFocusedIdx((prev) => {
+        setFocusedIdx(prev => {
           let next = prev + 1;
           while (next < itemCount && items[next]?.type === "separator") next++;
           if (next >= itemCount) next = 0;
@@ -120,7 +128,7 @@ export function ContextMenu({
         });
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        setFocusedIdx((prev) => {
+        setFocusedIdx(prev => {
           let next = prev - 1;
           while (next >= 0 && items[next]?.type === "separator") next--;
           if (next < 0) next = itemCount - 1;
@@ -159,22 +167,19 @@ export function ContextMenu({
   }, [open]);
 
   // Sub-menu hover timer
-  const onItemMouseEnter = useCallback(
-    (key: string, hasChildren: boolean) => {
-      if (submenuTimer.current) {
-        clearTimeout(submenuTimer.current);
-        submenuTimer.current = null;
-      }
-      if (hasChildren) {
-        submenuTimer.current = setTimeout(() => {
-          setSubmenuParent(key);
-        }, SUBMENU_OPEN_DELAY);
-      } else {
-        setSubmenuParent(null);
-      }
-    },
-    [],
-  );
+  const onItemMouseEnter = useCallback((key: string, hasChildren: boolean) => {
+    if (submenuTimer.current) {
+      clearTimeout(submenuTimer.current);
+      submenuTimer.current = null;
+    }
+    if (hasChildren) {
+      submenuTimer.current = setTimeout(() => {
+        setSubmenuParent(key);
+      }, SUBMENU_OPEN_DELAY);
+    } else {
+      setSubmenuParent(null);
+    }
+  }, []);
 
   const onItemMouseLeave = useCallback(() => {
     if (submenuTimer.current) {
@@ -195,10 +200,13 @@ export function ContextMenu({
   if (!open || !point || !position) return null;
 
   // Find the submenu child items
-  const subItems =
-    submenuParent
-      ? (items.find((i) => i.type !== "separator" && i.key === submenuParent) as { children?: ContextMenuItem[] } | undefined)?.children ?? []
-      : [];
+  const subItems = submenuParent
+    ? ((
+        items.find(i => i.type !== "separator" && i.key === submenuParent) as
+          | { children?: ContextMenuItem[] }
+          | undefined
+      )?.children ?? [])
+    : [];
 
   return createPortal(
     <div
@@ -215,12 +223,12 @@ export function ContextMenu({
         borderColor: "var(--surface-3)",
         animation: "contextMenuIn 0.15s var(--ease-out)",
       }}
-      onMouseDown={(e) => {
+      onMouseDown={e => {
         e.preventDefault();
         e.stopPropagation();
       }}
-      onClick={(e) => e.stopPropagation()}
-      onContextMenu={(e) => {
+      onClick={e => e.stopPropagation()}
+      onContextMenu={e => {
         e.preventDefault();
         e.stopPropagation();
       }}
@@ -249,7 +257,7 @@ export function ContextMenu({
             aria-haspopup={hasChildren ? "menu" : undefined}
             aria-expanded={hasChildren ? submenuParent === item.key : undefined}
             disabled={item.disabled}
-            onClick={(e) => {
+            onClick={e => {
               e.stopPropagation();
               if (!item.disabled && !hasChildren) {
                 item.onSelect();
@@ -265,13 +273,9 @@ export function ContextMenu({
             }}
           >
             {/* Icon slot: fixed width for alignment */}
-            <span className="flex-shrink-0 w-5 flex items-center justify-center">
-              {item.icon}
-            </span>
+            <span className="flex-shrink-0 w-5 flex items-center justify-center">{item.icon}</span>
             <span className="flex-1">{item.label}</span>
-            {hasChildren && (
-              <ChevronRight size={12} style={{ color: "var(--text-dim)" }} />
-            )}
+            {hasChildren && <ChevronRight size={12} style={{ color: "var(--text-dim)" }} />}
             {!hasChildren && item.shortcut && (
               <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>
                 {item.shortcut}
@@ -352,7 +356,7 @@ function ContextSubMenu({
       }}
       onMouseLeave={() => onClose()}
     >
-      {items.map((item) => {
+      {items.map(item => {
         if (item.type === "separator") {
           return (
             <div
@@ -369,7 +373,7 @@ function ContextSubMenu({
             type="button"
             role="menuitem"
             disabled={item.disabled}
-            onClick={(e) => {
+            onClick={e => {
               e.stopPropagation();
               if (!item.disabled) {
                 item.onSelect();
@@ -381,9 +385,7 @@ function ContextSubMenu({
               color: item.danger ? "var(--accent-red)" : "var(--text-primary)",
             }}
           >
-            <span className="flex-shrink-0 w-5 flex items-center justify-center">
-              {item.icon}
-            </span>
+            <span className="flex-shrink-0 w-5 flex items-center justify-center">{item.icon}</span>
             <span className="flex-1">{item.label}</span>
             {item.shortcut && (
               <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>

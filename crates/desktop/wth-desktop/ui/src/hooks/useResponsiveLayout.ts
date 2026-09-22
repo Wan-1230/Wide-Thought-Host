@@ -11,8 +11,8 @@ import { LAYOUT_BREAKPOINTS, useUiStore } from "@/stores/ui";
  */
 export function useResponsiveLayout(): number {
   const [width, setWidth] = useState(() => window.innerWidth);
-  const setSidebarCollapsed = useUiStore((s) => s.setSidebarCollapsed);
-  const setInspectorForceCollapsed = useUiStore((s) => s.setInspectorForceCollapsed);
+  const setSidebarCollapsed = useUiStore(s => s.setSidebarCollapsed);
+  const setInspectorForceCollapsed = useUiStore(s => s.setInspectorForceCollapsed);
 
   useEffect(() => {
     const onResize = () => {

@@ -10,7 +10,7 @@ export function SplashScreen({ onDone }: SplashScreenProps) {
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      setProgress((p) => {
+      setProgress(p => {
         if (p >= 100) {
           window.clearInterval(timer);
           setTimeout(onDone, 200);
@@ -40,7 +40,10 @@ export function SplashScreen({ onDone }: SplashScreenProps) {
           正在初始化…
         </div>
       </div>
-      <div className="w-48 h-1 rounded-full overflow-hidden" style={{ background: "var(--surface-3)" }}>
+      <div
+        className="w-48 h-1 rounded-full overflow-hidden"
+        style={{ background: "var(--surface-3)" }}
+      >
         <div
           className="h-full rounded-full transition-all duration-150"
           style={{

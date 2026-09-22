@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   Brain,
   Check,
@@ -11,15 +11,15 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { useEffect, useState } from "react";
 import {
   localProvidersDetect,
+  type ProviderSummary,
   providerList,
   providerSetDefault,
   providerTest,
   providerUpsert,
   workspaceSelect,
-  type ProviderSummary,
 } from "@/lib/ipc";
 
 interface Props {
@@ -49,7 +49,9 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
   const [detecting, setDetecting] = useState(false);
   const [localEndpoints, setLocalEndpoints] = useState<LocalEndpointView[]>([]);
   const [testingId, setTestingId] = useState<string | null>(null);
-  const [testResult, setTestResult] = useState<{ id: string; ok: boolean; msg: string } | null>(null);
+  const [testResult, setTestResult] = useState<{ id: string; ok: boolean; msg: string } | null>(
+    null,
+  );
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -72,7 +74,7 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
     refreshProviders();
   }, []);
 
-  const defaultProvider = providers.find((p) => p.is_default) ?? providers[0];
+  const defaultProvider = providers.find(p => p.is_default) ?? providers[0];
 
   const pickWorkspace = async () => {
     setPicking(true);
@@ -184,9 +186,7 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
     "帮我为关键模块编写单元测试",
   ];
 
-  const usable = providers.some(
-    (p) => p.is_default && (p.local || p.has_api_key || p.builtin),
-  );
+  const usable = providers.some(p => p.is_default && (p.local || p.has_api_key || p.builtin));
 
   return (
     <div className="modal-mask z-[150] p-6">
@@ -210,6 +210,7 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="p-1 rounded hover:bg-surface-2"
             style={{ color: "var(--text-muted)" }}
@@ -220,7 +221,7 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
 
         {/* 步骤指示器 */}
         <div className="flex items-center gap-2 mt-5">
-          {[1, 2, 3].map((s) => (
+          {[1, 2, 3].map(s => (
             <div key={s} className="flex-1 flex items-center gap-2">
               <div
                 className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium"
@@ -253,6 +254,7 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
               </p>
               <div className="mt-4 space-y-2">
                 <button
+                  type="button"
                   className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-colors hover:bg-surface-2"
                   style={{ background: "var(--surface-1)", border: "1px solid var(--surface-3)" }}
                   disabled={picking}
@@ -260,12 +262,17 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
                 >
                   <FolderOpen size={16} style={{ color: "var(--text-muted)" }} />
                   <span className="flex-1 text-[13px]" style={{ color: "var(--text-primary)" }}>
-                    {picking ? "正在选择…" : workspaceName ? `已选择：${workspaceName}` : "选择工作区文件夹"}
+                    {picking
+                      ? "正在选择…"
+                      : workspaceName
+                        ? `已选择：${workspaceName}`
+                        : "选择工作区文件夹"}
                   </span>
                   <ChevronRight size={14} style={{ color: "var(--text-dim)" }} />
                 </button>
                 {!workspaceName && (
                   <button
+                    type="button"
                     className="text-[11px] hover:underline"
                     style={{ color: "var(--text-muted)" }}
                     onClick={() => setStep(2)}
@@ -299,7 +306,10 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
                     <Rocket size={15} style={{ color: "var(--text-muted)" }} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-medium truncate" style={{ color: "var(--text-primary)" }}>
+                    <div
+                      className="text-[13px] font-medium truncate"
+                      style={{ color: "var(--text-primary)" }}
+                    >
                       {defaultProvider.name}
                     </div>
                     <div className="text-[11px] truncate" style={{ color: "var(--text-muted)" }}>
@@ -312,6 +322,7 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
                     </div>
                   </div>
                   <button
+                    type="button"
                     className="text-[11px] hover:underline whitespace-nowrap"
                     style={{ color: "var(--text-muted)" }}
                     onClick={() => testProvider(defaultProvider.id)}
@@ -336,21 +347,25 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
               )}
 
               {/* 其它 Provider 列表 */}
-              {providers.filter((p) => !p.is_default).length > 0 && (
+              {providers.filter(p => !p.is_default).length > 0 && (
                 <div className="mt-3 space-y-1.5 max-h-36 overflow-y-auto">
                   {providers
-                    .filter((p) => !p.is_default)
-                    .map((p) => (
+                    .filter(p => !p.is_default)
+                    .map(p => (
                       <div
                         key={p.id}
                         className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]"
-                        style={{ background: "var(--surface-1)", border: "1px solid var(--surface-3)" }}
+                        style={{
+                          background: "var(--surface-1)",
+                          border: "1px solid var(--surface-3)",
+                        }}
                       >
                         <Server size={13} style={{ color: "var(--text-dim)" }} />
                         <span className="flex-1 truncate" style={{ color: "var(--text-primary)" }}>
                           {p.name}
                         </span>
                         <button
+                          type="button"
                           className="text-[11px] hover:underline"
                           style={{ color: "var(--text-muted)" }}
                           onClick={() => setDefault(p.id)}
@@ -365,6 +380,7 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
               {/* 操作区 */}
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
+                  type="button"
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] transition-colors hover:bg-surface-2"
                   style={{ border: "1px solid var(--surface-3)", color: "var(--text-primary)" }}
                   onClick={detectLocal}
@@ -374,10 +390,11 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
                   检测本地模型
                 </button>
                 <button
+                  type="button"
                   className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] transition-colors hover:bg-surface-2"
                   style={{ border: "1px solid var(--surface-3)", color: "var(--text-primary)" }}
                   onClick={() => {
-                    setShowAdd((v) => !v);
+                    setShowAdd(v => !v);
                     setFormError(null);
                   }}
                 >
@@ -385,6 +402,7 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
                   添加自定义端点
                 </button>
                 <button
+                  type="button"
                   className="text-[11px] hover:underline ml-auto"
                   style={{ color: "var(--text-muted)" }}
                   onClick={() => {
@@ -398,7 +416,8 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
 
               {localEndpoints.length > 0 && (
                 <div className="mt-2 text-[11px]" style={{ color: "var(--text-muted)" }}>
-                  已发现本地端点：{localEndpoints.map((e) => `${e.kind}（${e.models.length} 个模型）`).join("、")}
+                  已发现本地端点：
+                  {localEndpoints.map(e => `${e.kind}（${e.models.length} 个模型）`).join("、")}
                 </div>
               )}
 
@@ -412,26 +431,26 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
                     className="control w-full"
                     placeholder="名称，例如 DeepSeek"
                     value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    onChange={e => setForm({ ...form, name: e.target.value })}
                   />
                   <input
                     className="control w-full"
                     placeholder="API 地址，例如 https://api.deepseek.com/v1"
                     value={form.baseUrl}
-                    onChange={(e) => setForm({ ...form, baseUrl: e.target.value })}
+                    onChange={e => setForm({ ...form, baseUrl: e.target.value })}
                   />
                   <input
                     className="control w-full"
                     placeholder="模型 ID，例如 deepseek-chat"
                     value={form.model}
-                    onChange={(e) => setForm({ ...form, model: e.target.value })}
+                    onChange={e => setForm({ ...form, model: e.target.value })}
                   />
                   <input
                     className="control w-full"
                     type="password"
                     placeholder="API Key（本地模型可留空）"
                     value={form.apiKey}
-                    onChange={(e) => setForm({ ...form, apiKey: e.target.value })}
+                    onChange={e => setForm({ ...form, apiKey: e.target.value })}
                   />
                   {formError && (
                     <div className="text-[11px]" style={{ color: "#f87171" }}>
@@ -440,6 +459,7 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
                   )}
                   <div className="flex justify-end gap-2 pt-1">
                     <button
+                      type="button"
                       className="px-3 py-1.5 rounded-lg text-[11px]"
                       style={{ color: "var(--text-muted)" }}
                       onClick={() => setShowAdd(false)}
@@ -447,6 +467,7 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
                       取消
                     </button>
                     <button
+                      type="button"
                       className="px-3 py-1.5 rounded-lg text-[11px] font-medium"
                       style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}
                       disabled={saving}
@@ -475,8 +496,9 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
                 从示例问题开始，或直接输入你的需求。
               </p>
               <div className="mt-4 space-y-2">
-                {examples.map((q) => (
+                {examples.map(q => (
                   <button
+                    type="button"
                     key={q}
                     className="w-full text-left px-4 py-2.5 rounded-xl text-[13px] transition-colors hover:bg-surface-2"
                     style={{
@@ -500,6 +522,7 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
         {/* 底部按钮 */}
         <div className="flex items-center justify-between gap-3 mt-6">
           <button
+            type="button"
             className="text-[11px] hover:underline whitespace-nowrap flex-shrink-0"
             style={{ color: "var(--text-muted)" }}
             onClick={onClose}
@@ -509,14 +532,16 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
           <div className="flex items-center gap-2 flex-shrink-0">
             {step > 1 && (
               <button
+                type="button"
                 className="px-4 py-2 rounded-lg text-xs transition-colors hover:bg-surface-2 whitespace-nowrap"
                 style={{ color: "var(--text-muted)" }}
-                onClick={() => setStep((s) => (s - 1) as Step)}
+                onClick={() => setStep(s => (s - 1) as Step)}
               >
                 上一步
               </button>
             )}
             <button
+              type="button"
               className="px-4 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap"
               style={{ background: "var(--text-primary)", color: "var(--surface-0)" }}
               onClick={() => {
@@ -524,7 +549,7 @@ export function OnboardingModal({ onClose, onDone, onOpenSettings, onExampleQues
                   onDone();
                   onExampleQuestion("");
                 } else {
-                  setStep((s) => (s + 1) as Step);
+                  setStep(s => (s + 1) as Step);
                 }
               }}
             >

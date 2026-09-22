@@ -1,6 +1,6 @@
 import { createContext, useContext } from "react";
-import { zhCN, type TranslationKey } from "./zh-CN";
 import { enUS } from "./en-US";
+import { type TranslationKey, zhCN } from "./zh-CN";
 
 export type Locale = "zh-CN" | "en-US";
 
@@ -37,5 +37,5 @@ export function useI18n() {
   };
 }
 
-export { zhCN, enUS };
 export type { TranslationKey };
+export { enUS, zhCN };

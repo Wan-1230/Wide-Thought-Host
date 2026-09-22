@@ -21,7 +21,7 @@ export function SegmentedControl({ options, value, onChange, size = "md" }: Segm
       style={{ background: "var(--surface-2)" }}
       role="radiogroup"
     >
-      {options.map((option) => {
+      {options.map(option => {
         const active = option.value === value;
         return (
           <button

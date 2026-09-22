@@ -1,14 +1,14 @@
-import { useEffect, useState } from "react";
 import { GitBranch, Play, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import {
-  workflowList,
-  workflowRun,
-  onWorkflowProgress,
   onWorkflowDone,
+  onWorkflowProgress,
   type WorkflowConfig,
   type WorkflowDoneEvent,
   type WorkflowProgressEvent,
   type WorkflowRunResult,
+  workflowList,
+  workflowRun,
 } from "@/lib/ipc";
 
 interface Props {
@@ -30,9 +30,9 @@ export function WorkflowModal({ open, onClose, onNotice }: Props) {
   useEffect(() => {
     if (!open) return;
     workflowList()
-      .then((list) => {
+      .then(list => {
         setWorkflows(list);
-        if (list.length > 0) setSelectedId((cur) => cur || list[0].id);
+        if (list.length > 0) setSelectedId(cur => cur || list[0].id);
       })
       .catch(() => {});
     setProgress([]);
@@ -43,25 +43,27 @@ export function WorkflowModal({ open, onClose, onNotice }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    const offProgress = onWorkflowProgress((evt) => {
-      setProgress((prev) => [...prev.filter((p) => p.node_id !== evt.node_id), evt]);
+    const offProgress = onWorkflowProgress(evt => {
+      setProgress(prev => [...prev.filter(p => p.node_id !== evt.node_id), evt]);
     });
-    const offDone = onWorkflowDone((evt) => {
+    const offDone = onWorkflowDone(evt => {
       setRunning(false);
       setResults(evt.results);
       setLastStatus(evt.status);
-      onNotice(`工作流「${evt.config_name}」完成：${evt.results.filter((r) => r.status === "done").length}/${evt.results.length} 成功`);
+      onNotice(
+        `工作流「${evt.config_name}」完成：${evt.results.filter(r => r.status === "done").length}/${evt.results.length} 成功`,
+      );
     });
     return () => {
-      offProgress.then((fn) => fn());
-      offDone.then((fn) => fn());
+      offProgress.then(fn => fn());
+      offDone.then(fn => fn());
     };
   }, [open, onNotice]);
 
   if (!open) return null;
 
-  const selected = workflows.find((w) => w.id === selectedId) || null;
-  const runningNodes = progress.filter((p) => p.status === "running").length;
+  const selected = workflows.find(w => w.id === selectedId) || null;
+  const runningNodes = progress.filter(p => p.status === "running").length;
 
   const run = async () => {
     if (!selectedId || !input.trim() || running) return;
@@ -77,13 +79,10 @@ export function WorkflowModal({ open, onClose, onNotice }: Props) {
   };
 
   return (
-    <div
-      className="modal-mask z-[150] p-6"
-      onClick={onClose}
-    >
+    <div className="modal-mask z-[150] p-6" onClick={onClose}>
       <div
         className="modal-card w-full max-w-lg rounded-2xl p-5"
-        onClick={(e) => e.stopPropagation()}
+        onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -92,25 +91,33 @@ export function WorkflowModal({ open, onClose, onNotice }: Props) {
               多 Agent 工作流
             </h2>
           </div>
-          <button onClick={onClose} className="p-1 rounded hover:bg-surface-2" style={{ color: "var(--text-muted)" }}>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 rounded hover:bg-surface-2"
+            style={{ color: "var(--text-muted)" }}
+          >
             <X size={15} />
           </button>
         </div>
 
         <p className="text-[11px] mt-1" style={{ color: "var(--text-muted)" }}>
-          按依赖关系编排多个子智能体并行执行，支持 {'{{input}}'} 与 {'{{prev_output:节点ID}}'} 变量。
+          按依赖关系编排多个子智能体并行执行，支持 {"{{input}}"} 与 {"{{prev_output:节点ID}}"}{" "}
+          变量。
         </p>
 
         <div className="mt-4 space-y-3">
           <div>
-            <label className="text-[11px] block mb-1" style={{ color: "var(--text-dim)" }}>工作流</label>
+            <label className="text-[11px] block mb-1" style={{ color: "var(--text-dim)" }}>
+              工作流
+            </label>
             <select
               className="control w-full"
               value={selectedId}
-              onChange={(e) => setSelectedId(e.target.value)}
+              onChange={e => setSelectedId(e.target.value)}
               disabled={running}
             >
-              {workflows.map((w) => (
+              {workflows.map(w => (
                 <option key={w.id} value={w.id}>
                   {w.name}（{w.nodes.length} 个节点）
                 </option>
@@ -123,7 +130,7 @@ export function WorkflowModal({ open, onClose, onNotice }: Props) {
             )}
             {selected && (
               <div className="flex flex-wrap gap-1 mt-2">
-                {selected.nodes.map((n) => (
+                {selected.nodes.map(n => (
                   <span
                     key={n.id}
                     className="text-[10px] px-1.5 py-0.5 rounded"
@@ -138,18 +145,21 @@ export function WorkflowModal({ open, onClose, onNotice }: Props) {
           </div>
 
           <div>
-            <label className="text-[11px] block mb-1" style={{ color: "var(--text-dim)" }}>任务输入</label>
+            <label className="text-[11px] block mb-1" style={{ color: "var(--text-dim)" }}>
+              任务输入
+            </label>
             <textarea
               className="control w-full font-mono text-[12px] resize-y"
               rows={3}
               placeholder="描述本次工作流任务，如：请审查 src/auth 模块的登录逻辑…"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={e => setInput(e.target.value)}
               disabled={running}
             />
           </div>
 
           <button
+            type="button"
             className="primary-btn w-full"
             disabled={running || !input.trim()}
             onClick={() => void run()}
@@ -170,7 +180,7 @@ export function WorkflowModal({ open, onClose, onNotice }: Props) {
         {/* 进度 */}
         {progress.length > 0 && (
           <div className="mt-4 space-y-1.5">
-            {progress.map((p) => (
+            {progress.map(p => (
               <div key={p.node_id} className="flex items-center gap-2 text-[11px]">
                 <span
                   className="w-2 h-2 rounded-full flex-shrink-0"
@@ -183,9 +193,18 @@ export function WorkflowModal({ open, onClose, onNotice }: Props) {
                           : "var(--text-muted)",
                   }}
                 />
-                <span className="truncate min-w-0" style={{ color: "var(--text-primary)" }}>{p.node_name}</span>
-                <span className="whitespace-nowrap flex-shrink-0" style={{ color: "var(--text-muted)" }}>
-                  {p.status === "done" ? "已完成" : p.status === "error" ? `失败：${p.error}` : "执行中…"}
+                <span className="truncate min-w-0" style={{ color: "var(--text-primary)" }}>
+                  {p.node_name}
+                </span>
+                <span
+                  className="whitespace-nowrap flex-shrink-0"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  {p.status === "done"
+                    ? "已完成"
+                    : p.status === "error"
+                      ? `失败：${p.error}`
+                      : "执行中…"}
                 </span>
               </div>
             ))}
@@ -195,29 +214,47 @@ export function WorkflowModal({ open, onClose, onNotice }: Props) {
         {/* 结果 */}
         {results && (
           <div className="mt-4">
-            <div className="text-[11px] font-medium mb-1.5" style={{ color: "var(--text-primary)" }}>
+            <div
+              className="text-[11px] font-medium mb-1.5"
+              style={{ color: "var(--text-primary)" }}
+            >
               执行结果（{lastStatus === "done" ? "完成" : "部分失败"}）
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto">
-              {results.map((r) => (
-                <div key={r.node_id} className="rounded-lg p-2.5" style={{ background: "var(--surface-1)" }}>
+              {results.map(r => (
+                <div
+                  key={r.node_id}
+                  className="rounded-lg p-2.5"
+                  style={{ background: "var(--surface-1)" }}
+                >
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-medium" style={{ color: "var(--text-primary)" }}>
+                    <span
+                      className="text-[11px] font-medium"
+                      style={{ color: "var(--text-primary)" }}
+                    >
                       {r.node_name}
                     </span>
                     <span
                       className="text-[10px] px-1.5 rounded"
                       style={{
-                        background: r.status === "done" ? "var(--accent-green)" : "var(--accent-red)",
+                        background:
+                          r.status === "done" ? "var(--accent-green)" : "var(--accent-red)",
                         color: "#fff",
                       }}
                     >
                       {r.status === "done" ? "成功" : "失败"}
                     </span>
                   </div>
-                  {r.error && <div className="text-[10px] mt-1" style={{ color: "var(--accent-red)" }}>{r.error}</div>}
+                  {r.error && (
+                    <div className="text-[10px] mt-1" style={{ color: "var(--accent-red)" }}>
+                      {r.error}
+                    </div>
+                  )}
                   {r.output && (
-                    <div className="text-[10px] mt-1 line-clamp-3 whitespace-pre-wrap" style={{ color: "var(--text-muted)" }}>
+                    <div
+                      className="text-[10px] mt-1 line-clamp-3 whitespace-pre-wrap"
+                      style={{ color: "var(--text-muted)" }}
+                    >
                       {r.output}
                     </div>
                   )}
