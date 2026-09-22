@@ -13,11 +13,11 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
-use serde_json::{json, Value};
-use tokio::sync::{mpsc, oneshot, RwLock};
+use serde_json::{Value, json};
+use tokio::sync::{RwLock, mpsc, oneshot};
 
 use crate::ipc::agent::{AgentStreamChunk, StreamPayload};
-use xai_grok_shell::leader::{connect_or_spawn, ClientCapabilities, ClientMode, LeaderEnvUrls};
+use xai_grok_shell::leader::{ClientCapabilities, ClientMode, LeaderEnvUrls, connect_or_spawn};
 
 /// 事件出口抽象：内核桥接产生的前端事件经此分发。
 /// 生产实现包 tauri::Window；测试实现收集事件供断言。
@@ -169,8 +169,14 @@ impl AcpKernel {
         }
 
         // 握手：initialize → session/new。
-        let init_result = kernel.request(build_initialize(kernel.alloc_id()), true).await?;
-        if let Some(info) = init_result.get("agentInfo").and_then(|v| v.get("version")).and_then(Value::as_str) {
+        let init_result = kernel
+            .request(build_initialize(kernel.alloc_id()), true)
+            .await?;
+        if let Some(info) = init_result
+            .get("agentInfo")
+            .and_then(|v| v.get("version"))
+            .and_then(Value::as_str)
+        {
             *kernel.leader_version.write().await = Some(info.to_string());
         }
         let session = kernel
@@ -223,7 +229,12 @@ impl AcpKernel {
 
     /// 发送用户消息；内核以 `session/update` 流式回传（reader 任务已映射）。
     pub async fn send_prompt(&self, text: &str) -> Result<(), String> {
-        let session_id = self.session_id.read().await.clone().ok_or("ACP 会话未建立")?;
+        let session_id = self
+            .session_id
+            .read()
+            .await
+            .clone()
+            .ok_or("ACP 会话未建立")?;
         let payload = build_prompt(self.alloc_id(), &session_id, text);
         // prompt 的响应携带 stopReason；等待完成即"本轮结束"。
         self.request(payload, true).await.map(|_| ())
@@ -241,7 +252,11 @@ impl AcpKernel {
     }
 
     /// 决议权限请求（审批 UI 回调），向内核回发所选 outcome。
-    pub async fn respond_permission(&self, tool_call_id: &str, approved: bool) -> Result<(), String> {
+    pub async fn respond_permission(
+        &self,
+        tool_call_id: &str,
+        approved: bool,
+    ) -> Result<(), String> {
         let (req_id, params) = {
             let mut map = self.permissions.lock().unwrap();
             let (req_id, params, tx) = map
@@ -266,7 +281,11 @@ impl AcpKernel {
             })
             .and_then(|o| o.get("optionId"))
             .and_then(Value::as_str)
-            .unwrap_or(if approved { "allow_once" } else { "reject_once" })
+            .unwrap_or(if approved {
+                "allow_once"
+            } else {
+                "reject_once"
+            })
             .to_string();
         self.send_raw(build_permission_response(
             req_id,
@@ -321,10 +340,19 @@ fn route_message(
                 .unwrap()
                 .insert(tool_call_id.clone(), (req_id, params.clone(), tx));
             sink.emit_approval(
-                params.get("sessionId").and_then(Value::as_str).unwrap_or(""),
+                params
+                    .get("sessionId")
+                    .and_then(Value::as_str)
+                    .unwrap_or(""),
                 &tool_call_id,
-                params.pointer("/toolCall/title").and_then(Value::as_str).unwrap_or("tool"),
-                &params.pointer("/toolCall/rawInput").cloned().unwrap_or(Value::Null),
+                params
+                    .pointer("/toolCall/title")
+                    .and_then(Value::as_str)
+                    .unwrap_or("tool"),
+                &params
+                    .pointer("/toolCall/rawInput")
+                    .cloned()
+                    .unwrap_or(Value::Null),
             );
             let _ = request_tx;
             true
@@ -343,7 +371,10 @@ fn route_message(
 
 /// `session/update` 的 update 对象 → 前端事件负载（纯函数，可单测）。
 pub fn map_session_update(update: &Value) -> Vec<StreamPayload> {
-    let kind = update.get("sessionUpdate").and_then(Value::as_str).unwrap_or("");
+    let kind = update
+        .get("sessionUpdate")
+        .and_then(Value::as_str)
+        .unwrap_or("");
     match kind {
         "agent_message_chunk" | "user_message_chunk" => vec![StreamPayload::TextDelta {
             delta: update
@@ -362,7 +393,11 @@ pub fn map_session_update(update: &Value) -> Vec<StreamPayload> {
                 .and_then(Value::as_str)
                 .unwrap_or_default()
                 .to_string(),
-            tool_name: update.get("title").and_then(Value::as_str).unwrap_or("tool").to_string(),
+            tool_name: update
+                .get("title")
+                .and_then(Value::as_str)
+                .unwrap_or("tool")
+                .to_string(),
             arguments: update.get("rawInput").cloned().unwrap_or(Value::Null),
             // 内核侧已按权限模式把关；需要审批的请求走 session/request_permission。
             needs_approval: false,
@@ -487,7 +522,11 @@ pub async fn ensure_connected(
             byok_key,
         )
     };
-    let workspace_root = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    let workspace_root = state
+        .workspace_root
+        .read()
+        .map_err(|e| e.to_string())?
+        .clone();
     if let Some(key) = byok_key {
         // SAFETY: 用户重连时低频调用；内核子进程在其后 spawn，继承该环境。
         unsafe {
@@ -523,9 +562,7 @@ pub fn snapshot_handle(kernel: &AcpKernel) -> AcpKernel {
 
 /// 连接状态（诊断命令，设置 → 诊断页可用）。
 #[tauri::command]
-pub async fn acp_status(
-    state: tauri::State<'_, crate::state::AppState>,
-) -> Result<Value, String> {
+pub async fn acp_status(state: tauri::State<'_, crate::state::AppState>) -> Result<Value, String> {
     let guard = state.acp.lock().await;
     match guard.as_ref() {
         Some(kernel) => {
@@ -589,7 +626,14 @@ mod tests {
             "rawInput": { "path": "a.rs" },
         }));
         match &start[..] {
-            [StreamPayload::ToolCallStart { tool_id, tool_name, needs_approval, .. }] => {
+            [
+                StreamPayload::ToolCallStart {
+                    tool_id,
+                    tool_name,
+                    needs_approval,
+                    ..
+                },
+            ] => {
                 assert_eq!(tool_id, "t-1");
                 assert_eq!(tool_name, "read_file");
                 assert!(!needs_approval);
@@ -612,12 +656,14 @@ mod tests {
         }
 
         // 进行中的 update 不产生事件。
-        assert!(map_session_update(&json!({
-            "sessionUpdate": "tool_call_update",
-            "toolCallId": "t-1",
-            "status": "pending",
-        }))
-        .is_empty());
+        assert!(
+            map_session_update(&json!({
+                "sessionUpdate": "tool_call_update",
+                "toolCallId": "t-1",
+                "status": "pending",
+            }))
+            .is_empty()
+        );
     }
 
     #[test]
@@ -643,11 +689,18 @@ mod tests {
                 .unwrap()
                 .push((session_id.to_string(), payload));
         }
-        fn emit_approval(&self, session_id: &str, tool_id: &str, tool_name: &str, _arguments: &Value) {
-            self.approvals
-                .lock()
-                .unwrap()
-                .push((session_id.to_string(), tool_id.to_string(), tool_name.to_string()));
+        fn emit_approval(
+            &self,
+            session_id: &str,
+            tool_id: &str,
+            tool_name: &str,
+            _arguments: &Value,
+        ) {
+            self.approvals.lock().unwrap().push((
+                session_id.to_string(),
+                tool_id.to_string(),
+                tool_name.to_string(),
+            ));
         }
     }
 
@@ -661,10 +714,11 @@ mod tests {
         // 从本 crate 向上找 workspace 的 target/debug/wth(.exe)
         let mut dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         for _ in 0..4 {
-            let candidate = dir
-                .join("target")
-                .join("debug")
-                .join(if cfg!(windows) { "wth.exe" } else { "wth" });
+            let candidate = dir.join("target").join("debug").join(if cfg!(windows) {
+                "wth.exe"
+            } else {
+                "wth"
+            });
             if candidate.is_file() {
                 return Some(candidate);
             }

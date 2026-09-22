@@ -83,12 +83,8 @@ pub struct InterceptRequest {
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum InterceptDecision {
     Continue,
-    Block {
-        reason: String,
-    },
-    Replace {
-        payload: Value,
-    },
+    Block { reason: String },
+    Replace { payload: Value },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -115,10 +111,7 @@ pub fn validate_replace(point: InterceptPoint, value: &Value) -> Result<(), Stri
 }
 
 /// 校验 handshake：协议版本 + apiVersion 前缀。
-pub fn accept_handshake(
-    req: &HandshakeRequest,
-    manifest: &ExtensionManifest,
-) -> HandshakeResponse {
+pub fn accept_handshake(req: &HandshakeRequest, manifest: &ExtensionManifest) -> HandshakeResponse {
     let name = manifest.name.clone();
     let mut reason = None;
     let mut accepted = true;

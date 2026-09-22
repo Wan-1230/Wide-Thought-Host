@@ -75,12 +75,25 @@ impl HeadroomManager {
             return Ok("Headroom 已安装，无需重复操作。".into());
         }
         // 尝试 pip，失败则尝试 pip3
-        let pip = if Command::new("pip").arg("--version").output().map(|o| o.status.success()).unwrap_or(false) {
+        let pip = if Command::new("pip")
+            .arg("--version")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+        {
             "pip"
-        } else if Command::new("pip3").arg("--version").output().map(|o| o.status.success()).unwrap_or(false) {
+        } else if Command::new("pip3")
+            .arg("--version")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+        {
             "pip3"
         } else {
-            return Err("未找到 pip。请先安装 Python 3.10+ 及 pip，然后运行: pip install headroom-ai[all]".into());
+            return Err(
+                "未找到 pip。请先安装 Python 3.10+ 及 pip，然后运行: pip install headroom-ai[all]"
+                    .into(),
+            );
         };
 
         let output = tokio::task::spawn_blocking(move || {
@@ -113,7 +126,9 @@ impl HeadroomManager {
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .spawn()
-            .map_err(|e| format!("无法启动 headroom proxy: {e}. 请先安装: pip install headroom-ai[all]"))?;
+            .map_err(|e| {
+                format!("无法启动 headroom proxy: {e}. 请先安装: pip install headroom-ai[all]")
+            })?;
 
         *self.child.lock().unwrap() = Some(child);
 

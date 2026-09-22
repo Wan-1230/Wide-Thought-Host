@@ -58,9 +58,7 @@ pub(crate) fn record_failure_if_upstream_fault(base_url: &str, error: &SamplingE
 /// (429/5xx) plus transport-level faults.
 fn is_upstream_fault(error: &SamplingError) -> bool {
     match error {
-        SamplingError::Api { status, .. } => {
-            status.is_server_error() || status.as_u16() == 429
-        }
+        SamplingError::Api { status, .. } => status.is_server_error() || status.as_u16() == 429,
         SamplingError::Http(e) => {
             e.is_connect() || e.is_timeout() || e.status().is_some_and(|s| s.is_server_error())
         }
@@ -113,7 +111,9 @@ mod tests {
             aborted_at_chunk: None,
         }));
         // Idle timeout is an upstream health signal.
-        assert!(is_upstream_fault(&SamplingError::IdleTimeout { elapsed_secs: 30 }));
+        assert!(is_upstream_fault(&SamplingError::IdleTimeout {
+            elapsed_secs: 30
+        }));
     }
 
     /// Endpoint-keyed behavior: enough upstream faults trip the breaker,
@@ -134,7 +134,10 @@ mod tests {
             );
         }
         breaker.record(Outcome::Failure);
-        assert!(breaker.is_open(), "50% error rate over 10 samples must trip");
+        assert!(
+            breaker.is_open(),
+            "50% error rate over 10 samples must trip"
+        );
         assert!(breaker.check().is_err());
     }
 

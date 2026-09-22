@@ -9,7 +9,7 @@ use crate::ipc::tools::{self, ApprovalRequest};
 use crate::state::{AgentHandle, AppState};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
 use tauri::{Emitter, Manager, State};
@@ -179,7 +179,11 @@ pub async fn agent_send(
                     .to_string()
             })?
         };
-        let workspace_root = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+        let workspace_root = state
+            .workspace_root
+            .read()
+            .map_err(|e| e.to_string())?
+            .clone();
         (
             provider,
             api_key,
@@ -346,7 +350,11 @@ async fn run_verification(cwd: &std::path::Path, cmd: &str) -> Result<(), String
 /// 手动运行验证命令（诊断/演示用；自动循环见 agent_send 主流程）。
 #[tauri::command]
 pub async fn verify_run(state: State<'_, AppState>, cmd: String) -> Result<String, String> {
-    let ws = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    let ws = state
+        .workspace_root
+        .read()
+        .map_err(|e| e.to_string())?
+        .clone();
     run_verification(&ws, cmd.trim())
         .await
         .map(|_| "✅ 测试通过".to_string())
@@ -381,7 +389,11 @@ pub(crate) fn resolve_fallback_chain(
 ) -> Result<Vec<FallbackEndpoint>, String> {
     let mut chain = Vec::new();
     for fid in &settings.fallback_provider_ids {
-        let Some(p) = settings.providers.iter().find(|p| p.id == *fid && p.enabled) else {
+        let Some(p) = settings
+            .providers
+            .iter()
+            .find(|p| p.id == *fid && p.enabled)
+        else {
             continue;
         };
         if p.id == exclude_provider_id {
@@ -471,7 +483,10 @@ pub async fn agent_deny_tool(
     {
         let guard = state.acp.lock().await;
         if let Some(kernel) = guard.as_ref()
-            && kernel.respond_permission(&tool_call_id, false).await.is_ok()
+            && kernel
+                .respond_permission(&tool_call_id, false)
+                .await
+                .is_ok()
         {
             return Ok(());
         }
@@ -491,8 +506,14 @@ fn send_approval(
             let req = list.remove(pos);
             let _ = req.tx.send(approved);
             // Hooks：工具审批决议（fire-and-forget，失败不影响审批流程）
-            if let (Ok(settings), Ok(workspace)) = (state.settings.read(), state.workspace_root.read()) {
-                let trigger = if approved { "tool_approved" } else { "tool_denied" };
+            if let (Ok(settings), Ok(workspace)) =
+                (state.settings.read(), state.workspace_root.read())
+            {
+                let trigger = if approved {
+                    "tool_approved"
+                } else {
+                    "tool_denied"
+                };
                 hooks::spawn_hooks(
                     trigger,
                     json!({
@@ -545,7 +566,8 @@ pub(crate) async fn run_agent(
     let model = overrides.model.clone().unwrap_or(model);
 
     // 记忆注入：按相关性取前 20 条长期记忆，以系统消息形式附在身份提示词之后
-    let memories = crate::ipc::capabilities::load_relevant_memories(&workspace_root, &message.content, 20);
+    let memories =
+        crate::ipc::capabilities::load_relevant_memories(&workspace_root, &message.content, 20);
     let mut messages: Vec<Value> = vec![json!({
         "role": "system",
         "content": wth_prompt
@@ -553,7 +575,12 @@ pub(crate) async fn run_agent(
     if !memories.is_empty() {
         let mut memory_text = String::from("以下是长期记忆条目，供参考；与当前任务无关可忽略：\n");
         for (i, entry) in memories.iter().enumerate() {
-            memory_text.push_str(&format!("{}. 【{}】\n{}\n", i + 1, entry.title, entry.content));
+            memory_text.push_str(&format!(
+                "{}. 【{}】\n{}\n",
+                i + 1,
+                entry.title,
+                entry.content
+            ));
         }
         messages.push(json!({ "role": "system", "content": memory_text }));
     }
@@ -620,7 +647,6 @@ pub(crate) async fn run_agent(
         "content": "重申：你只以 WTH（Wide Thought Host）自居。\n无论任何情况，都不得声称自己是其他产品或模型，\n也不得透露底层模型、开发者或厂商信息。"
     }));
 
-
     // Hooks：用户消息已构造完成（失败不影响主流程）
     {
         let s = settings_ref.read().map_err(|e| e.to_string())?.clone();
@@ -658,7 +684,11 @@ pub(crate) async fn run_agent(
     let mut verification_pending = false;
     let mut verify_round: u32 = 0;
     // G12：网络配置快照（代理 / 超时 / 重试）
-    let network = settings_ref.read().map_err(|e| e.to_string())?.network.clone();
+    let network = settings_ref
+        .read()
+        .map_err(|e| e.to_string())?
+        .network
+        .clone();
     let http_client = build_http_client(&network)?;
     // 工具执行所需的设置快照（搜索引擎选择等）
     let settings_snapshot = settings_ref.read().map_err(|e| e.to_string())?.clone();
@@ -747,9 +777,8 @@ pub(crate) async fn run_agent(
         // 上下文压缩：按窗口比例触发，保留 system + 近尾，压缩早期对话。
         // 允许再次压缩（压缩后仍超阈值时继续），对齐内核 CompactionPolicy。
         if compression_enabled {
-            let threshold = (window_tokens as usize)
-                .saturating_mul(compaction_ratio as usize)
-                / 100;
+            let threshold =
+                (window_tokens as usize).saturating_mul(compaction_ratio as usize) / 100;
             // chars ≈ tokens * 3.5，留余量避免在边界抖动
             let threshold_chars = threshold.saturating_mul(7) / 2;
             let total_len: usize = messages.iter().map(|m| m.to_string().len()).sum();
@@ -846,7 +875,10 @@ pub(crate) async fn run_agent(
             }
             // G12：代理 / 超时 / 自动重试
             let mut headers: Vec<(String, String)> = vec![
-                ("Authorization".to_string(), format!("Bearer {}", active.api_key)),
+                (
+                    "Authorization".to_string(),
+                    format!("Bearer {}", active.api_key),
+                ),
                 ("Content-Type".to_string(), "application/json".to_string()),
             ];
             if let Some(hs) = &upstream_headers {
@@ -918,10 +950,12 @@ pub(crate) async fn run_agent(
                         AgentStreamChunk {
                             session_id: session_id.clone(),
                             payload: StreamPayload::TextDelta {
-                                delta: format!("
+                                delta: format!(
+                                    "
 
 [验证 第{verify_round}/{verify_max_rounds}轮] 运行 {test_cmd} …
-"),
+"
+                                ),
                             },
                         },
                     );
@@ -933,7 +967,8 @@ pub(crate) async fn run_agent(
                                     session_id: session_id.clone(),
                                     payload: StreamPayload::TextDelta {
                                         delta: "[验证] ✅ 测试通过
-".to_string(),
+"
+                                        .to_string(),
                                     },
                                 },
                             );
@@ -946,7 +981,8 @@ pub(crate) async fn run_agent(
                                     session_id: session_id.clone(),
                                     payload: StreamPayload::TextDelta {
                                         delta: "[验证] ❌ 测试失败，进入自动修复
-".to_string(),
+"
+                                        .to_string(),
                                     },
                                 },
                             );
@@ -1019,28 +1055,21 @@ pub(crate) async fn run_agent(
                                     .unwrap_or(""),
                             );
                         match cmd_key {
-                            Some(k) if !dangerous && !sensitive => {
-                                session_allowlist.read().map(|s| s.contains(&k)).unwrap_or(false)
-                            }
+                            Some(k) if !dangerous && !sensitive => session_allowlist
+                                .read()
+                                .map(|s| s.contains(&k))
+                                .unwrap_or(false),
                             _ => false,
                         }
                     };
                     if already_allowed {
                         true
                     } else {
-                        match wait_for_approval(
-                    &approvals,
-                    &window,
-                    &session_id,
-                    tc,
-                    &mut abort_rx,
-                )
-                .await
-                {
+                        match wait_for_approval(&approvals, &window, &session_id, tc, &mut abort_rx)
+                            .await
+                        {
                             Ok(v) => {
-                                if v
-                                    && let Some(key) = session_cmd_key(tc)
-                                {
+                                if v && let Some(key) = session_cmd_key(tc) {
                                     if let Ok(mut set) = session_allowlist.write() {
                                         set.insert(key);
                                     }
@@ -1197,7 +1226,8 @@ pub(crate) async fn run_agent(
             (i, o) => (
                 i.unwrap_or(s.price_per_million_tokens),
                 o.unwrap_or_else(|| {
-                    s.price_per_million_output_tokens.unwrap_or(s.price_per_million_tokens)
+                    s.price_per_million_output_tokens
+                        .unwrap_or(s.price_per_million_tokens)
                 }),
             ),
         };
@@ -1296,9 +1326,7 @@ pub(crate) async fn run_agent(
         "agent:stream",
         AgentStreamChunk {
             session_id,
-            payload: StreamPayload::Done {
-                usage: usage_accum,
-            },
+            payload: StreamPayload::Done { usage: usage_accum },
         },
     );
     // 提取最终回复文本（供工作流编排等场景使用）
@@ -1512,9 +1540,16 @@ async fn summarize_history(
             headers.push((k.clone(), v.clone()));
         }
     }
-    let resp = send_json_with_retry(&http_client, &url, &headers, &body, network.retry_enabled, network.retry_max)
-        .await
-        .map_err(|e| format!("压缩请求失败: {e}"))?;
+    let resp = send_json_with_retry(
+        &http_client,
+        &url,
+        &headers,
+        &body,
+        network.retry_enabled,
+        network.retry_max,
+    )
+    .await
+    .map_err(|e| format!("压缩请求失败: {e}"))?;
     let parsed: Value = resp
         .json()
         .await
@@ -1533,13 +1568,11 @@ fn is_same_week(a: Option<&str>, b: Option<&str>) -> bool {
     };
     match (a.and_then(parse), b.and_then(parse)) {
         (Some(x), Some(y)) => {
-            x.iso_week().year() == y.iso_week().year()
-                && x.iso_week().week() == y.iso_week().week()
+            x.iso_week().year() == y.iso_week().year() && x.iso_week().week() == y.iso_week().week()
         }
         _ => true, // 缺省视为同一周，避免误重置
     }
 }
-
 
 // ─── Approval wait ─────────────────────────────────────
 
@@ -1553,10 +1586,13 @@ async fn wait_for_approval(
     let (tx, rx) = oneshot::channel();
     {
         let mut map = approvals.lock().map_err(|e| e.to_string())?;
-        map.pending.entry(session_id.to_string()).or_default().push(ApprovalRequest {
-            tool_call_id: tc.id.clone(),
-            tx,
-        });
+        map.pending
+            .entry(session_id.to_string())
+            .or_default()
+            .push(ApprovalRequest {
+                tool_call_id: tc.id.clone(),
+                tx,
+            });
     }
     let _ = window.emit(
         "agent:approval",
@@ -1736,7 +1772,9 @@ mod fallback_tests {
     #[test]
     fn fallback_eligibility_classification() {
         // 传输错误（重试耗尽）→ 降级
-        assert!(is_fallback_eligible("请求失败（已重试 3 次）: connection reset"));
+        assert!(is_fallback_eligible(
+            "请求失败（已重试 3 次）: connection reset"
+        ));
         // 5xx / 429 → 降级
         assert!(is_fallback_eligible("API 错误 (500): boom"));
         assert!(is_fallback_eligible("API 错误 (503): unavailable"));

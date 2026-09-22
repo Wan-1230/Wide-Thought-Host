@@ -32,7 +32,11 @@ fn app_data_dir(state: &AppState) -> PathBuf {
     state
         .settings_path
         .read()
-        .map(|p| p.parent().map(Path::to_path_buf).unwrap_or_else(|| PathBuf::from(".")))
+        .map(|p| {
+            p.parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| PathBuf::from("."))
+        })
         .unwrap_or_else(|_| PathBuf::from("."))
 }
 
@@ -83,7 +87,8 @@ fn archive_current_data(app_data: &Path, dest_dir: &Path) -> Result<usize, Strin
             let path = entry.path();
             if path.is_file() {
                 let name = entry.file_name();
-                fs::copy(&path, dest_dir.join(&name)).map_err(|e| format!("备份当前数据失败：{e}"))?;
+                fs::copy(&path, dest_dir.join(&name))
+                    .map_err(|e| format!("备份当前数据失败：{e}"))?;
                 count += 1;
             }
         }
@@ -101,7 +106,9 @@ fn safe_join(root: &Path, rel: &str) -> Option<PathBuf> {
     // 确保目标仍在 root 之内（目录不存在时回退到原始路径比较）
     let canonical_root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
     let parent = dest.parent()?;
-    let canonical_parent = parent.canonicalize().unwrap_or_else(|_| parent.to_path_buf());
+    let canonical_parent = parent
+        .canonicalize()
+        .unwrap_or_else(|_| parent.to_path_buf());
     if canonical_parent.starts_with(&canonical_root) || canonical_parent == canonical_root {
         Some(dest)
     } else {
@@ -125,8 +132,8 @@ pub async fn backup_create(
 
     let file = fs::File::create(&target).map_err(|e| format!("创建备份文件失败：{e}"))?;
     let mut zip = zip::ZipWriter::new(file);
-    let options =
-        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
 
     let manifest = json!({
         "format": BACKUP_FORMAT,
@@ -144,7 +151,8 @@ pub async fn backup_create(
         let Ok(bytes) = fs::read(path) else { continue };
         zip.start_file(rel.clone(), options)
             .map_err(|e| format!("写入 {rel} 失败：{e}"))?;
-        zip.write_all(&bytes).map_err(|e| format!("写入 {rel} 失败：{e}"))?;
+        zip.write_all(&bytes)
+            .map_err(|e| format!("写入 {rel} 失败：{e}"))?;
     }
     let finished = zip.finish().map_err(|e| format!("完成打包失败：{e}"))?;
     let bytes = finished.metadata().map(|m| m.len()).unwrap_or(0);
@@ -187,7 +195,9 @@ pub async fn backup_restore(
 
     // 2. 恢复前自动备份当前数据
     let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
-    let pre_dir = app_data.join("backups").join(format!("pre-restore-{stamp}"));
+    let pre_dir = app_data
+        .join("backups")
+        .join(format!("pre-restore-{stamp}"));
     let archived = archive_current_data(&app_data, &pre_dir).map_err(|e| e.to_string())?;
     tracing::info!("恢复前已备份 {archived} 个文件到 {:?}", pre_dir);
 
@@ -229,7 +239,11 @@ pub async fn backup_restore(
     let reloaded = crate::settings::load_settings(&settings_path);
     *state.settings.write().map_err(|e| e.to_string())? = reloaded;
 
-    let sessions_path = state.sessions_path.lock().map_err(|e| e.to_string())?.clone();
+    let sessions_path = state
+        .sessions_path
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone();
     let sessions = crate::ipc::session::load_sessions(&sessions_path);
     *state.sessions.lock().map_err(|e| e.to_string())? = sessions;
 
@@ -307,7 +321,8 @@ pub async fn config_import(
 ) -> Result<String, String> {
     let path = PathBuf::from(&source_path);
     let raw = fs::read_to_string(&path).map_err(|e| format!("读取配置文件失败：{e}"))?;
-    let value: serde_json::Value = serde_json::from_str(&raw).map_err(|e| format!("配置格式无效：{e}"))?;
+    let value: serde_json::Value =
+        serde_json::from_str(&raw).map_err(|e| format!("配置格式无效：{e}"))?;
     if value.get("format").and_then(|v| v.as_str()) != Some(EXPORT_FORMAT) {
         return Err("不是有效的 WTH 配置导出文件".into());
     }
@@ -316,35 +331,85 @@ pub async fn config_import(
 
     // 常规设置
     if let Some(s) = value.get("settings") {
-        if let Some(v) = s.get("language").and_then(|v| v.as_str()) { settings.language = v.into(); }
-        if let Some(v) = s.get("close_action").and_then(|v| v.as_str()) { settings.close_action = v.into(); }
-        if let Some(v) = s.get("theme").and_then(|v| v.as_str()) { settings.theme = v.into(); }
-        if let Some(v) = s.get("font_scale").and_then(|v| v.as_str()) { settings.font_scale = v.into(); }
-        if let Some(v) = s.get("font_family").and_then(|v| v.as_str()) { settings.font_family = v.into(); }
-        if let Some(v) = s.get("custom_font_family").and_then(|v| v.as_str()) { settings.custom_font_family = Some(v.into()); }
-        if let Some(v) = s.get("session_display").and_then(|v| v.as_str()) { settings.session_display = v.into(); }
-        if let Some(v) = s.get("reasoning_effort").and_then(|v| v.as_str()) { settings.reasoning_effort = v.into(); }
-        if let Some(v) = s.get("edit_mode").and_then(|v| v.as_str()) { settings.edit_mode = v.into(); }
-        if let Some(v) = s.get("web_search_engine").and_then(|v| v.as_str()) { settings.web_search_engine = v.into(); }
-        if let Some(v) = s.get("show_system_events").and_then(|v| v.as_bool()) { settings.show_system_events = v; }
-        if let Some(v) = s.get("sound_enabled").and_then(|v| v.as_bool()) { settings.sound_enabled = v; }
-        if let Some(v) = s.get("headroom_enabled").and_then(|v| v.as_bool()) { settings.headroom_enabled = v; }
-        if let Some(v) = s.get("context_compression").and_then(|v| v.as_bool()) { settings.context_compression = v; }
-        if let Some(v) = s.get("context_window_tokens").and_then(|v| v.as_u64()) { settings.context_window_tokens = v as u32; }
-        if let Some(v) = s.get("price_per_million_tokens").and_then(|v| v.as_f64()) { settings.price_per_million_tokens = v; }
+        if let Some(v) = s.get("language").and_then(|v| v.as_str()) {
+            settings.language = v.into();
+        }
+        if let Some(v) = s.get("close_action").and_then(|v| v.as_str()) {
+            settings.close_action = v.into();
+        }
+        if let Some(v) = s.get("theme").and_then(|v| v.as_str()) {
+            settings.theme = v.into();
+        }
+        if let Some(v) = s.get("font_scale").and_then(|v| v.as_str()) {
+            settings.font_scale = v.into();
+        }
+        if let Some(v) = s.get("font_family").and_then(|v| v.as_str()) {
+            settings.font_family = v.into();
+        }
+        if let Some(v) = s.get("custom_font_family").and_then(|v| v.as_str()) {
+            settings.custom_font_family = Some(v.into());
+        }
+        if let Some(v) = s.get("session_display").and_then(|v| v.as_str()) {
+            settings.session_display = v.into();
+        }
+        if let Some(v) = s.get("reasoning_effort").and_then(|v| v.as_str()) {
+            settings.reasoning_effort = v.into();
+        }
+        if let Some(v) = s.get("edit_mode").and_then(|v| v.as_str()) {
+            settings.edit_mode = v.into();
+        }
+        if let Some(v) = s.get("web_search_engine").and_then(|v| v.as_str()) {
+            settings.web_search_engine = v.into();
+        }
+        if let Some(v) = s.get("show_system_events").and_then(|v| v.as_bool()) {
+            settings.show_system_events = v;
+        }
+        if let Some(v) = s.get("sound_enabled").and_then(|v| v.as_bool()) {
+            settings.sound_enabled = v;
+        }
+        if let Some(v) = s.get("headroom_enabled").and_then(|v| v.as_bool()) {
+            settings.headroom_enabled = v;
+        }
+        if let Some(v) = s.get("context_compression").and_then(|v| v.as_bool()) {
+            settings.context_compression = v;
+        }
+        if let Some(v) = s.get("context_window_tokens").and_then(|v| v.as_u64()) {
+            settings.context_window_tokens = v as u32;
+        }
+        if let Some(v) = s.get("price_per_million_tokens").and_then(|v| v.as_f64()) {
+            settings.price_per_million_tokens = v;
+        }
     }
 
     // Providers：按 id 合并，保留本地已有凭据，新增的标记"待补凭据"
     if let Some(arr) = value.get("providers").and_then(|v| v.as_array()) {
         for pv in arr {
-            let Some(id) = pv.get("id").and_then(|v| v.as_str()) else { continue };
+            let Some(id) = pv.get("id").and_then(|v| v.as_str()) else {
+                continue;
+            };
             if settings.providers.iter().any(|p| p.id == id) {
                 continue; // 已存在：保留本地配置与凭据
             }
-            let name = pv.get("name").and_then(|v| v.as_str()).unwrap_or(id).to_string();
-            let kind = pv.get("kind").and_then(|v| v.as_str()).unwrap_or("openai-compatible").to_string();
-            let base_url = pv.get("base_url").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let model = pv.get("model").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let name = pv
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or(id)
+                .to_string();
+            let kind = pv
+                .get("kind")
+                .and_then(|v| v.as_str())
+                .unwrap_or("openai-compatible")
+                .to_string();
+            let base_url = pv
+                .get("base_url")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let model = pv
+                .get("model")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             let enabled = pv.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
             let builtin = pv.get("builtin").and_then(|v| v.as_bool()).unwrap_or(false);
             settings.providers.push(crate::settings::ProviderConfig {
@@ -367,7 +432,9 @@ pub async fn config_import(
         }
     }
     if let Some(arr) = value.get("subagents").and_then(|v| v.as_array()) {
-        if let Ok(agents) = serde_json::from_value::<Vec<crate::settings::SubagentConfig>>(serde_json::Value::Array(arr.clone())) {
+        if let Ok(agents) = serde_json::from_value::<Vec<crate::settings::SubagentConfig>>(
+            serde_json::Value::Array(arr.clone()),
+        ) {
             settings.subagents = agents;
         }
     }
@@ -381,7 +448,9 @@ pub async fn config_import(
         settings.shortcuts = map;
     }
     if let Some(arr) = value.get("prompt_templates").and_then(|v| v.as_array()) {
-        if let Ok(templates) = serde_json::from_value::<Vec<crate::settings::PromptTemplate>>(serde_json::Value::Array(arr.clone())) {
+        if let Ok(templates) = serde_json::from_value::<Vec<crate::settings::PromptTemplate>>(
+            serde_json::Value::Array(arr.clone()),
+        ) {
             settings.prompt_templates = templates;
         }
     }
@@ -423,18 +492,23 @@ pub async fn team_config_import(
 ) -> Result<String, String> {
     let path = PathBuf::from(&source_path);
     let raw = fs::read_to_string(&path).map_err(|e| format!("读取配置文件失败：{e}"))?;
-    let value: serde_json::Value = serde_json::from_str(&raw).map_err(|e| format!("配置格式无效：{e}"))?;
+    let value: serde_json::Value =
+        serde_json::from_str(&raw).map_err(|e| format!("配置格式无效：{e}"))?;
     if value.get("format").and_then(|v| v.as_str()) != Some("wth-team-config") {
         return Err("不是有效的 WTH 团队配置文件".into());
     }
     let mut settings = state.settings.read().map_err(|e| e.to_string())?.clone();
     if let Some(arr) = value.get("subagents").and_then(|v| v.as_array()) {
-        if let Ok(agents) = serde_json::from_value::<Vec<crate::settings::SubagentConfig>>(serde_json::Value::Array(arr.clone())) {
+        if let Ok(agents) = serde_json::from_value::<Vec<crate::settings::SubagentConfig>>(
+            serde_json::Value::Array(arr.clone()),
+        ) {
             settings.subagents = agents;
         }
     }
     if let Some(arr) = value.get("prompt_templates").and_then(|v| v.as_array()) {
-        if let Ok(templates) = serde_json::from_value::<Vec<crate::settings::PromptTemplate>>(serde_json::Value::Array(arr.clone())) {
+        if let Ok(templates) = serde_json::from_value::<Vec<crate::settings::PromptTemplate>>(
+            serde_json::Value::Array(arr.clone()),
+        ) {
             settings.prompt_templates = templates;
         }
     }

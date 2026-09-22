@@ -14,9 +14,9 @@
 //! treats them like other inspections; `git_commit` is `ToolKind::Execute`
 //! and therefore goes through the normal approval flow.
 
-use crate::types::tool::{ToolKind, ToolNamespace};
 #[allow(unused_imports)]
 use crate::types::resources::SharedResources;
+use crate::types::tool::{ToolKind, ToolNamespace};
 
 /// Output cap shared with other inspection tools (see
 /// `DEFAULT_TOOL_OUTPUT_BYTES`); git output is text, so this is chars.
@@ -38,7 +38,11 @@ async fn run_git(cwd: &std::path::Path, args: &[&str]) -> Result<String, String>
     if !output.status.success() {
         let hint = stderr.trim();
         return Err(if hint.is_empty() {
-            format!("git {} failed (exit {:?})", args.first().unwrap_or(&""), output.status.code())
+            format!(
+                "git {} failed (exit {:?})",
+                args.first().unwrap_or(&""),
+                output.status.code()
+            )
         } else {
             hint.to_string()
         });
@@ -351,7 +355,9 @@ impl xai_tool_runtime::Tool for GitCommitTool {
         }
         if input.stage_all.unwrap_or(false) {
             if let Err(e) = run_git(&cwd, &["add", "--update"]).await {
-                return Ok(GitToolOutput::Error(format!("git add --update failed: {e}")));
+                return Ok(GitToolOutput::Error(format!(
+                    "git add --update failed: {e}"
+                )));
             }
         }
         match run_git(&cwd, &["commit", "-m", &message]).await {
@@ -395,7 +401,9 @@ mod tests {
     async fn run_git_reports_missing_repo_stderr() {
         let tmp = std::env::temp_dir().join(format!("wth-git-tool-test-{}", std::process::id()));
         std::fs::create_dir_all(&tmp).unwrap();
-        let err = run_git(&tmp, &["status", "--porcelain=v1"]).await.unwrap_err();
+        let err = run_git(&tmp, &["status", "--porcelain=v1"])
+            .await
+            .unwrap_err();
         assert!(
             err.contains("not a git repository") || err.contains("git"),
             "unexpected error: {err}"

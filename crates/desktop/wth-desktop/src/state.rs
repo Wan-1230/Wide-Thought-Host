@@ -7,10 +7,10 @@ use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
 
-use crate::ipc::session::SessionInfo;
-use crate::mcp::McpManager;
-use crate::ipc::tools::ApprovalRequest;
 use crate::headroom::HeadroomManager;
+use crate::ipc::session::SessionInfo;
+use crate::ipc::tools::ApprovalRequest;
+use crate::mcp::McpManager;
 
 /// Active PTY terminal sessions keyed by ID.
 #[derive(Default)]
@@ -99,11 +99,7 @@ impl Default for AppState {
 }
 
 /// 向日志环形缓冲写入一条记录。
-pub fn push_log(
-    log_buffer: &Arc<Mutex<VecDeque<String>>>,
-    level: &str,
-    message: impl AsRef<str>,
-) {
+pub fn push_log(log_buffer: &Arc<Mutex<VecDeque<String>>>, level: &str, message: impl AsRef<str>) {
     let line = format!(
         "[{}] {} {}",
         chrono::Local::now().format("%H:%M:%S"),

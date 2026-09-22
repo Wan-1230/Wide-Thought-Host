@@ -32,7 +32,12 @@ pub async fn run_hooks(
         if !root.exists() {
             continue;
         }
-        for entry in WalkDir::new(&root).min_depth(1).max_depth(2).into_iter().flatten() {
+        for entry in WalkDir::new(&root)
+            .min_depth(1)
+            .max_depth(2)
+            .into_iter()
+            .flatten()
+        {
             if !entry.file_type().is_file() {
                 continue;
             }
@@ -49,7 +54,12 @@ pub async fn run_hooks(
             }
             // 开关：feature_toggles["hooks::{path}"]，默认启用
             let toggle_key = format!("hooks::{}", path.to_string_lossy());
-            if !settings.feature_toggles.get(&toggle_key).copied().unwrap_or(true) {
+            if !settings
+                .feature_toggles
+                .get(&toggle_key)
+                .copied()
+                .unwrap_or(true)
+            {
                 continue;
             }
             triggered.push(name.clone());
@@ -79,16 +89,34 @@ fn parse_hook_file(path: &Path, ext: &str) -> Option<(String, String, String)> {
     if ext == "json" {
         let v: Value = serde_json::from_str(&content).ok()?;
         Some((
-            v.get("name").and_then(|n| n.as_str()).unwrap_or("hook").to_string(),
-            v.get("trigger").and_then(|t| t.as_str()).unwrap_or("tool_after").to_string(),
-            v.get("command").and_then(|c| c.as_str()).unwrap_or("").to_string(),
+            v.get("name")
+                .and_then(|n| n.as_str())
+                .unwrap_or("hook")
+                .to_string(),
+            v.get("trigger")
+                .and_then(|t| t.as_str())
+                .unwrap_or("tool_after")
+                .to_string(),
+            v.get("command")
+                .and_then(|c| c.as_str())
+                .unwrap_or("")
+                .to_string(),
         ))
     } else {
         let v: toml::Value = toml::from_str(&content).ok()?;
         Some((
-            v.get("name").and_then(|n| n.as_str()).unwrap_or("hook").to_string(),
-            v.get("trigger").and_then(|t| t.as_str()).unwrap_or("tool_after").to_string(),
-            v.get("command").and_then(|c| c.as_str()).unwrap_or("").to_string(),
+            v.get("name")
+                .and_then(|n| n.as_str())
+                .unwrap_or("hook")
+                .to_string(),
+            v.get("trigger")
+                .and_then(|t| t.as_str())
+                .unwrap_or("tool_after")
+                .to_string(),
+            v.get("command")
+                .and_then(|c| c.as_str())
+                .unwrap_or("")
+                .to_string(),
         ))
     }
 }
@@ -119,19 +147,13 @@ fn spawn_hook_command(name: &str, command: &str, payload: Value) {
                 return;
             }
         };
-        match tokio::time::timeout(
-            std::time::Duration::from_secs(10),
-            child.wait_with_output(),
-        )
-        .await
+        match tokio::time::timeout(std::time::Duration::from_secs(10), child.wait_with_output())
+            .await
         {
             Ok(Ok(output)) => {
                 if !output.status.success() {
                     let stderr = String::from_utf8_lossy(&output.stderr);
-                    tracing::warn!(
-                        "Hook「{name}」退出码 {:?}：{stderr}",
-                        output.status.code()
-                    );
+                    tracing::warn!("Hook「{name}」退出码 {:?}：{stderr}", output.status.code());
                 }
             }
             Ok(Err(e)) => tracing::warn!("Hook「{name}」执行错误：{e}"),

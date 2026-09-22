@@ -848,10 +848,7 @@ mod tests {
             ..idle_state()
         };
         mgr.update(&state);
-        assert_eq!(
-            mgr.last_title,
-            "Thinking - proj - grok-3 - workspace - wth"
-        );
+        assert_eq!(mgr.last_title, "Thinking - proj - grok-3 - workspace - wth");
     }
 
     #[test]

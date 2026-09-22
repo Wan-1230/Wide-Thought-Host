@@ -1,6 +1,9 @@
 //! 子智能体 CRUD 命令。
 
-use crate::{settings::SubagentConfig, state::{AgentHandle, AppState}};
+use crate::{
+    settings::SubagentConfig,
+    state::{AgentHandle, AppState},
+};
 use tauri::{Emitter, State};
 
 #[tauri::command]
@@ -103,9 +106,12 @@ pub async fn subagent_run(
                     .to_string()
             })?
         };
-        let workspace_root = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
-        let fallback_chain =
-            crate::ipc::agent::resolve_fallback_chain(&settings, &provider.id)?;
+        let workspace_root = state
+            .workspace_root
+            .read()
+            .map_err(|e| e.to_string())?
+            .clone();
+        let fallback_chain = crate::ipc::agent::resolve_fallback_chain(&settings, &provider.id)?;
         (
             subagent,
             provider,

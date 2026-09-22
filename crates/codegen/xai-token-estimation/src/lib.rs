@@ -105,7 +105,14 @@ pub fn model_family(model: &str) -> ModelFamily {
         return ModelFamily::Anthropic;
     }
     const OPENAI_MARKERS: &[&str] = &[
-        "gpt-", "gpt4", "gpt5", "chatgpt", "codex", "davinci", "text-embedding", "omni",
+        "gpt-",
+        "gpt4",
+        "gpt5",
+        "chatgpt",
+        "codex",
+        "davinci",
+        "text-embedding",
+        "omni",
     ];
     if OPENAI_MARKERS.iter().any(|marker| m.contains(marker))
         || m.starts_with("o1")
@@ -126,7 +133,11 @@ pub fn model_family(model: &str) -> ModelFamily {
 pub fn estimate_tokens_for_model(model: &str, s: &str) -> u64 {
     match model_family(model) {
         ModelFamily::OpenAi => {
-            let bpe = if uses_o200k(model) { o200k_bpe() } else { cl100k_bpe() };
+            let bpe = if uses_o200k(model) {
+                o200k_bpe()
+            } else {
+                cl100k_bpe()
+            };
             bpe.and_then(|bpe| bpe.encode_ordinary(s).len().try_into().ok())
                 .unwrap_or_else(|| estimate_tokens(s))
         }
@@ -301,7 +312,10 @@ mod tests {
         assert_eq!(model_family("codex-latest"), ModelFamily::OpenAi);
         assert_eq!(model_family("deepseek-chat"), ModelFamily::DeepSeek);
         assert_eq!(model_family("deepseek-reasoner"), ModelFamily::DeepSeek);
-        assert_eq!(model_family("claude-sonnet-4-20250514"), ModelFamily::Anthropic);
+        assert_eq!(
+            model_family("claude-sonnet-4-20250514"),
+            ModelFamily::Anthropic
+        );
         assert_eq!(model_family("grok-build"), ModelFamily::Other);
         assert_eq!(model_family("qwen3:8b"), ModelFamily::Other);
         assert_eq!(model_family("llama3.2"), ModelFamily::Other);
@@ -326,10 +340,19 @@ mod tests {
             "",
             "mixed 中文 and english 🎉 emoji",
         ];
-        for model in ["gpt-4o", "gpt-4", "deepseek-chat", "claude-sonnet-4", "qwen3:8b"] {
+        for model in [
+            "gpt-4o",
+            "gpt-4",
+            "deepseek-chat",
+            "claude-sonnet-4",
+            "qwen3:8b",
+        ] {
             for s in samples {
                 let est = estimate_tokens_for_model(model, s);
-                assert!(est <= (s.len() as u64).max(1), "model={model} s={s:?} est={est}");
+                assert!(
+                    est <= (s.len() as u64).max(1),
+                    "model={model} s={s:?} est={est}"
+                );
             }
         }
     }

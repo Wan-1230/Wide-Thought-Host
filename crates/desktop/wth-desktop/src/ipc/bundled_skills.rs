@@ -6,16 +6,46 @@
 
 /// `(目录名, SKILL.md 内容)`，内容为仓库 `bundled-skills/` 的编译期内嵌。
 const BUNDLED_SKILLS: &[(&str, &str)] = &[
-    ("git-commit", include_str!("../../../../../bundled-skills/git-commit/SKILL.md")),
-    ("test-gen", include_str!("../../../../../bundled-skills/test-gen/SKILL.md")),
-    ("refactor", include_str!("../../../../../bundled-skills/refactor/SKILL.md")),
-    ("docs-gen", include_str!("../../../../../bundled-skills/docs-gen/SKILL.md")),
-    ("i18n-extract", include_str!("../../../../../bundled-skills/i18n-extract/SKILL.md")),
-    ("release-notes", include_str!("../../../../../bundled-skills/release-notes/SKILL.md")),
-    ("mcp-author", include_str!("../../../../../bundled-skills/mcp-author/SKILL.md")),
-    ("plugin-author", include_str!("../../../../../bundled-skills/plugin-author/SKILL.md")),
-    ("perf-profile", include_str!("../../../../../bundled-skills/perf-profile/SKILL.md")),
-    ("dependency-audit", include_str!("../../../../../bundled-skills/dependency-audit/SKILL.md")),
+    (
+        "git-commit",
+        include_str!("../../../../../bundled-skills/git-commit/SKILL.md"),
+    ),
+    (
+        "test-gen",
+        include_str!("../../../../../bundled-skills/test-gen/SKILL.md"),
+    ),
+    (
+        "refactor",
+        include_str!("../../../../../bundled-skills/refactor/SKILL.md"),
+    ),
+    (
+        "docs-gen",
+        include_str!("../../../../../bundled-skills/docs-gen/SKILL.md"),
+    ),
+    (
+        "i18n-extract",
+        include_str!("../../../../../bundled-skills/i18n-extract/SKILL.md"),
+    ),
+    (
+        "release-notes",
+        include_str!("../../../../../bundled-skills/release-notes/SKILL.md"),
+    ),
+    (
+        "mcp-author",
+        include_str!("../../../../../bundled-skills/mcp-author/SKILL.md"),
+    ),
+    (
+        "plugin-author",
+        include_str!("../../../../../bundled-skills/plugin-author/SKILL.md"),
+    ),
+    (
+        "perf-profile",
+        include_str!("../../../../../bundled-skills/perf-profile/SKILL.md"),
+    ),
+    (
+        "dependency-audit",
+        include_str!("../../../../../bundled-skills/dependency-audit/SKILL.md"),
+    ),
 ];
 
 /// 把内嵌技能种子到 `<home>/bundled/<name>/SKILL.md`（不覆盖既有文件）。
@@ -48,10 +78,7 @@ mod tests {
         let mut seen = std::collections::HashSet::new();
         for (name, content) in BUNDLED_SKILLS {
             assert!(seen.insert(*name), "重复技能目录: {name}");
-            assert!(
-                content.starts_with("---\n"),
-                "{name} 缺少 frontmatter"
-            );
+            assert!(content.starts_with("---\n"), "{name} 缺少 frontmatter");
             assert!(
                 content.contains("name:") && content.contains("description:"),
                 "{name} frontmatter 缺少 name/description"

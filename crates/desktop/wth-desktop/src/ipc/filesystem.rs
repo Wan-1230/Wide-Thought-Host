@@ -54,8 +54,9 @@ pub async fn file_read(
     let path = sanitize_path(&args.path, &root)?;
     let bytes = std::fs::read(&path).map_err(|e| format!("Failed to read {}: {}", args.path, e))?;
     match args.encoding.as_deref() {
-        Some("utf-8") | None => String::from_utf8(bytes)
-            .map_err(|e| format!("文件不是合法 UTF-8: {}", e)),
+        Some("utf-8") | None => {
+            String::from_utf8(bytes).map_err(|e| format!("文件不是合法 UTF-8: {}", e))
+        }
         Some("utf-16") | Some("utf-16le") => String::from_utf16(
             &bytes
                 .chunks_exact(2)
@@ -107,9 +108,7 @@ pub async fn open_in_explorer(
     {
         use std::process::Command;
         let status = if p.is_dir() {
-            Command::new("explorer")
-                .arg(&p)
-                .status()
+            Command::new("explorer").arg(&p).status()
         } else {
             Command::new("explorer")
                 .arg(format!("/select,{}", p.display()))

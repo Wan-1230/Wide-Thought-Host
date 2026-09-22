@@ -661,8 +661,9 @@ impl NetworkConfig {
     /// 按配置构建 HTTP 客户端（G12）：代理模式 + 连接超时。
     /// 流式响应不设整体超时，只限制连接阶段，避免长流被切断。
     pub fn build_client(&self) -> Result<reqwest::Client, String> {
-        let mut builder = reqwest::Client::builder()
-            .connect_timeout(std::time::Duration::from_secs(self.request_timeout_secs.max(1)));
+        let mut builder = reqwest::Client::builder().connect_timeout(
+            std::time::Duration::from_secs(self.request_timeout_secs.max(1)),
+        );
         match self.proxy_mode.as_str() {
             "off" => {
                 builder = builder.no_proxy();
@@ -679,7 +680,9 @@ impl NetworkConfig {
             // "system"：不设置 proxy，reqwest 默认读取系统代理
             _ => {}
         }
-        builder.build().map_err(|e| format!("HTTP 客户端构建失败：{e}"))
+        builder
+            .build()
+            .map_err(|e| format!("HTTP 客户端构建失败：{e}"))
     }
 }
 
@@ -726,13 +729,22 @@ fn validate(settings: &DesktopSettings) -> Result<(), String> {
     if !matches!(settings.font_scale.as_str(), "small" | "medium" | "large") {
         return Err("字体缩放无效".into());
     }
-    if !matches!(settings.font_family.as_str(), "sans" | "system" | "serif" | "custom") {
+    if !matches!(
+        settings.font_family.as_str(),
+        "sans" | "system" | "serif" | "custom"
+    ) {
         return Err("字体族无效".into());
     }
-    if !matches!(settings.reasoning_effort.as_str(), "low" | "medium" | "high" | "max") {
+    if !matches!(
+        settings.reasoning_effort.as_str(),
+        "low" | "medium" | "high" | "max"
+    ) {
         return Err("推理力度无效".into());
     }
-    if !matches!(settings.edit_mode.as_str(), "plan" | "review" | "auto" | "yolo") {
+    if !matches!(
+        settings.edit_mode.as_str(),
+        "plan" | "review" | "auto" | "yolo"
+    ) {
         return Err("编辑模式无效".into());
     }
     if !matches!(
@@ -924,7 +936,12 @@ pub async fn provider_test(id: String, state: State<'_, AppState>) -> Result<Str
         return Err("尚未配置 API Key".into());
     }
     let endpoint = format!("{}/models", provider.base_url.trim_end_matches('/'));
-    let network = state.settings.read().map_err(|e| e.to_string())?.network.clone();
+    let network = state
+        .settings
+        .read()
+        .map_err(|e| e.to_string())?
+        .network
+        .clone();
     let client = network.build_client()?;
     let request = match (&key, provider.kind.as_str()) {
         (Some(k), "anthropic") => client
@@ -1191,7 +1208,10 @@ mod tests {
         let client = n.build_client().unwrap();
         let _ = client; // 构建成功即可
     }
-    use super::{DesktopSettings, default_shortcuts, default_subagents, load_settings, save_settings, validate};
+    use super::{
+        DesktopSettings, default_shortcuts, default_subagents, load_settings, save_settings,
+        validate,
+    };
 
     #[test]
     fn settings_round_trip() {
@@ -1211,7 +1231,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("does-not-exist.json");
         let settings = load_settings(&path);
-        assert_eq!(settings.default_provider_id.as_deref(), Some("agnes-default"));
+        assert_eq!(
+            settings.default_provider_id.as_deref(),
+            Some("agnes-default")
+        );
         assert!(!settings.providers.is_empty());
     }
 
@@ -1254,7 +1277,12 @@ mod tests {
     #[test]
     fn default_shortcuts_cover_required_actions() {
         let shortcuts = default_shortcuts();
-        for action in ["toggle_window", "command_palette", "new_session", "send_message"] {
+        for action in [
+            "toggle_window",
+            "command_palette",
+            "new_session",
+            "send_message",
+        ] {
             assert!(shortcuts.contains_key(action), "缺少快捷键 {action}");
         }
     }
@@ -1263,7 +1291,10 @@ mod tests {
     fn default_workflows_contain_review_pipeline() {
         let workflows = super::default_workflows();
         assert!(!workflows.is_empty());
-        let pipeline = workflows.iter().find(|w| w.id == "builtin-review-pipeline").unwrap();
+        let pipeline = workflows
+            .iter()
+            .find(|w| w.id == "builtin-review-pipeline")
+            .unwrap();
         assert!(pipeline.nodes.len() >= 4);
         // 汇总节点依赖前三个并行节点
         let summary = pipeline.nodes.iter().find(|n| n.id == "summary").unwrap();

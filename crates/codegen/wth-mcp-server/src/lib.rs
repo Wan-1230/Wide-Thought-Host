@@ -11,7 +11,7 @@
 //! [`handle_message`] 是纯函数：入站 JSON-RPC 消息 → 响应（通知返回 None），
 //! 单测可完整覆盖协议形状；[`run_stdio_server`] 只负责行循环。
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 
@@ -58,7 +58,10 @@ pub fn handle_message(msg: &Value, state: &ServerState) -> Option<Value> {
                 .and_then(Value::as_str)
                 .unwrap_or("")
                 .to_string();
-            let args = msg.pointer("/params/arguments").cloned().unwrap_or(json!({}));
+            let args = msg
+                .pointer("/params/arguments")
+                .cloned()
+                .unwrap_or(json!({}));
             let result = call_tool(state, &name, &args);
             // MCP 工具错误以 isError 结果返回（而非 JSON-RPC error），客户端可读性更好。
             respond(Ok(result))
@@ -129,7 +132,10 @@ pub fn call_tool(state: &ServerState, name: &str, args: &Value) -> Value {
         "wth_list_dir" => tool_list_dir(state, args),
         "wth_grep" => tool_grep(state, args),
         "wth_ask" => tool_wth_ask(state, args),
-        _ => Err(format!("未知工具: {name}（可用: {}）", TOOL_NAMES.join(", "))),
+        _ => Err(format!(
+            "未知工具: {name}（可用: {}）",
+            TOOL_NAMES.join(", ")
+        )),
     };
     match text {
         Ok(text) => json!({
@@ -334,7 +340,10 @@ fn tool_wth_ask(state: &ServerState, args: &Value) -> Result<String, String> {
         return Err(format!(
             "WTH Agent 退出码 {:?}: {}",
             output.status.code(),
-            String::from_utf8_lossy(&output.stderr).chars().take(500).collect::<String>()
+            String::from_utf8_lossy(&output.stderr)
+                .chars()
+                .take(500)
+                .collect::<String>()
         ));
     }
     let text: String = String::from_utf8_lossy(&output.stdout)
@@ -393,9 +402,17 @@ mod tests {
 
     fn temp_workspace() -> (tempfile::TempDir, ServerState) {
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("hello.rs"), "fn main() {\n    println!(\"你好 WTH\");\n}\n").unwrap();
+        std::fs::write(
+            dir.path().join("hello.rs"),
+            "fn main() {\n    println!(\"你好 WTH\");\n}\n",
+        )
+        .unwrap();
         std::fs::create_dir(dir.path().join("sub")).unwrap();
-        std::fs::write(dir.path().join("sub").join("notes.md"), "# 笔记\n搜索目标内容在这里。\n").unwrap();
+        std::fs::write(
+            dir.path().join("sub").join("notes.md"),
+            "# 笔记\n搜索目标内容在这里。\n",
+        )
+        .unwrap();
         let state = ServerState {
             root: dir.path().to_path_buf(),
         };
@@ -420,19 +437,37 @@ mod tests {
     fn notifications_and_unknown_methods() {
         let (_dir, state) = temp_workspace();
         // 通知：无 id → 无响应
-        assert!(handle_message(&json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }), &state).is_none());
+        assert!(
+            handle_message(
+                &json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }),
+                &state
+            )
+            .is_none()
+        );
         // 未知方法（带 id）→ -32601
-        let resp = handle_message(&json!({ "jsonrpc": "2.0", "id": 2, "method": "no/such" }), &state).unwrap();
+        let resp = handle_message(
+            &json!({ "jsonrpc": "2.0", "id": 2, "method": "no/such" }),
+            &state,
+        )
+        .unwrap();
         assert_eq!(resp["error"]["code"], -32601);
         // ping
-        let resp = handle_message(&json!({ "jsonrpc": "2.0", "id": 3, "method": "ping" }), &state).unwrap();
+        let resp = handle_message(
+            &json!({ "jsonrpc": "2.0", "id": 3, "method": "ping" }),
+            &state,
+        )
+        .unwrap();
         assert_eq!(resp["result"], json!({}));
     }
 
     #[test]
     fn tools_list_matches_dispatch() {
         let (_dir, state) = temp_workspace();
-        let resp = handle_message(&json!({ "jsonrpc": "2.0", "id": 4, "method": "tools/list" }), &state).unwrap();
+        let resp = handle_message(
+            &json!({ "jsonrpc": "2.0", "id": 4, "method": "tools/list" }),
+            &state,
+        )
+        .unwrap();
         let tools = resp["result"]["tools"].as_array().unwrap();
         let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
         assert_eq!(names, TOOL_NAMES);
@@ -443,13 +478,26 @@ mod tests {
         let (_dir, state) = temp_workspace();
         let out = call_tool(&state, "wth_read_file", &json!({ "path": "hello.rs" }));
         assert_eq!(out["isError"], false);
-        assert!(out["content"][0]["text"].as_str().unwrap().contains("你好 WTH"));
+        assert!(
+            out["content"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("你好 WTH")
+        );
 
         // 绝对路径拒绝
-        let out = call_tool(&state, "wth_read_file", &json!({ "path": "C:/Windows/win.ini" }));
+        let out = call_tool(
+            &state,
+            "wth_read_file",
+            &json!({ "path": "C:/Windows/win.ini" }),
+        );
         assert_eq!(out["isError"], true);
         // .. 逃逸拒绝（规范化后出根）
-        let out = call_tool(&state, "wth_read_file", &json!({ "path": "sub/../../outside.txt" }));
+        let out = call_tool(
+            &state,
+            "wth_read_file",
+            &json!({ "path": "sub/../../outside.txt" }),
+        );
         assert_eq!(out["isError"], true);
         // 未知工具
         let out = call_tool(&state, "wth_nothing", &json!({}));
@@ -469,7 +517,12 @@ mod tests {
         assert!(text.contains("notes.md:2"), "grep hit: {text}");
 
         let out = call_tool(&state, "wth_grep", &json!({ "pattern": "不存在的内容xyz" }));
-        assert!(out["content"][0]["text"].as_str().unwrap().contains("未命中"));
+        assert!(
+            out["content"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("未命中")
+        );
     }
 
     #[test]
@@ -477,12 +530,15 @@ mod tests {
         // 端到端：喂三行请求，读三行响应。
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("a.txt"), "内容").unwrap();
-        let state = ServerState { root: dir.path().to_path_buf() };
+        let state = ServerState {
+            root: dir.path().to_path_buf(),
+        };
         let lines = vec![
             json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {} }).to_string(),
             json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }).to_string(),
             json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/call",
-                    "params": { "name": "wth_read_file", "arguments": { "path": "a.txt" } } }).to_string(),
+                    "params": { "name": "wth_read_file", "arguments": { "path": "a.txt" } } })
+            .to_string(),
         ];
         let mut responses = Vec::new();
         for line in lines {
@@ -494,6 +550,11 @@ mod tests {
         assert_eq!(responses.len(), 2);
         assert_eq!(responses[0]["id"], 1);
         assert_eq!(responses[1]["id"], 2);
-        assert!(responses[1]["result"]["content"][0]["text"].as_str().unwrap().contains("内容"));
+        assert!(
+            responses[1]["result"]["content"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("内容")
+        );
     }
 }

@@ -102,12 +102,7 @@ pub fn append_run_event(path: &Path, event: &RunEvent) {
 }
 
 /// 便捷：写 run 事件（seq 用时间戳毫秒近似，避免额外状态）。
-pub fn log_run_event(
-    path: &Path,
-    session_id: &str,
-    kind: &str,
-    detail: Option<serde_json::Value>,
-) {
+pub fn log_run_event(path: &Path, session_id: &str, kind: &str, detail: Option<serde_json::Value>) {
     let seq = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
@@ -143,7 +138,14 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("audit.jsonl");
         record_approval(&path, "s1", "bash", &json!({"command":"ls"}), true, false);
-        record_approval(&path, "s1", "bash", &json!({"command":"rm -rf /"}), false, true);
+        record_approval(
+            &path,
+            "s1",
+            "bash",
+            &json!({"command":"rm -rf /"}),
+            false,
+            true,
+        );
         let text = std::fs::read_to_string(&path).unwrap();
         assert_eq!(text.lines().count(), 2);
         assert!(text.contains("dangerous_tool_decision"));

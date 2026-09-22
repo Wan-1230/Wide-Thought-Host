@@ -40,11 +40,11 @@ pub use error_codes::{
 };
 pub use error_wire::ToolErrorWire;
 pub use extension_v1::{
-    HandshakeRequest as ExtHandshakeRequest, HandshakeResponse as ExtHandshakeResponse,
-    InterceptDecision, InterceptPoint, InterceptRequest as ExtInterceptRequest,
-    InterceptResponse as ExtInterceptResponse, ExtensionManifest,
-    accept_handshake as ext_accept_handshake, detect_slot_collisions, validate_replace,
-    PROTOCOL_VERSION as EXTENSION_PROTOCOL_VERSION,
+    ExtensionManifest, HandshakeRequest as ExtHandshakeRequest,
+    HandshakeResponse as ExtHandshakeResponse, InterceptDecision, InterceptPoint,
+    InterceptRequest as ExtInterceptRequest, InterceptResponse as ExtInterceptResponse,
+    PROTOCOL_VERSION as EXTENSION_PROTOCOL_VERSION, accept_handshake as ext_accept_handshake,
+    detect_slot_collisions, validate_replace,
 };
 pub use frames::{
     AttachRoute, HookFrame, HookReplyFrame, LastSeq, LogsDonateParams, MAX_DONATION_BYTES,

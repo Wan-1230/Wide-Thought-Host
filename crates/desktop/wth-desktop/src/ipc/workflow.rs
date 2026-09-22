@@ -113,7 +113,11 @@ pub async fn workflow_run(
                 .to_string()
         })?
     };
-    let workspace_root = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    let workspace_root = state
+        .workspace_root
+        .read()
+        .map_err(|e| e.to_string())?
+        .clone();
     let edit_mode = settings.edit_mode.clone();
     let reasoning_effort = settings.reasoning_effort.clone();
     let subagents = settings.subagents.clone();
@@ -390,7 +394,10 @@ pub async fn workflow_run(
 
         // 落盘运行结果（便于追溯）
         let path = results_dir.join(format!("{run_id_clone}.json"));
-        let _ = std::fs::write(path, serde_json::to_string_pretty(&payload).unwrap_or_default());
+        let _ = std::fs::write(
+            path,
+            serde_json::to_string_pretty(&payload).unwrap_or_default(),
+        );
     });
 
     Ok(run_id)
@@ -426,10 +433,7 @@ fn render_input(
     let mut out = node.input_template.clone();
     out = out.replace("{{input}}", input);
     for (dep_id, result) in completed {
-        out = out.replace(
-            &format!("{{{{prev_output:{dep_id}}}}}"),
-            &result.output,
-        );
+        out = out.replace(&format!("{{{{prev_output:{dep_id}}}}}"), &result.output);
     }
     if out.trim().is_empty() {
         out = input.to_string();
@@ -481,15 +485,29 @@ mod tests {
         let n = node("c", vec!["a", "b"], "");
         let mut completed = HashMap::new();
         assert!(!deps_satisfied(&n, &completed));
-        completed.insert("a".into(), super::WorkflowRunResult {
-            node_id: "a".into(), node_name: "a".into(), status: "done".into(),
-            output: String::new(), sub_session_id: String::new(), error: None,
-        });
+        completed.insert(
+            "a".into(),
+            super::WorkflowRunResult {
+                node_id: "a".into(),
+                node_name: "a".into(),
+                status: "done".into(),
+                output: String::new(),
+                sub_session_id: String::new(),
+                error: None,
+            },
+        );
         assert!(!deps_satisfied(&n, &completed));
-        completed.insert("b".into(), super::WorkflowRunResult {
-            node_id: "b".into(), node_name: "b".into(), status: "done".into(),
-            output: String::new(), sub_session_id: String::new(), error: None,
-        });
+        completed.insert(
+            "b".into(),
+            super::WorkflowRunResult {
+                node_id: "b".into(),
+                node_name: "b".into(),
+                status: "done".into(),
+                output: String::new(),
+                sub_session_id: String::new(),
+                error: None,
+            },
+        );
         assert!(deps_satisfied(&n, &completed));
     }
 
@@ -497,15 +515,29 @@ mod tests {
     fn deps_on_failure_requires_error() {
         let n = node("rescue", vec!["a"], "on_failure");
         let mut completed = HashMap::new();
-        completed.insert("a".into(), super::WorkflowRunResult {
-            node_id: "a".into(), node_name: "a".into(), status: "done".into(),
-            output: String::new(), sub_session_id: String::new(), error: None,
-        });
+        completed.insert(
+            "a".into(),
+            super::WorkflowRunResult {
+                node_id: "a".into(),
+                node_name: "a".into(),
+                status: "done".into(),
+                output: String::new(),
+                sub_session_id: String::new(),
+                error: None,
+            },
+        );
         assert!(!deps_satisfied(&n, &completed));
-        completed.insert("a".into(), super::WorkflowRunResult {
-            node_id: "a".into(), node_name: "a".into(), status: "error".into(),
-            output: String::new(), sub_session_id: String::new(), error: Some("x".into()),
-        });
+        completed.insert(
+            "a".into(),
+            super::WorkflowRunResult {
+                node_id: "a".into(),
+                node_name: "a".into(),
+                status: "error".into(),
+                output: String::new(),
+                sub_session_id: String::new(),
+                error: Some("x".into()),
+            },
+        );
         assert!(deps_satisfied(&n, &completed));
     }
 
@@ -514,10 +546,17 @@ mod tests {
         let mut n = node("s", vec![], "");
         n.input_template = "输入：{{input}}；上一轮：{{prev_output:a}}".into();
         let mut completed = HashMap::new();
-        completed.insert("a".into(), super::WorkflowRunResult {
-            node_id: "a".into(), node_name: "a".into(), status: "done".into(),
-            output: "审查结论".into(), sub_session_id: String::new(), error: None,
-        });
+        completed.insert(
+            "a".into(),
+            super::WorkflowRunResult {
+                node_id: "a".into(),
+                node_name: "a".into(),
+                status: "done".into(),
+                output: "审查结论".into(),
+                sub_session_id: String::new(),
+                error: None,
+            },
+        );
         let out = render_input(&n, "任务", &completed);
         assert_eq!(out, "输入：任务；上一轮：审查结论");
     }

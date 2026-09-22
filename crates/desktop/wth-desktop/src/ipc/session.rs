@@ -241,12 +241,12 @@ pub async fn session_set_pinned(
 
 /// Export a session as Markdown.
 #[tauri::command]
-pub async fn session_export(
-    id: String,
-    format: Option<String>,
-) -> Result<String, String> {
+pub async fn session_export(id: String, format: Option<String>) -> Result<String, String> {
     let fmt = format.unwrap_or_else(|| "markdown".into());
-    Ok(format!("# Session {}\n\n_Exported in {} format._\n", id, fmt))
+    Ok(format!(
+        "# Session {}\n\n_Exported in {} format._\n",
+        id, fmt
+    ))
 }
 
 /// Get a single session with its metadata.
@@ -356,7 +356,11 @@ pub async fn session_save_messages(
     let mut sessions = state.sessions.lock().map_err(|e| e.to_string())?;
     if let Some(s) = sessions.iter_mut().find(|s| s.id == id) {
         s.message_count = messages.len() as u64;
-        let path = state.sessions_path.lock().map_err(|e| e.to_string())?.clone();
+        let path = state
+            .sessions_path
+            .lock()
+            .map_err(|e| e.to_string())?
+            .clone();
         save_sessions(&path, &sessions);
     }
     Ok(())
@@ -443,7 +447,9 @@ pub async fn session_search(
             if session_id.is_empty() {
                 continue;
             }
-            let Ok(raw) = std::fs::read_to_string(&path) else { continue };
+            let Ok(raw) = std::fs::read_to_string(&path) else {
+                continue;
+            };
             let Ok(messages) = serde_json::from_str::<Vec<serde_json::Value>>(&raw) else {
                 continue;
             };

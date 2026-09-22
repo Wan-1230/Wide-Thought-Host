@@ -984,7 +984,9 @@ impl ToolOutput {
             ToolOutput::ImageToVideo(m) => m.prompt_text("Video generated"),
             ToolOutput::ReferenceToVideo(m) => m.prompt_text("Video generated"),
             ToolOutput::ImageEdit(m) => m.prompt_text("Image edited"),
-            ToolOutput::DeployApp(crate::implementations::grok_build::deploy_app::DeployAppOutput::Error(e)) => {
+            ToolOutput::DeployApp(
+                crate::implementations::grok_build::deploy_app::DeployAppOutput::Error(e),
+            ) => {
                 format!("Error: {e}")
             }
             ToolOutput::Git(o) => match o {

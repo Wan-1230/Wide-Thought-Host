@@ -22,9 +22,9 @@ impl ChildJob {
     /// 超限，因此默认不启用（由设置显式开启）。
     pub fn create_with_memory_limit(limit_mb: Option<u64>) -> Option<ChildJob> {
         use windows_sys::Win32::System::JobObjects::{
-            CreateJobObjectW, JobObjectExtendedLimitInformation,
-            SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-            JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+            CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+            JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+            SetInformationJobObject,
         };
         unsafe {
             let handle = CreateJobObjectW(std::ptr::null(), std::ptr::null());
@@ -105,8 +105,8 @@ impl RestrictedToken {
     pub fn create() -> Result<Self, String> {
         use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
         use windows_sys::Win32::Security::{
-            CreateRestrictedToken, GetTokenInformation, TokenElevation, TOKEN_ELEVATION,
-            TOKEN_QUERY, DISABLE_MAX_PRIVILEGE, LUA_TOKEN, SANDBOX_INERT,
+            CreateRestrictedToken, DISABLE_MAX_PRIVILEGE, GetTokenInformation, LUA_TOKEN,
+            SANDBOX_INERT, TOKEN_ELEVATION, TOKEN_QUERY, TokenElevation,
         };
         use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
@@ -226,9 +226,9 @@ impl ChildSandbox {
             WAIT_OBJECT_0,
         };
         use windows_sys::Win32::System::Threading::{
-            CreateProcessAsUserW, GetExitCodeProcess, ResumeThread, TerminateProcess,
-            WaitForSingleObject, CREATE_NO_WINDOW, CREATE_SUSPENDED, PROCESS_INFORMATION,
-            STARTF_USESTDHANDLES, STARTUPINFOW,
+            CREATE_NO_WINDOW, CREATE_SUSPENDED, CreateProcessAsUserW, GetExitCodeProcess,
+            PROCESS_INFORMATION, ResumeThread, STARTF_USESTDHANDLES, STARTUPINFOW,
+            TerminateProcess, WaitForSingleObject,
         };
 
         let Some(token) = self.token.as_ref() else {
@@ -282,16 +282,8 @@ impl ChildSandbox {
                 return Err(format!("CreatePipe failed: {}", GetLastError()));
             }
             // 父进程读端不要继承
-            let _ = SetHandleInformation(
-                stdout_read,
-                HANDLE_FLAG_INHERIT,
-                0,
-            );
-            let _ = SetHandleInformation(
-                stderr_read,
-                HANDLE_FLAG_INHERIT,
-                0,
-            );
+            let _ = SetHandleInformation(stdout_read, HANDLE_FLAG_INHERIT, 0);
+            let _ = SetHandleInformation(stderr_read, HANDLE_FLAG_INHERIT, 0);
 
             let mut si: STARTUPINFOW = std::mem::zeroed();
             si.cb = std::mem::size_of::<STARTUPINFOW>() as u32;

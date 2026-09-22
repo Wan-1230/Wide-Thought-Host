@@ -68,10 +68,7 @@ fn check_paths(checks: &mut Vec<DoctorCheck>) {
         if home_ok {
             format!("home: {}", home.display())
         } else {
-            format!(
-                "home missing (created on first use): {}",
-                home.display()
-            )
+            format!("home missing (created on first use): {}", home.display())
         },
         None,
         if home_ok {
@@ -164,9 +161,7 @@ fn check_terminal(checks: &mut Vec<DoctorCheck>) {
         && xai_grok_shell::util::clipboard::is_remote_session()
     {
         status = "warn";
-        fix = Some(
-            "macOS Terminal lacks OSC 52 — clipboard over SSH will not work".to_string(),
-        );
+        fix = Some("macOS Terminal lacks OSC 52 — clipboard over SSH will not work".to_string());
     } else if matches!(
         level,
         crate::theme::color_support::ColorLevel::None

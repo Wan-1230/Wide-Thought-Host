@@ -5,11 +5,11 @@
 //! 模型调用时通过 tools/call 执行并回传结果。
 //! 服务器启动失败或超时会自动降级（跳过该服务器，不影响主流程）。
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::ChildStdout;
 use tokio::sync::Mutex;
@@ -72,7 +72,9 @@ pub fn read_mcp_servers(
             continue;
         };
         for (name, entry) in mcp_servers {
-            let Some(table) = entry.as_table() else { continue };
+            let Some(table) = entry.as_table() else {
+                continue;
+            };
             let Some(command) = table.get("command").and_then(|v| v.as_str()) else {
                 // 仅支持 stdio（command），HTTP 服务器暂不接入
                 continue;
@@ -207,9 +209,9 @@ impl McpClient {
     }
 
     async fn request(&mut self, msg: Value) -> Result<Value, String> {
-        let id = msg["id"].as_u64().unwrap_or_else(|| {
-            self.next_id.fetch_add(1, Ordering::Relaxed)
-        });
+        let id = msg["id"]
+            .as_u64()
+            .unwrap_or_else(|| self.next_id.fetch_add(1, Ordering::Relaxed));
         let (tx, rx) = tokio::sync::oneshot::channel();
         {
             let mut map = self.pending.lock().await;
@@ -218,13 +220,10 @@ impl McpClient {
         let mut payload = msg;
         payload["id"] = json!(id);
         write_message(&mut self.stdin, &payload).await?;
-        tokio::time::timeout(
-            std::time::Duration::from_secs(HANDSHAKE_TIMEOUT_SECS),
-            rx,
-        )
-        .await
-        .map_err(|_| format!("MCP 服务器响应超时（{}）", self.display_name))?
-        .map_err(|_| format!("MCP 服务器连接已断开（{}）", self.display_name))
+        tokio::time::timeout(std::time::Duration::from_secs(HANDSHAKE_TIMEOUT_SECS), rx)
+            .await
+            .map_err(|_| format!("MCP 服务器响应超时（{}）", self.display_name))?
+            .map_err(|_| format!("MCP 服务器连接已断开（{}）", self.display_name))
     }
 
     /// 调用 MCP 工具，返回文本内容。
@@ -299,7 +298,14 @@ impl McpManager {
                 }
                 self.clients.remove(&entry.id);
             }
-            match McpClient::connect(entry.id.clone(), entry.name.clone(), &entry.command, &entry.args).await {
+            match McpClient::connect(
+                entry.id.clone(),
+                entry.name.clone(),
+                &entry.command,
+                &entry.args,
+            )
+            .await
+            {
                 Ok(client) => {
                     let defs = client.tool_defs(&entry.name);
                     tools.extend(defs);
@@ -404,9 +410,6 @@ async fn write_message(stdin: &mut tokio::process::ChildStdin, msg: &Value) -> R
         .write_all(header.as_bytes())
         .await
         .map_err(|e| e.to_string())?;
-    stdin
-        .write_all(&body)
-        .await
-        .map_err(|e| e.to_string())?;
+    stdin.write_all(&body).await.map_err(|e| e.to_string())?;
     stdin.flush().await.map_err(|e| e.to_string())
 }

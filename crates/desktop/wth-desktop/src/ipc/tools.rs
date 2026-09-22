@@ -4,7 +4,7 @@
 //! 所有文件路径操作都被限制在活动工作区内；shell 与 git 写操作按
 //! `edit_mode`（plan/review/auto/yolo）决定是否需要用户确认。
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
 /// 一次待用户确认的工具调用。
@@ -232,9 +232,7 @@ pub fn needs_approval(tool_name: &str, arguments: &Value, edit_mode: &str) -> bo
         }
     }
     // P-06: 非 yolo 下，系统目录写操作强制确认
-    if edit_mode != "yolo"
-        && matches!(tool_name, "file_write" | "file_edit")
-    {
+    if edit_mode != "yolo" && matches!(tool_name, "file_write" | "file_edit") {
         let path = arguments.get("path").and_then(|v| v.as_str()).unwrap_or("");
         if is_forbidden_system_path(path) {
             return true;
@@ -438,8 +436,7 @@ pub async fn execute_tool(
     workspace_root: &Path,
     settings: &crate::settings::DesktopSettings,
 ) -> Result<ToolOutput, String> {
-    let root = dunce::canonicalize(workspace_root)
-        .unwrap_or_else(|_| workspace_root.to_path_buf());
+    let root = dunce::canonicalize(workspace_root).unwrap_or_else(|_| workspace_root.to_path_buf());
     match tool_name {
         "file_read" => {
             let path = arguments
@@ -447,8 +444,8 @@ pub async fn execute_tool(
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| "缺少 path 参数".to_string())?;
             let path = resolve_workspace_path(path, &root)?;
-            let content = std::fs::read_to_string(&path)
-                .map_err(|e| format!("读取文件失败: {e}"))?;
+            let content =
+                std::fs::read_to_string(&path).map_err(|e| format!("读取文件失败: {e}"))?;
             Ok(ToolOutput::plain(json!({
                 "path": path.display().to_string(),
                 "content": truncate(&content),
@@ -467,11 +464,9 @@ pub async fn execute_tool(
             let path = resolve_workspace_write_path(path, &root)?;
             let before = std::fs::read_to_string(&path).ok();
             if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|e| format!("创建目录失败: {e}"))?;
+                std::fs::create_dir_all(parent).map_err(|e| format!("创建目录失败: {e}"))?;
             }
-            std::fs::write(&path, content)
-                .map_err(|e| format!("写入文件失败: {e}"))?;
+            std::fs::write(&path, content).map_err(|e| format!("写入文件失败: {e}"))?;
             Ok(ToolOutput {
                 model_result: json!({
                     "path": path.display().to_string(),
@@ -496,15 +491,14 @@ pub async fn execute_tool(
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| "缺少 new_string 参数".to_string())?;
             let path = resolve_workspace_path(path, &root)?;
-            let content = std::fs::read_to_string(&path)
-                .map_err(|e| format!("读取文件失败: {e}"))?;
+            let content =
+                std::fs::read_to_string(&path).map_err(|e| format!("读取文件失败: {e}"))?;
             let Some(pos) = content.find(old) else {
                 return Err("未找到要替换的原文（old_string 与文件内容不完全一致）".into());
             };
             let mut updated = content.clone();
             updated.replace_range(pos..pos + old.len(), new);
-            std::fs::write(&path, updated.clone())
-                .map_err(|e| format!("写入文件失败: {e}"))?;
+            std::fs::write(&path, updated.clone()).map_err(|e| format!("写入文件失败: {e}"))?;
             Ok(ToolOutput {
                 model_result: json!({
                     "path": path.display().to_string(),
@@ -517,44 +511,36 @@ pub async fn execute_tool(
             })
         }
         "file_list" => {
-            let path = arguments
-                .get("path")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            let path = arguments.get("path").and_then(|v| v.as_str()).unwrap_or("");
             let path = if path.is_empty() {
                 root.clone()
             } else {
                 resolve_workspace_path(path, &root)?
             };
             let mut entries: Vec<Value> = Vec::new();
-            for entry in std::fs::read_dir(&path)
-                .map_err(|e| format!("读取目录失败: {e}"))?
-            {
+            for entry in std::fs::read_dir(&path).map_err(|e| format!("读取目录失败: {e}"))? {
                 let entry = entry.map_err(|e| format!("读取目录条目失败: {e}"))?;
                 let name = entry.file_name().to_string_lossy().to_string();
                 if name.starts_with('.') && name != ".env" {
                     continue;
                 }
-                let is_dir = entry
-                    .file_type()
-                    .map(|t| t.is_dir())
-                    .unwrap_or(false);
+                let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
                 entries.push(json!({ "name": name, "is_dir": is_dir }));
             }
             entries.sort_by(|a, b| {
                 let a_dir = a["is_dir"].as_bool().unwrap_or(false);
                 let b_dir = b["is_dir"].as_bool().unwrap_or(false);
-                b_dir
-                    .cmp(&a_dir)
-                    .then_with(|| {
-                        a["name"]
-                            .as_str()
-                            .unwrap_or("")
-                            .to_lowercase()
-                            .cmp(&b["name"].as_str().unwrap_or("").to_lowercase())
-                    })
+                b_dir.cmp(&a_dir).then_with(|| {
+                    a["name"]
+                        .as_str()
+                        .unwrap_or("")
+                        .to_lowercase()
+                        .cmp(&b["name"].as_str().unwrap_or("").to_lowercase())
+                })
             });
-            Ok(ToolOutput::plain(json!({ "path": path.display().to_string(), "entries": entries })))
+            Ok(ToolOutput::plain(
+                json!({ "path": path.display().to_string(), "entries": entries }),
+            ))
         }
         "file_search" => {
             let query = arguments
@@ -578,7 +564,9 @@ pub async fn execute_tool(
                     }
                 }
             }
-            Ok(ToolOutput::plain(json!({ "query": query, "results": results })))
+            Ok(ToolOutput::plain(
+                json!({ "query": query, "results": results }),
+            ))
         }
         "bash" => {
             let command = arguments
@@ -644,9 +632,7 @@ pub async fn execute_tool(
                         .map(str::trim)
                         .filter(|u| !u.is_empty());
                     match base {
-                        Some(base) => {
-                            web_search_searxng(query, base.trim_end_matches('/')).await
-                        }
+                        Some(base) => web_search_searxng(query, base.trim_end_matches('/')).await,
                         None => Ok(ToolOutput::plain(json!({
                             "query": query,
                             "results": [],
@@ -742,11 +728,8 @@ async fn run_shell(
     // A-03: 子进程纳入 kill-on-close Job——命令结束（含超时）后连带清理
     // 全部残留子孙进程；Job 创建/挂入失败时降级为无 containment。
     #[cfg(windows)]
-    let job =
-        crate::ipc::sandbox_windows::ChildJob::create_with_memory_limit(memory_limit_mb);
-    let child = cmd
-        .spawn()
-        .map_err(|e| format!("命令执行失败: {e}"))?;
+    let job = crate::ipc::sandbox_windows::ChildJob::create_with_memory_limit(memory_limit_mb);
+    let child = cmd.spawn().map_err(|e| format!("命令执行失败: {e}"))?;
     #[cfg(windows)]
     {
         if let (Some(job), Some(_)) = (&job, child.id()) {
@@ -851,7 +834,9 @@ async fn web_search_brave(query: &str, api_key: &str) -> Result<ToolOutput, Stri
             })
         })
         .collect();
-    Ok(ToolOutput::plain(json!({ "query": query, "results": results })))
+    Ok(ToolOutput::plain(
+        json!({ "query": query, "results": results }),
+    ))
 }
 
 async fn web_search_bing(query: &str, api_key: &str) -> Result<ToolOutput, String> {
@@ -884,7 +869,9 @@ async fn web_search_bing(query: &str, api_key: &str) -> Result<ToolOutput, Strin
             })
         })
         .collect();
-    Ok(ToolOutput::plain(json!({ "query": query, "results": results })))
+    Ok(ToolOutput::plain(
+        json!({ "query": query, "results": results }),
+    ))
 }
 
 /// Perplexity 走 sonar 模型的 chat/completions：返回带引用的综合回答。
@@ -955,7 +942,9 @@ async fn web_search_searxng(query: &str, base: &str) -> Result<ToolOutput, Strin
             })
         })
         .collect();
-    Ok(ToolOutput::plain(json!({ "query": query, "results": results })))
+    Ok(ToolOutput::plain(
+        json!({ "query": query, "results": results }),
+    ))
 }
 
 async fn web_search_tavily(query: &str, api_key: &str) -> Result<ToolOutput, String> {
@@ -992,7 +981,9 @@ async fn web_search_tavily(query: &str, api_key: &str) -> Result<ToolOutput, Str
             })
         })
         .collect();
-    Ok(ToolOutput::plain(json!({ "query": query, "results": results })))
+    Ok(ToolOutput::plain(
+        json!({ "query": query, "results": results }),
+    ))
 }
 
 /// 轻量 Web 搜索：DuckDuckGo Lite，无需 API Key。
@@ -1005,24 +996,38 @@ async fn web_search(query: &str) -> Result<ToolOutput, String> {
         .map_err(|e| format!("创建搜索客户端失败: {e}"))?;
     let resp = client
         .get(&url)
-        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) WTH-Desktop/0.1")
+        .header(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) WTH-Desktop/0.1",
+        )
         .send()
         .await
         .map_err(|e| format!("搜索请求失败: {e}"))?;
-    let html = resp.text().await.map_err(|e| format!("读取搜索响应失败: {e}"))?;
+    let html = resp
+        .text()
+        .await
+        .map_err(|e| format!("读取搜索响应失败: {e}"))?;
 
     // 解析 DuckDuckGo Lite 结果：<a rel="nofollow" href="URL">标题</a>
     let marker = "<a rel=\"nofollow\" href=\"";
     let mut results: Vec<Value> = Vec::new();
     let mut rest = html.as_str();
     while results.len() < 5 {
-        let Some(start) = rest.find(marker) else { break };
+        let Some(start) = rest.find(marker) else {
+            break;
+        };
         let after = &rest[start + marker.len()..];
-        let Some(quote_end) = after.find('"') else { break };
+        let Some(quote_end) = after.find('"') else {
+            break;
+        };
         let link = &after[..quote_end];
-        let Some(title_start) = after[quote_end..].find('>') else { break };
+        let Some(title_start) = after[quote_end..].find('>') else {
+            break;
+        };
         let after_title = &after[quote_end + title_start + 1..];
-        let Some(title_end) = after_title.find("</a>") else { break };
+        let Some(title_end) = after_title.find("</a>") else {
+            break;
+        };
         let title = strip_html(&after_title[..title_end]);
         if !link.is_empty() && !title.is_empty() {
             results.push(json!({ "title": title, "url": link }));
@@ -1030,9 +1035,13 @@ async fn web_search(query: &str) -> Result<ToolOutput, String> {
         rest = &after_title[title_end + 4..];
     }
     if results.is_empty() {
-        return Ok(ToolOutput::plain(json!({ "query": query, "results": [], "note": "未获取到搜索结果，可能网络受限或搜索服务不可用" })));
+        return Ok(ToolOutput::plain(
+            json!({ "query": query, "results": [], "note": "未获取到搜索结果，可能网络受限或搜索服务不可用" }),
+        ));
     }
-    Ok(ToolOutput::plain(json!({ "query": query, "results": results })))
+    Ok(ToolOutput::plain(
+        json!({ "query": query, "results": results }),
+    ))
 }
 
 fn strip_html(input: &str) -> String {

@@ -52,11 +52,18 @@ pub fn build_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
                                 notify(
                                     &app,
                                     "发现新版本",
-                                    &format!("v{} 已发布，可前往 设置 → 关于 下载", info.latest_version),
+                                    &format!(
+                                        "v{} 已发布，可前往 设置 → 关于 下载",
+                                        info.latest_version
+                                    ),
                                 );
                                 let _ = app.emit("menu:update-available", info);
                             } else {
-                                notify(&app, "已是最新版本", &format!("当前 v{}", info.current_version));
+                                notify(
+                                    &app,
+                                    "已是最新版本",
+                                    &format!("当前 v{}", info.current_version),
+                                );
                             }
                         }
                         Err(_) => { /* 网络异常不打扰用户 */ }
@@ -87,17 +94,18 @@ pub fn build_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 }
 
 /// 构建托盘菜单：固定项 + 动态最近会话。
-fn build_tray_menu<R: Runtime>(app: &AppHandle<R>, recent: &[crate::ipc::session::SessionInfo]) -> tauri::Result<tauri::menu::Menu<R>> {
+fn build_tray_menu<R: Runtime>(
+    app: &AppHandle<R>,
+    recent: &[crate::ipc::session::SessionInfo],
+) -> tauri::Result<tauri::menu::Menu<R>> {
     let show_item = MenuItemBuilder::with_id("show", "显示 / 隐藏")
         .accelerator("Alt+W")
         .build(app)?;
     let new_session_item = MenuItemBuilder::with_id("new_session", "新建会话")
         .accelerator("CmdOrCtrl+N")
         .build(app)?;
-    let quick_ask_item = MenuItemBuilder::with_id("quick_ask", "快速提问…")
-        .build(app)?;
-    let check_item = MenuItemBuilder::with_id("check_update", "检查更新")
-        .build(app)?;
+    let quick_ask_item = MenuItemBuilder::with_id("quick_ask", "快速提问…").build(app)?;
+    let check_item = MenuItemBuilder::with_id("check_update", "检查更新").build(app)?;
     let quit_item = MenuItemBuilder::with_id("quit", "退出")
         .accelerator("CmdOrCtrl+Q")
         .build(app)?;
@@ -124,7 +132,8 @@ fn build_tray_menu<R: Runtime>(app: &AppHandle<R>, recent: &[crate::ipc::session
             .build(app)?;
             items.push(item);
         }
-        let item_refs: Vec<&dyn IsMenuItem<R>> = items.iter().map(|i| i as &dyn IsMenuItem<R>).collect();
+        let item_refs: Vec<&dyn IsMenuItem<R>> =
+            items.iter().map(|i| i as &dyn IsMenuItem<R>).collect();
         builder = builder.separator().items(&item_refs);
     }
 

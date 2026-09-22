@@ -80,10 +80,7 @@ mod tests {
     /// resolvers and updaters consult. These must stay true for this fork.
     #[test]
     fn privacy_build_locks_research_and_retention_policy() {
-        assert!(
-            PRIVACY_BUILD,
-            "WTH Build must ship with PRIVACY_BUILD=true"
-        );
+        assert!(PRIVACY_BUILD, "WTH Build must ship with PRIVACY_BUILD=true");
         assert!(
             research_data_collection_forbidden(),
             "research_data_collection_forbidden must follow PRIVACY_BUILD"

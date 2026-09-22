@@ -392,8 +392,7 @@ pub fn session_token_auth_gate(
         }
 }
 
-pub const AUTH_ERROR_SESSION_EXPIRED: &str =
-    "Session expired. Run `wth login` to re-authenticate.";
+pub const AUTH_ERROR_SESSION_EXPIRED: &str = "Session expired. Run `wth login` to re-authenticate.";
 
 pub const AUTH_ERROR_API_KEY: &str = "Authentication failed. Run `wth login`, set XAI_API_KEY, or add api_key to ~/.grok/config.toml.";
 

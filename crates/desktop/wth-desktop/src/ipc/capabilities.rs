@@ -6,7 +6,7 @@
 use crate::{settings::DesktopSettings, state::AppState};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{
     fs,
@@ -310,9 +310,15 @@ fn scan_root(
     }
 
     let items = match scan {
-        DirectoryScan::Skill => scan_skill_root(kind, scope, root, settings, &mut source.item_count),
-        DirectoryScan::Plugin => scan_plugin_root(kind, scope, root, settings, &mut source.item_count),
-        DirectoryScan::Memory => scan_memory_root(kind, scope, root, settings, &mut source.item_count),
+        DirectoryScan::Skill => {
+            scan_skill_root(kind, scope, root, settings, &mut source.item_count)
+        }
+        DirectoryScan::Plugin => {
+            scan_plugin_root(kind, scope, root, settings, &mut source.item_count)
+        }
+        DirectoryScan::Memory => {
+            scan_memory_root(kind, scope, root, settings, &mut source.item_count)
+        }
         DirectoryScan::Hook => scan_hook_root(kind, scope, root, settings, &mut source.item_count),
     };
     (source, items)
@@ -350,7 +356,17 @@ fn scan_skill_root(
         let description = markdown_preview(&marker)
             .or_else(|| first_preview_in_directory(&path))
             .unwrap_or_else(|| "本地技能".into());
-        push_item(kind, scope, settings, &mut items, &path, name, description, "目录", "可用");
+        push_item(
+            kind,
+            scope,
+            settings,
+            &mut items,
+            &path,
+            name,
+            description,
+            "目录",
+            "可用",
+        );
         *count += 1;
     }
     items
@@ -385,7 +401,17 @@ fn scan_plugin_root(
             .or_else(|| file_preview(&path.join("plugin.json")))
             .or_else(|| first_preview_in_directory(&path))
             .unwrap_or_else(|| "本地插件".into());
-        push_item(kind, scope, settings, &mut items, &path, name, description, "目录", "可用");
+        push_item(
+            kind,
+            scope,
+            settings,
+            &mut items,
+            &path,
+            name,
+            description,
+            "目录",
+            "可用",
+        );
         *count += 1;
     }
     items
@@ -410,7 +436,9 @@ fn scan_memory_root(
         };
         if meta.is_file() {
             let extension = path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
-            if !matches!(extension, "md" | "txt" | "json" | "toml") && path.file_name().and_then(|n| n.to_str()) != Some("MEMORY.md") {
+            if !matches!(extension, "md" | "txt" | "json" | "toml")
+                && path.file_name().and_then(|n| n.to_str()) != Some("MEMORY.md")
+            {
                 continue;
             }
             let name = path
@@ -419,7 +447,17 @@ fn scan_memory_root(
                 .unwrap_or("memory")
                 .to_string();
             let description = file_preview(&path).unwrap_or_else(|| "记忆文件".into());
-            push_item(kind, scope, settings, &mut items, &path, name, description, "文件", "本地");
+            push_item(
+                kind,
+                scope,
+                settings,
+                &mut items,
+                &path,
+                name,
+                description,
+                "文件",
+                "本地",
+            );
             *count += 1;
             continue;
         }
@@ -439,7 +477,17 @@ fn scan_memory_root(
         let description = markdown_preview(&marker)
             .or_else(|| first_preview_in_directory(&path))
             .unwrap_or_else(|| "记忆目录".into());
-        push_item(kind, scope, settings, &mut items, &path, name, description, "目录", "本地");
+        push_item(
+            kind,
+            scope,
+            settings,
+            &mut items,
+            &path,
+            name,
+            description,
+            "目录",
+            "本地",
+        );
         *count += 1;
     }
     items
@@ -453,7 +501,12 @@ fn scan_hook_root(
     count: &mut usize,
 ) -> Vec<CapabilityItemDto> {
     let mut items = Vec::new();
-    for entry in WalkDir::new(root).min_depth(1).max_depth(2).into_iter().flatten() {
+    for entry in WalkDir::new(root)
+        .min_depth(1)
+        .max_depth(2)
+        .into_iter()
+        .flatten()
+    {
         if !entry.file_type().is_file() {
             continue;
         }
@@ -468,7 +521,17 @@ fn scan_hook_root(
             .unwrap_or("hook")
             .to_string();
         let description = file_preview(&path).unwrap_or_else(|| "生命周期 Hooks 配置".into());
-        push_item(kind, scope, settings, &mut items, &path, name, description, "文件", "可管理");
+        push_item(
+            kind,
+            scope,
+            settings,
+            &mut items,
+            &path,
+            name,
+            description,
+            "文件",
+            "可管理",
+        );
         *count += 1;
     }
     items
@@ -642,9 +705,15 @@ impl Default for McpServerConfigDto {
 }
 
 #[tauri::command]
-pub async fn mcp_list_servers(state: State<'_, AppState>) -> Result<Vec<McpServerConfigDto>, String> {
+pub async fn mcp_list_servers(
+    state: State<'_, AppState>,
+) -> Result<Vec<McpServerConfigDto>, String> {
     let settings = state.settings.read().map_err(|e| e.to_string())?.clone();
-    let workspace_root = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    let workspace_root = state
+        .workspace_root
+        .read()
+        .map_err(|e| e.to_string())?
+        .clone();
     let user_home = xai_grok_config::wth_home();
 
     let mut servers = Vec::new();
@@ -670,15 +739,33 @@ pub async fn mcp_list_servers(state: State<'_, AppState>) -> Result<Vec<McpServe
         };
         for (name, entry) in mcp_servers {
             let table = entry.as_table();
-            let command = table.and_then(|t| t.get("command")).and_then(|v| v.as_str()).map(String::from);
-            let args = table.and_then(|t| t.get("args")).and_then(|v| v.as_array()).map(|arr| {
-                arr.iter().filter_map(|v| v.as_str().map(String::from)).collect()
-            });
-            let url = table.and_then(|t| t.get("url")).and_then(|v| v.as_str()).map(String::from);
-            let transport = table.and_then(|t| t.get("transport")).and_then(|v| v.as_str()).map(String::from);
+            let command = table
+                .and_then(|t| t.get("command"))
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            let args = table
+                .and_then(|t| t.get("args"))
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect()
+                });
+            let url = table
+                .and_then(|t| t.get("url"))
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            let transport = table
+                .and_then(|t| t.get("transport"))
+                .and_then(|v| v.as_str())
+                .map(String::from);
             let id = format!("{}::{name}", config_path.to_string_lossy());
             let toggle_key = format!("mcp::{}::{name}", config_path.to_string_lossy());
-            let enabled = settings.feature_toggles.get(&toggle_key).copied().unwrap_or(true);
+            let enabled = settings
+                .feature_toggles
+                .get(&toggle_key)
+                .copied()
+                .unwrap_or(true);
 
             servers.push(McpServerConfigDto {
                 id,
@@ -689,7 +776,11 @@ pub async fn mcp_list_servers(state: State<'_, AppState>) -> Result<Vec<McpServe
                 url,
                 transport,
                 enabled,
-                status: if enabled { "unknown".into() } else { "offline".into() },
+                status: if enabled {
+                    "unknown".into()
+                } else {
+                    "offline".into()
+                },
                 tool_count: 0,
             });
         }
@@ -709,10 +800,13 @@ pub async fn mcp_add_server(
     let config_path = user_home.join("config.toml");
 
     let mut content = fs::read_to_string(&config_path).unwrap_or_default();
-    let mut value: toml::Value = toml::from_str(&content).unwrap_or(toml::Value::Table(Default::default()));
+    let mut value: toml::Value =
+        toml::from_str(&content).unwrap_or(toml::Value::Table(Default::default()));
 
     let table = value.as_table_mut().ok_or("配置文件格式无效")?;
-    let mcp = table.entry("mcp_servers").or_insert(toml::Value::Table(Default::default()));
+    let mcp = table
+        .entry("mcp_servers")
+        .or_insert(toml::Value::Table(Default::default()));
     let mcp_table = mcp.as_table_mut().ok_or("mcp_servers 格式无效")?;
 
     let mut entry = toml::map::Map::new();
@@ -720,7 +814,14 @@ pub async fn mcp_add_server(
         entry.insert("command".into(), toml::Value::String(cmd.clone()));
     }
     if let Some(args) = &config.args {
-        entry.insert("args".into(), toml::Value::Array(args.iter().map(|a| toml::Value::String(a.clone())).collect()));
+        entry.insert(
+            "args".into(),
+            toml::Value::Array(
+                args.iter()
+                    .map(|a| toml::Value::String(a.clone()))
+                    .collect(),
+            ),
+        );
     }
     if let Some(url) = &config.url {
         entry.insert("url".into(), toml::Value::String(url.clone()));
@@ -734,7 +835,12 @@ pub async fn mcp_add_server(
     fs::write(&config_path, content).map_err(|e| e.to_string())?;
 
     let id = format!("{}::{}", config_path.to_string_lossy(), config.name);
-    Ok(McpServerConfigDto { id, status: "unknown".into(), tool_count: 0, ..config })
+    Ok(McpServerConfigDto {
+        id,
+        status: "unknown".into(),
+        tool_count: 0,
+        ..config
+    })
 }
 
 #[tauri::command]
@@ -763,7 +869,11 @@ pub async fn mcp_remove_server(id: String, _state: State<'_, AppState>) -> Resul
 #[tauri::command]
 pub async fn mcp_test_server(id: String, state: State<'_, AppState>) -> Result<String, String> {
     let settings = state.settings.read().map_err(|e| e.to_string())?.clone();
-    let workspace_root = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    let workspace_root = state
+        .workspace_root
+        .read()
+        .map_err(|e| e.to_string())?
+        .clone();
     let entries = crate::mcp::read_mcp_servers(&settings, &workspace_root);
     let entry = entries
         .into_iter()
@@ -777,13 +887,21 @@ pub async fn mcp_test_server(id: String, state: State<'_, AppState>) -> Result<S
     )
     .await?;
     let count = client.tools.len();
-    let names: Vec<String> = client.tools.iter().take(10).map(|t| t.name.clone()).collect();
+    let names: Vec<String> = client
+        .tools
+        .iter()
+        .take(10)
+        .map(|t| t.name.clone())
+        .collect();
     let mut c = client;
     c.kill();
     if count == 0 {
         return Ok("连接成功，但服务器未暴露任何工具".into());
     }
-    Ok(format!("连接成功，发现 {count} 个工具：{}", names.join(", ")))
+    Ok(format!(
+        "连接成功，发现 {count} 个工具：{}",
+        names.join(", ")
+    ))
 }
 
 // ─── Hook CRUD ───────────────────────────────────────
@@ -818,7 +936,12 @@ pub async fn hook_list(state: State<'_, AppState>) -> Result<Vec<HookConfigDto>,
     let mut hooks = Vec::new();
 
     if hooks_dir.exists() {
-        for entry in WalkDir::new(&hooks_dir).min_depth(1).max_depth(2).into_iter().flatten() {
+        for entry in WalkDir::new(&hooks_dir)
+            .min_depth(1)
+            .max_depth(2)
+            .into_iter()
+            .flatten()
+        {
             if !entry.file_type().is_file() {
                 continue;
             }
@@ -837,9 +960,18 @@ pub async fn hook_list(state: State<'_, AppState>) -> Result<Vec<HookConfigDto>,
                     Err(_) => continue,
                 };
                 (
-                    v.get("name").and_then(|n| n.as_str()).unwrap_or("hook").to_string(),
-                    v.get("trigger").and_then(|t| t.as_str()).unwrap_or("tool_after").to_string(),
-                    v.get("command").and_then(|c| c.as_str()).unwrap_or("").to_string(),
+                    v.get("name")
+                        .and_then(|n| n.as_str())
+                        .unwrap_or("hook")
+                        .to_string(),
+                    v.get("trigger")
+                        .and_then(|t| t.as_str())
+                        .unwrap_or("tool_after")
+                        .to_string(),
+                    v.get("command")
+                        .and_then(|c| c.as_str())
+                        .unwrap_or("")
+                        .to_string(),
                 )
             } else {
                 let v: toml::Value = match toml::from_str(&content) {
@@ -847,22 +979,44 @@ pub async fn hook_list(state: State<'_, AppState>) -> Result<Vec<HookConfigDto>,
                     Err(_) => continue,
                 };
                 (
-                    v.get("name").and_then(|n| n.as_str()).unwrap_or("hook").to_string(),
-                    v.get("trigger").and_then(|t| t.as_str()).unwrap_or("tool_after").to_string(),
-                    v.get("command").and_then(|c| c.as_str()).unwrap_or("").to_string(),
+                    v.get("name")
+                        .and_then(|n| n.as_str())
+                        .unwrap_or("hook")
+                        .to_string(),
+                    v.get("trigger")
+                        .and_then(|t| t.as_str())
+                        .unwrap_or("tool_after")
+                        .to_string(),
+                    v.get("command")
+                        .and_then(|c| c.as_str())
+                        .unwrap_or("")
+                        .to_string(),
                 )
             };
             let id = path.to_string_lossy().to_string();
             let toggle_key = format!("hooks::{id}");
-            let enabled = settings.feature_toggles.get(&toggle_key).copied().unwrap_or(true);
-            hooks.push(HookConfigDto { id, name, trigger, command, enabled });
+            let enabled = settings
+                .feature_toggles
+                .get(&toggle_key)
+                .copied()
+                .unwrap_or(true);
+            hooks.push(HookConfigDto {
+                id,
+                name,
+                trigger,
+                command,
+                enabled,
+            });
         }
     }
     Ok(hooks)
 }
 
 #[tauri::command]
-pub async fn hook_add(config: HookConfigDto, _state: State<'_, AppState>) -> Result<HookConfigDto, String> {
+pub async fn hook_add(
+    config: HookConfigDto,
+    _state: State<'_, AppState>,
+) -> Result<HookConfigDto, String> {
     if config.name.trim().is_empty() || config.command.trim().is_empty() {
         return Err("名称和命令不能为空".into());
     }
@@ -877,9 +1031,14 @@ pub async fn hook_add(config: HookConfigDto, _state: State<'_, AppState>) -> Res
         "trigger": config.trigger,
         "command": config.command,
     });
-    fs::write(&file_path, serde_json::to_string_pretty(&json).unwrap()).map_err(|e| e.to_string())?;
+    fs::write(&file_path, serde_json::to_string_pretty(&json).unwrap())
+        .map_err(|e| e.to_string())?;
 
-    Ok(HookConfigDto { id: file_path.to_string_lossy().to_string(), enabled: true, ..config })
+    Ok(HookConfigDto {
+        id: file_path.to_string_lossy().to_string(),
+        enabled: true,
+        ..config
+    })
 }
 
 #[tauri::command]
@@ -892,7 +1051,11 @@ pub async fn hook_remove(id: String, _state: State<'_, AppState>) -> Result<(), 
 }
 
 #[tauri::command]
-pub async fn hook_toggle(id: String, enabled: bool, state: State<'_, AppState>) -> Result<(), String> {
+pub async fn hook_toggle(
+    id: String,
+    enabled: bool,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
     let toggle_key = format!("hooks::{id}");
     {
         let mut settings = state.settings.write().map_err(|e| e.to_string())?;
@@ -907,8 +1070,8 @@ pub async fn hook_toggle(id: String, enabled: bool, state: State<'_, AppState>) 
 pub struct SlashCommandInfo {
     pub name: String,
     pub description: String,
-    pub source: String,  // "builtin" | "skill"
-    pub scope: String,   // "用户" | "工作区"
+    pub source: String, // "builtin" | "skill"
+    pub scope: String,  // "用户" | "工作区"
     pub path: Option<String>,
 }
 
@@ -945,7 +1108,11 @@ pub async fn list_slash_commands(
     }
 
     // skills from ~/.wth/skills and workspace/.wth/skills
-    let workspace = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    let workspace = state
+        .workspace_root
+        .read()
+        .map_err(|e| e.to_string())?
+        .clone();
     let user_home = xai_grok_config::wth_home();
     let settings = state.settings.read().map_err(|e| e.to_string())?.clone();
     let skill_roots = vec![
@@ -954,14 +1121,24 @@ pub async fn list_slash_commands(
     ];
 
     for (root, scope) in skill_roots {
-        let Ok(entries) = fs::read_dir(&root) else { continue };
+        let Ok(entries) = fs::read_dir(&root) else {
+            continue;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             let Ok(meta) = entry.metadata() else { continue };
-            if !meta.is_dir() { continue; }
+            if !meta.is_dir() {
+                continue;
+            }
             let marker = path.join("SKILL.md");
-            if !marker.exists() { continue; }
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("skill").to_string();
+            if !marker.exists() {
+                continue;
+            }
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("skill")
+                .to_string();
             let desc = markdown_preview(&marker).unwrap_or_else(|| "用户技能".into());
             commands.push(SlashCommandInfo {
                 name,
@@ -976,14 +1153,24 @@ pub async fn list_slash_commands(
     // 插件技能：~/.wth/plugins/{插件}/skills/{技能}/SKILL.md（插件启用时生效）
     for plugin in enabled_plugin_roots(&settings, &workspace) {
         let skills_dir = plugin.join("skills");
-        let Ok(entries) = fs::read_dir(&skills_dir) else { continue };
+        let Ok(entries) = fs::read_dir(&skills_dir) else {
+            continue;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             let Ok(meta) = entry.metadata() else { continue };
-            if !meta.is_dir() { continue; }
+            if !meta.is_dir() {
+                continue;
+            }
             let marker = path.join("SKILL.md");
-            if !marker.exists() { continue; }
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("skill").to_string();
+            if !marker.exists() {
+                continue;
+            }
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("skill")
+                .to_string();
             let desc = markdown_preview(&marker).unwrap_or_else(|| "插件技能".into());
             commands.push(SlashCommandInfo {
                 name,
@@ -1028,13 +1215,23 @@ fn workspace_index_cache(workspace: &Path) -> PathBuf {
 
 fn build_workspace_index(workspace: &Path) -> Vec<IndexedFile> {
     const IGNORE: &[&str] = &[
-        "node_modules", ".git", "target", "dist", ".next", ".wth",
-        ".idea", ".vscode", "vendor", "__pycache__", "bin", "obj",
+        "node_modules",
+        ".git",
+        "target",
+        "dist",
+        ".next",
+        ".wth",
+        ".idea",
+        ".vscode",
+        "vendor",
+        "__pycache__",
+        "bin",
+        "obj",
     ];
     const EXTS: &[&str] = &[
-        "rs", "ts", "tsx", "js", "jsx", "py", "go", "java", "kt", "c", "cpp", "h", "hpp",
-        "md", "txt", "json", "toml", "yaml", "yml", "html", "css", "scss", "vue", "svelte",
-        "sql", "sh", "ps1", "xml", "ini",
+        "rs", "ts", "tsx", "js", "jsx", "py", "go", "java", "kt", "c", "cpp", "h", "hpp", "md",
+        "txt", "json", "toml", "yaml", "yml", "html", "css", "scss", "vue", "svelte", "sql", "sh",
+        "ps1", "xml", "ini",
     ];
     let mut files = Vec::new();
     for entry in WalkDir::new(workspace)
@@ -1052,11 +1249,19 @@ fn build_workspace_index(workspace: &Path) -> Vec<IndexedFile> {
             continue;
         }
         let path = entry.path();
-        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
         if !EXTS.contains(&ext.as_str()) {
             continue;
         }
-        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
+        let name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("")
+            .to_string();
         let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
         if size > 1_048_576 {
             continue;
@@ -1097,10 +1302,10 @@ fn load_workspace_index(workspace: &Path, cache: &Path) -> Vec<IndexedFile> {
 // ─── Workspace RAG (hybrid search, G8) ────────────────
 
 const STOPWORDS_EN: &[&str] = &[
-    "the", "is", "a", "an", "and", "or", "to", "of", "in", "on", "for", "with",
-    "at", "by", "from", "as", "be", "are", "was", "this", "that", "it", "do",
-    "does", "have", "has", "will", "can", "could", "should", "would", "please",
-    "file", "code", "how", "what", "why", "when", "where", "which", "who",
+    "the", "is", "a", "an", "and", "or", "to", "of", "in", "on", "for", "with", "at", "by", "from",
+    "as", "be", "are", "was", "this", "that", "it", "do", "does", "have", "has", "will", "can",
+    "could", "should", "would", "please", "file", "code", "how", "what", "why", "when", "where",
+    "which", "who",
 ];
 
 /// 查询分词：ASCII 词 + 中文连续段；过滤停用词与单字虚词。
@@ -1127,7 +1332,11 @@ fn tokenize_query(query: &str) -> Vec<String> {
     tokens
         .into_iter()
         .filter(|t| {
-            let is_cjk = t.chars().next().map(|ch| (ch as u32) >= 0x4E00 && (ch as u32) <= 0x9FFF).unwrap_or(false);
+            let is_cjk = t
+                .chars()
+                .next()
+                .map(|ch| (ch as u32) >= 0x4E00 && (ch as u32) <= 0x9FFF)
+                .unwrap_or(false);
             if is_cjk {
                 t.chars().count() >= 2 // 过滤单字虚词（的/了/在…）
             } else {
@@ -1176,7 +1385,10 @@ fn score_file(
         }
     }
     line_hits.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.2.len().cmp(&b.2.len())));
-    (score, line_hits.into_iter().map(|(l, _, s)| (l, s)).collect())
+    (
+        score,
+        line_hits.into_iter().map(|(l, _, s)| (l, s)).collect(),
+    )
 }
 
 /// 工作区混合检索：多 token 文件级评分（文件名/路径/内容跨行聚合），
@@ -1187,7 +1399,11 @@ pub async fn workspace_search(
     query: String,
     limit: Option<usize>,
 ) -> Result<Vec<WorkspaceSearchHitDto>, String> {
-    let workspace = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    let workspace = state
+        .workspace_root
+        .read()
+        .map_err(|e| e.to_string())?
+        .clone();
     if !workspace.is_dir() {
         return Err("未选择工作区".into());
     }
@@ -1206,12 +1422,18 @@ pub async fn workspace_search(
         let mut candidates: Vec<(usize, String, Vec<(usize, String)>)> = Vec::new();
         for file in files {
             let full_path = workspace_clone.join(&file.path);
-            let Ok(content) = fs::read_to_string(&full_path) else { continue };
+            let Ok(content) = fs::read_to_string(&full_path) else {
+                continue;
+            };
             let (score, lines) = score_file(&file.name, &file.path, &content, &tokens_clone);
             if score == 0 || lines.is_empty() {
                 continue;
             }
-            candidates.push((score, file.path.clone(), lines.into_iter().take(2).collect()));
+            candidates.push((
+                score,
+                file.path.clone(),
+                lines.into_iter().take(2).collect(),
+            ));
             if candidates.len() >= 60 {
                 break;
             }
@@ -1283,7 +1505,11 @@ async fn ollama_embed_model() -> Option<String> {
         .connect_timeout(std::time::Duration::from_secs(2))
         .build()
         .ok()?;
-    let resp = client.get("http://localhost:11434/api/tags").send().await.ok()?;
+    let resp = client
+        .get("http://localhost:11434/api/tags")
+        .send()
+        .await
+        .ok()?;
     if !resp.status().is_success() {
         return None;
     }
@@ -1322,13 +1548,17 @@ async fn embed_text(model: &str, text: &str) -> Option<Vec<f32>> {
     let value: Value = resp.json().await.ok()?;
     // 新版返回 embeddings: [[...]]，旧版返回 embedding: [...]
     if let Some(arr) = value["embeddings"].as_array().and_then(|a| a.first()) {
-        return arr
-            .as_array()
-            .map(|v| v.iter().filter_map(|x| x.as_f64().map(|f| f as f32)).collect());
+        return arr.as_array().map(|v| {
+            v.iter()
+                .filter_map(|x| x.as_f64().map(|f| f as f32))
+                .collect()
+        });
     }
-    value["embedding"]
-        .as_array()
-        .map(|v| v.iter().filter_map(|x| x.as_f64().map(|f| f as f32)).collect())
+    value["embedding"].as_array().map(|v| {
+        v.iter()
+            .filter_map(|x| x.as_f64().map(|f| f as f32))
+            .collect()
+    })
 }
 
 /// 余弦相似度。
@@ -1364,7 +1594,11 @@ pub struct WorkspaceIndexStatusDto {
 pub async fn workspace_index_status(
     state: State<'_, AppState>,
 ) -> Result<WorkspaceIndexStatusDto, String> {
-    let workspace = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    let workspace = state
+        .workspace_root
+        .read()
+        .map_err(|e| e.to_string())?
+        .clone();
     let cache = workspace_index_cache(&workspace);
     let file_count = fs::read_to_string(&cache)
         .ok()
@@ -1374,7 +1608,10 @@ pub async fn workspace_index_status(
 
     // 检测本地语义引擎（Ollama），可用则标记语义模式
     let (engine, model) = if ollama_available().await {
-        ("ollama".to_string(), Some("bge-m3 / nomic-embed-text（需在 Ollama 拉取）".to_string()))
+        (
+            "ollama".to_string(),
+            Some("bge-m3 / nomic-embed-text（需在 Ollama 拉取）".to_string()),
+        )
     } else {
         ("keyword".to_string(), None)
     };
@@ -1392,7 +1629,11 @@ pub async fn workspace_index_status(
 pub async fn workspace_index_rebuild(
     state: State<'_, AppState>,
 ) -> Result<WorkspaceIndexStatusDto, String> {
-    let workspace = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    let workspace = state
+        .workspace_root
+        .read()
+        .map_err(|e| e.to_string())?
+        .clone();
     if !workspace.is_dir() {
         return Err("未选择工作区".into());
     }
@@ -1404,7 +1645,10 @@ pub async fn workspace_index_rebuild(
         if let Some(parent) = cache_for_job.parent() {
             let _ = fs::create_dir_all(parent);
         }
-        let _ = fs::write(&cache_for_job, serde_json::to_string(&files).unwrap_or_default());
+        let _ = fs::write(
+            &cache_for_job,
+            serde_json::to_string(&files).unwrap_or_default(),
+        );
         files
     })
     .await
@@ -1414,7 +1658,11 @@ pub async fn workspace_index_rebuild(
         workspace: workspace.to_string_lossy().to_string(),
         file_count: files.len(),
         cache_path: cache.to_string_lossy().to_string(),
-        semantic_engine: if ollama_available().await { "ollama".into() } else { "keyword".into() },
+        semantic_engine: if ollama_available().await {
+            "ollama".into()
+        } else {
+            "keyword".into()
+        },
         semantic_model: None,
     })
 }
@@ -1424,7 +1672,11 @@ pub async fn workspace_index_rebuild(
 pub async fn workspace_index_clear(
     state: State<'_, AppState>,
 ) -> Result<WorkspaceIndexStatusDto, String> {
-    let workspace = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    let workspace = state
+        .workspace_root
+        .read()
+        .map_err(|e| e.to_string())?
+        .clone();
     let cache = workspace_index_cache(&workspace);
     if cache.exists() {
         let _ = fs::remove_file(&cache);
@@ -1433,7 +1685,11 @@ pub async fn workspace_index_clear(
         workspace: workspace.to_string_lossy().to_string(),
         file_count: 0,
         cache_path: cache.to_string_lossy().to_string(),
-        semantic_engine: if ollama_available().await { "ollama".into() } else { "keyword".into() },
+        semantic_engine: if ollama_available().await {
+            "ollama".into()
+        } else {
+            "keyword".into()
+        },
         semantic_model: None,
     })
 }
@@ -1469,7 +1725,9 @@ pub struct AppInfoDto {
 pub async fn app_info() -> Result<AppInfoDto, String> {
     Ok(AppInfoDto {
         version: env!("CARGO_PKG_VERSION").to_string(),
-        build_time: option_env!("WTH_BUILD_TIME").unwrap_or("unknown").to_string(),
+        build_time: option_env!("WTH_BUILD_TIME")
+            .unwrap_or("unknown")
+            .to_string(),
         signed: option_env!("WTH_SIGNED").is_some(),
     })
 }
@@ -1525,7 +1783,10 @@ pub async fn update_check() -> Result<UpdateCheckDto, String> {
     if !resp.status().is_success() {
         return Err(format!("GitHub API 返回状态码 {}", resp.status()));
     }
-    let value: Value = resp.json().await.map_err(|e| format!("解析响应失败：{e}"))?;
+    let value: Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("解析响应失败：{e}"))?;
     let latest = value
         .get("tag_name")
         .and_then(|v| v.as_str())
@@ -1593,19 +1854,36 @@ pub async fn update_download(window: tauri::Window) -> Result<UpdateDownloadResu
     if !resp.status().is_success() {
         return Err(format!("GitHub API 返回状态码 {}", resp.status()));
     }
-    let value: Value = resp.json().await.map_err(|e| format!("解析响应失败：{e}"))?;
+    let value: Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("解析响应失败：{e}"))?;
     let body = value.get("body").and_then(|v| v.as_str()).unwrap_or("");
     // 优先选择 NSIS 安装包（.exe），其次任意资产
-    let assets = value.get("assets").and_then(|a| a.as_array()).cloned().unwrap_or_default();
+    let assets = value
+        .get("assets")
+        .and_then(|a| a.as_array())
+        .cloned()
+        .unwrap_or_default();
     let asset = assets
         .iter()
-        .find(|a| a["name"].as_str().map(|n| n.ends_with(".exe")).unwrap_or(false))
+        .find(|a| {
+            a["name"]
+                .as_str()
+                .map(|n| n.ends_with(".exe"))
+                .unwrap_or(false)
+        })
         .or_else(|| assets.first());
     let Some(asset) = asset else {
         return Err("该版本没有可下载的安装资产".into());
     };
-    let name = asset["name"].as_str().unwrap_or("wth-setup.exe").to_string();
-    let download_url = asset["browser_download_url"].as_str().ok_or("资产下载地址缺失")?;
+    let name = asset["name"]
+        .as_str()
+        .unwrap_or("wth-setup.exe")
+        .to_string();
+    let download_url = asset["browser_download_url"]
+        .as_str()
+        .ok_or("资产下载地址缺失")?;
     let total = asset["size"].as_u64().unwrap_or(0);
 
     // 2. 流式下载到临时目录
@@ -1627,13 +1905,18 @@ pub async fn update_download(window: tauri::Window) -> Result<UpdateDownloadResu
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|e| format!("下载中断：{e}"))?;
         hasher.update(&chunk);
-        file.write_all(&chunk).map_err(|e| format!("写入文件失败：{e}"))?;
+        file.write_all(&chunk)
+            .map_err(|e| format!("写入文件失败：{e}"))?;
         received += chunk.len() as u64;
         if total > 0 {
             let percent = ((received as f64 / total as f64) * 100.0).min(100.0) as u8;
             let _ = window.emit(
                 "update:progress",
-                UpdateProgressDto { received, total, percent },
+                UpdateProgressDto {
+                    received,
+                    total,
+                    percent,
+                },
             );
         }
     }
@@ -1718,9 +2001,7 @@ fn local_plugin_version(plugins_dir: &Path, name: &str) -> Option<String> {
 
 /// 拉取插件市场清单（G9），与本地安装状态合并。
 #[tauri::command]
-pub async fn plugin_market_list(
-    source: Option<String>,
-) -> Result<PluginMarketListDto, String> {
+pub async fn plugin_market_list(source: Option<String>) -> Result<PluginMarketListDto, String> {
     let url = source.unwrap_or_else(|| DEFAULT_PLUGIN_MARKET_URL.to_string());
     let plugins_dir = xai_grok_config::wth_home().join("plugins");
     let mut dto = PluginMarketListDto {
@@ -1743,7 +2024,10 @@ pub async fn plugin_market_list(
             return Ok(dto);
         }
     };
-    let text = resp.text().await.map_err(|e| format!("读取市场源失败：{e}"))?;
+    let text = resp
+        .text()
+        .await
+        .map_err(|e| format!("读取市场源失败：{e}"))?;
     let parsed: Value = match serde_json::from_str(&text) {
         Ok(v) => v,
         Err(e) => {
@@ -1751,7 +2035,11 @@ pub async fn plugin_market_list(
             return Ok(dto);
         }
     };
-    let list = parsed.get("plugins").and_then(|p| p.as_array()).cloned().unwrap_or_default();
+    let list = parsed
+        .get("plugins")
+        .and_then(|p| p.as_array())
+        .cloned()
+        .unwrap_or_default();
     for item in list {
         let entry: PluginMarketEntryDto = match serde_json::from_value(item) {
             Ok(e) => e,
@@ -1933,14 +2221,21 @@ pub(crate) fn enabled_plugin_roots(
     ];
     let mut out = Vec::new();
     for root in roots {
-        let Ok(entries) = fs::read_dir(&root) else { continue };
+        let Ok(entries) = fs::read_dir(&root) else {
+            continue;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             if !path.is_dir() {
                 continue;
             }
             let toggle_key = format!("plugins::{}", path.to_string_lossy());
-            if settings.feature_toggles.get(&toggle_key).copied().unwrap_or(true) {
+            if settings
+                .feature_toggles
+                .get(&toggle_key)
+                .copied()
+                .unwrap_or(true)
+            {
                 out.push(path);
             }
         }
@@ -1949,17 +2244,22 @@ pub(crate) fn enabled_plugin_roots(
 }
 
 #[tauri::command]
-pub async fn resolve_skill(
-    name: String,
-    state: State<'_, AppState>,
-) -> Result<String, String> {
-    let workspace = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+pub async fn resolve_skill(name: String, state: State<'_, AppState>) -> Result<String, String> {
+    let workspace = state
+        .workspace_root
+        .read()
+        .map_err(|e| e.to_string())?
+        .clone();
     let user_home = xai_grok_config::wth_home();
 
     let settings = state.settings.read().map_err(|e| e.to_string())?.clone();
     let mut candidates = vec![
         user_home.join("skills").join(&name).join("SKILL.md"),
-        workspace.join(".wth").join("skills").join(&name).join("SKILL.md"),
+        workspace
+            .join(".wth")
+            .join("skills")
+            .join(&name)
+            .join("SKILL.md"),
     ];
     for plugin in enabled_plugin_roots(&settings, &workspace) {
         candidates.push(plugin.join("skills").join(&name).join("SKILL.md"));
@@ -2001,7 +2301,9 @@ fn scan_memory_entries(workspace_root: &Path) -> Vec<MemoryEntryDto> {
         if !root.exists() {
             continue;
         }
-        let Ok(rd) = fs::read_dir(&root) else { continue };
+        let Ok(rd) = fs::read_dir(&root) else {
+            continue;
+        };
         for entry in rd.flatten() {
             let path = entry.path();
             let meta = match entry.metadata() {
@@ -2019,9 +2321,21 @@ fn scan_memory_entries(workspace_root: &Path) -> Vec<MemoryEntryDto> {
                 Ok(c) => c,
                 Err(_) => continue,
             };
-            let title = path.file_stem().and_then(|n| n.to_str()).unwrap_or("memory").to_string();
-            let summary: String = content.trim().lines().next().unwrap_or("").chars().take(100).collect();
-            let created_at = meta.modified()
+            let title = path
+                .file_stem()
+                .and_then(|n| n.to_str())
+                .unwrap_or("memory")
+                .to_string();
+            let summary: String = content
+                .trim()
+                .lines()
+                .next()
+                .unwrap_or("")
+                .chars()
+                .take(100)
+                .collect();
+            let created_at = meta
+                .modified()
                 .ok()
                 .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                 .map(|d| format!("{}", d.as_secs()))
@@ -2044,7 +2358,11 @@ fn scan_memory_entries(workspace_root: &Path) -> Vec<MemoryEntryDto> {
 
 #[tauri::command]
 pub async fn memory_list(state: State<'_, AppState>) -> Result<Vec<MemoryEntryDto>, String> {
-    let workspace_root = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    let workspace_root = state
+        .workspace_root
+        .read()
+        .map_err(|e| e.to_string())?
+        .clone();
     Ok(scan_memory_entries(&workspace_root))
 }
 
@@ -2062,7 +2380,11 @@ pub async fn memory_write(
     if title.is_empty() || content.is_empty() {
         return Err("标题和内容不能为空".into());
     }
-    let workspace_root = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+    let workspace_root = state
+        .workspace_root
+        .read()
+        .map_err(|e| e.to_string())?
+        .clone();
     let scope_name = scope.unwrap_or_else(|| "user".to_string());
     let root = if scope_name == "workspace" {
         workspace_root.join(".wth").join("memory")
@@ -2081,7 +2403,10 @@ pub async fn memory_write(
     let mut text = format!("# {title}\n\n{content}\n");
     if let Some(tags) = &tags {
         if !tags.is_empty() {
-            text.push_str(&format!("\n<!-- wth-memory-tags: {} -->\n", tags.join(", ")));
+            text.push_str(&format!(
+                "\n<!-- wth-memory-tags: {} -->\n",
+                tags.join(", ")
+            ));
         }
     }
     fs::write(&path, text).map_err(|e| e.to_string())?;
@@ -2100,7 +2425,11 @@ pub async fn memory_write(
         created_at,
         summary: content.chars().take(100).collect(),
         content,
-        scope: if scope_name == "workspace" { "工作区".into() } else { "用户".into() },
+        scope: if scope_name == "workspace" {
+            "工作区".into()
+        } else {
+            "用户".into()
+        },
         path: path.to_string_lossy().to_string(),
     })
 }
@@ -2196,7 +2525,10 @@ pub struct DiagnosticItemDto {
 /// 读取 WebView2 运行时版本（注册表 pv 值）。
 fn webview2_version() -> String {
     let key = r"HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
-    match std::process::Command::new("reg").args(["query", key, "/v", "pv"]).output() {
+    match std::process::Command::new("reg")
+        .args(["query", key, "/v", "pv"])
+        .output()
+    {
         Ok(out) if out.status.success() => {
             let text = String::from_utf8_lossy(&out.stdout);
             text.lines()
@@ -2244,7 +2576,11 @@ pub async fn diagnostics_get(state: State<'_, AppState>) -> Result<Vec<Diagnosti
     let wv = webview2_version();
     items.push(DiagnosticItemDto {
         name: "WebView2 运行时".into(),
-        status: if wv.starts_with("未检测到") { "warn".into() } else { "ok".into() },
+        status: if wv.starts_with("未检测到") {
+            "warn".into()
+        } else {
+            "ok".into()
+        },
         detail: wv,
     });
 
@@ -2252,14 +2588,20 @@ pub async fn diagnostics_get(state: State<'_, AppState>) -> Result<Vec<Diagnosti
     let git = git_version();
     items.push(DiagnosticItemDto {
         name: "Git".into(),
-        status: if git.contains("git version") { "ok".into() } else { "warn".into() },
+        status: if git.contains("git version") {
+            "ok".into()
+        } else {
+            "warn".into()
+        },
         detail: git,
     });
 
     // Shell
     let shell = {
         let s = state.settings.read().map_err(|e| e.to_string())?;
-        s.terminal_shell.clone().unwrap_or_else(|| "powershell.exe（默认）".into())
+        s.terminal_shell
+            .clone()
+            .unwrap_or_else(|| "powershell.exe（默认）".into())
     };
     items.push(DiagnosticItemDto {
         name: "终端 Shell".into(),
@@ -2286,13 +2628,21 @@ pub async fn diagnostics_get(state: State<'_, AppState>) -> Result<Vec<Diagnosti
     };
     items.push(DiagnosticItemDto {
         name: "Agent 核心".into(),
-        status: if agent_detail.starts_with("默认模型已配置且") { "ok".into() } else { "warn".into() },
+        status: if agent_detail.starts_with("默认模型已配置且") {
+            "ok".into()
+        } else {
+            "warn".into()
+        },
         detail: agent_detail,
     });
 
     // 工作区索引（G8）
     {
-        let workspace = state.workspace_root.read().map_err(|e| e.to_string())?.clone();
+        let workspace = state
+            .workspace_root
+            .read()
+            .map_err(|e| e.to_string())?
+            .clone();
         let cache = workspace_index_cache(&workspace);
         let file_count = fs::read_to_string(&cache)
             .ok()
@@ -2300,14 +2650,22 @@ pub async fn diagnostics_get(state: State<'_, AppState>) -> Result<Vec<Diagnosti
             .map(|files| files.len())
             .unwrap_or(0);
         let detail = if workspace.is_dir() {
-            let engine = if ollama_available().await { "语义检索（Ollama）" } else { "关键词检索" };
+            let engine = if ollama_available().await {
+                "语义检索（Ollama）"
+            } else {
+                "关键词检索"
+            };
             format!("已索引 {} 个文件，模式：{}", file_count, engine)
         } else {
             "未选择工作区".to_string()
         };
         items.push(DiagnosticItemDto {
             name: "工作区索引".into(),
-            status: if workspace.is_dir() { "ok".into() } else { "warn".into() },
+            status: if workspace.is_dir() {
+                "ok".into()
+            } else {
+                "warn".into()
+            },
             detail,
         });
     }
@@ -2316,7 +2674,11 @@ pub async fn diagnostics_get(state: State<'_, AppState>) -> Result<Vec<Diagnosti
     let cred = credentials_roundtrip();
     items.push(DiagnosticItemDto {
         name: "凭据存储".into(),
-        status: if cred.starts_with("OK") { "ok".into() } else { "error".into() },
+        status: if cred.starts_with("OK") {
+            "ok".into()
+        } else {
+            "error".into()
+        },
         detail: cred,
     });
 
@@ -2375,7 +2737,11 @@ mod tests {
 
     #[test]
     fn memory_relevance_scores_matching_tokens() {
-        let entry = memory("登录超时排查", "用户登录时出现超时问题，需要检查认证服务", "/mem/login.md");
+        let entry = memory(
+            "登录超时排查",
+            "用户登录时出现超时问题，需要检查认证服务",
+            "/mem/login.md",
+        );
         let high = memory_relevance(&entry, "登录 超时", "demo");
         let low = memory_relevance(&entry, "支付 退款", "demo");
         assert!(high > low);
@@ -2392,7 +2758,7 @@ mod tests {
 
     #[test]
     fn tokenize_query_filters_stopwords_and_single_chars() {
-        use super::{tokenize_query, STOPWORDS_EN};
+        use super::{STOPWORDS_EN, tokenize_query};
         assert!(!STOPWORDS_EN.is_empty());
         let tokens = tokenize_query("please fix the login timeout in auth service");
         assert!(tokens.iter().any(|t| t == "login"));

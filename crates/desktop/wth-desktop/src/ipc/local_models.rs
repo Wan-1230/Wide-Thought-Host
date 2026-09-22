@@ -8,7 +8,7 @@
 use serde::Serialize;
 use std::time::Duration;
 
-use crate::settings::{save_settings, DesktopSettings, ProviderConfig};
+use crate::settings::{DesktopSettings, ProviderConfig, save_settings};
 
 /// Ollama 默认服务地址（原生 API 根）。
 pub const OLLAMA_NATIVE_URL: &str = "http://localhost:11434";
@@ -62,7 +62,9 @@ async fn detect_ollama(client: &reqwest::Client) -> Option<LocalEndpoint> {
         .map(|arr| {
             arr.iter()
                 .filter_map(|m| {
-                    m.get("name").and_then(serde_json::Value::as_str).map(String::from)
+                    m.get("name")
+                        .and_then(serde_json::Value::as_str)
+                        .map(String::from)
                 })
                 .filter(|name| !is_embedding_model(name))
                 .collect::<Vec<_>>()
@@ -95,7 +97,9 @@ async fn detect_vllm(client: &reqwest::Client) -> Option<LocalEndpoint> {
         .map(|arr| {
             arr.iter()
                 .filter_map(|m| {
-                    m.get("id").and_then(serde_json::Value::as_str).map(String::from)
+                    m.get("id")
+                        .and_then(serde_json::Value::as_str)
+                        .map(String::from)
                 })
                 .filter(|name| !is_embedding_model(name))
                 .collect::<Vec<_>>()
@@ -134,7 +138,10 @@ fn local_provider_name(kind: &str) -> String {
 ///
 /// 当前的默认 Provider 不可用（缺失/停用/无 Key 且非本地）时，把默认
 /// 指向新注册的本地 Provider。返回是否有变更。
-pub fn register_local_providers(settings: &mut DesktopSettings, endpoints: &[LocalEndpoint]) -> bool {
+pub fn register_local_providers(
+    settings: &mut DesktopSettings,
+    endpoints: &[LocalEndpoint],
+) -> bool {
     let mut changed = false;
     for endpoint in endpoints {
         let id = local_provider_id(&endpoint.kind);
@@ -249,7 +256,10 @@ mod tests {
         }];
         assert!(register_local_providers(&mut settings, &endpoints));
         assert!(settings.providers.iter().any(|p| p.id == "local-ollama"));
-        assert_eq!(settings.default_provider_id.as_deref(), Some("local-ollama"));
+        assert_eq!(
+            settings.default_provider_id.as_deref(),
+            Some("local-ollama")
+        );
         // 幂等：再次注册不产生变更。
         assert!(!register_local_providers(&mut settings, &endpoints));
     }

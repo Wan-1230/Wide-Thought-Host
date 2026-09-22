@@ -133,10 +133,7 @@ impl XaiProtoBuilder {
                 .context("failed to create temp dir for protoc descriptor set")?;
             let desc_path = desc_tmp.path().join("descriptor.pb");
             command
-                .arg(format!(
-                    "--dependency_out={}",
-                    dep_file.path().display()
-                ))
+                .arg(format!("--dependency_out={}", dep_file.path().display()))
                 .arg(format!("--descriptor_set_out={}", desc_path.display()));
 
             // Add protoc's well-known types include directory first (if found).

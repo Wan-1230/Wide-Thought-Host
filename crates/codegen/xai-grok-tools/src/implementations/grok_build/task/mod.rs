@@ -566,7 +566,9 @@ mod tests {
         let (backend, _rx) = make_backend();
         let mut resources = Resources::new();
         resources.insert(backend);
-        resources.insert(SubagentDepthCounter(max_subagent_depth()) /* first-level subagent */);
+        resources.insert(
+            SubagentDepthCounter(max_subagent_depth()), /* first-level subagent */
+        );
         resources.insert(SessionIdResource("child-session".to_string()));
         resources.insert(CurrentPromptIdResource("prompt-456".to_string()));
 
@@ -599,10 +601,7 @@ mod tests {
     #[test]
     fn parse_max_subagent_depth_defaults_and_clamps() {
         // Absent / blank / garbage → default.
-        assert_eq!(
-            parse_max_subagent_depth(None),
-            DEFAULT_MAX_SUBAGENT_DEPTH
-        );
+        assert_eq!(parse_max_subagent_depth(None), DEFAULT_MAX_SUBAGENT_DEPTH);
         assert_eq!(
             parse_max_subagent_depth(Some("")),
             DEFAULT_MAX_SUBAGENT_DEPTH

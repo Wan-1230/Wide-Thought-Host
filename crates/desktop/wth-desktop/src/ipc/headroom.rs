@@ -85,9 +85,7 @@ pub async fn headroom_start(
             port: 0,
             installed: false,
             proxy_url: None,
-            error: Some(
-                "Headroom 未安装。请运行: pip install headroom-ai[all]".into(),
-            ),
+            error: Some("Headroom 未安装。请运行: pip install headroom-ai[all]".into()),
         });
     }
 

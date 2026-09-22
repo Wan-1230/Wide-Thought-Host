@@ -9,12 +9,12 @@
 
 #![windows_subsystem = "windows"]
 
-mod credentials;
-mod mcp;
-mod auth;
 mod audit;
+mod auth;
+mod credentials;
 mod headroom;
 mod ipc;
+mod mcp;
 mod settings;
 mod state;
 mod tray;
@@ -170,7 +170,10 @@ pub fn run() {
                 let wth_home = xai_grok_config::wth_home();
                 let seeded = ipc::bundled_skills::seed_bundled_skills(&wth_home);
                 if seeded > 0 {
-                    tracing::info!("已种子 {seeded} 个捆绑技能到 {:?}", wth_home.join("bundled"));
+                    tracing::info!(
+                        "已种子 {seeded} 个捆绑技能到 {:?}",
+                        wth_home.join("bundled")
+                    );
                 }
             }
 
@@ -281,18 +284,22 @@ pub fn run() {
                 .and_then(|s| s.shortcuts.get("toggle_window").cloned())
                 .unwrap_or_else(|| "Alt+W".into());
             if let Some(shortcut) = parse_global_shortcut(&toggle_keys) {
-                match app.global_shortcut().on_shortcut(shortcut, |app, _shortcut, _event| {
-                    if let Some(window) = app.get_webview_window("main") {
-                        if window.is_visible().unwrap_or(false) {
-                            let _ = window.hide();
-                        } else {
-                            let _ = window.show();
-                            let _ = window.set_focus();
+                match app
+                    .global_shortcut()
+                    .on_shortcut(shortcut, |app, _shortcut, _event| {
+                        if let Some(window) = app.get_webview_window("main") {
+                            if window.is_visible().unwrap_or(false) {
+                                let _ = window.hide();
+                            } else {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
                         }
-                    }
-                }) {
+                    }) {
                     Ok(_) => tracing::info!("Global shortcut {toggle_keys} registered"),
-                    Err(e) => tracing::warn!("Failed to register global shortcut {toggle_keys}: {e}"),
+                    Err(e) => {
+                        tracing::warn!("Failed to register global shortcut {toggle_keys}: {e}")
+                    }
                 }
             } else {
                 tracing::warn!("无法解析全局快捷键「{toggle_keys}」，使用默认 Alt+W");

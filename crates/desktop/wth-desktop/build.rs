@@ -14,12 +14,15 @@ fn main() {
             for entry in entries.flatten() {
                 let name = entry.file_name().to_string_lossy().to_string();
                 if name.starts_with("webview2-com-sys-") {
-                    let src = entry.path().join("out").join("x64").join("WebView2Loader.dll");
+                    let src = entry
+                        .path()
+                        .join("out")
+                        .join("x64")
+                        .join("WebView2Loader.dll");
                     if src.exists() {
                         // Copy to project root so Tauri sees it for bundling
-                        let manifest = std::path::PathBuf::from(
-                            std::env::var("CARGO_MANIFEST_DIR").unwrap(),
-                        );
+                        let manifest =
+                            std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
                         let dst = manifest.join("WebView2Loader.dll");
                         std::fs::copy(&src, &dst).ok();
                         println!("cargo:warning=Copied WebView2Loader.dll to manifest dir");
