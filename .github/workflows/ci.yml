@@ -1,7 +1,10 @@
-# Wide Thought Host (WTH) CI — lint, tests, and the `wth` binary.
+# Wide Thought Host (WTH) CI — governance, lint, tests, and the `wth` binary.
 #
-# Layout mirrors a normal Rust project CI:
-#   fmt → clippy → tests/build
+# Layout:
+#   fmt → hygiene → architecture (ratchet) → clippy → tests → audit → build
+# The governance jobs compile nothing and finish in seconds; they exist because
+# a package rename silently rotted this file's own `cargo -p` arguments, and the
+# privacy gates below are only as real as the names that invoke them.
 # Scoped for this monorepo: full-workspace clippy -D warnings is not practical
 # on the upstream snapshot; clippy covers core crates + the pager
 # binary surface. Tests stay a separate fast job.
@@ -42,6 +45,64 @@ jobs:
       - name: cargo fmt --check
         run: cargo fmt --all -- --check
 
+  # ── Repository governance (no compilation, seconds) ────────────────────────
+  # These two jobs keep the rest of the workflow honest: the rename that broke
+  # this file's own `-p` arguments is exactly the drift they catch.
+  hygiene:
+    name: Governance gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Workflow package and path references
+        run: python scripts/check_workflow_pkg_names.py --verbose
+
+      - name: Desktop version surfaces
+        run: python scripts/check_version_sync.py --verbose
+
+  architecture:
+    name: Architecture (ratchet)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # --changed diffs against the base branch, which needs history.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check
+        # On a PR only judge changed files; on main fail on anything outside the
+        # frozen baseline so a landed violation cannot hide.
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            python scripts/arch/check_arch.py --changed --base "origin/${{ github.base_ref }}"
+          else
+            python scripts/arch/check_arch.py
+          fi
+
+      - name: Report and graph artifacts
+        if: always()
+        run: |
+          mkdir -p architecture-report
+          python scripts/arch/check_arch.py report > architecture-report/architecture.md
+          python scripts/arch/dep_graph.py --layered > architecture-report/crates.dot
+          python scripts/arch/dep_graph.py --mermaid > architecture-report/crates.mmd
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: architecture-report
+          path: architecture-report/
+
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
@@ -74,10 +135,10 @@ jobs:
         # privacy surface.
         run: |
           cargo clippy --no-deps \
-            -p xai-grok-version \
+            -p wth-version \
             -p xai-mixpanel \
-            -p xai-grok-telemetry \
-            -p xai-grok-update \
+            -p wth-telemetry \
+            -p wth-update \
             --lib \
             -- -D warnings
 
@@ -119,26 +180,26 @@ jobs:
       - name: Test privacy-critical crates
         run: |
           # Crates that compile cleanly as lib tests in the open-source
-          # snapshot. Full xai-grok-shell --lib currently fails upstream
+          # snapshot. Full wth-shell --lib currently fails upstream
           # (missing test helpers / partial monorepo cut) — so we filter to
           # privacy resolver tests that do compile when the crate builds.
-          cargo test -p xai-grok-version --lib
+          cargo test -p wth-version --lib
           cargo test -p xai-mixpanel --lib
-          cargo test -p xai-grok-telemetry --lib default_is_privacy
+          cargo test -p wth-telemetry --lib default_is_privacy
           # Default product build: full update crate suite (lib + integration
           # tests that do NOT require installer mocks). Installer-mechanic
           # tests are behind `updater-integration-tests` and compile empty
           # without the feature.
-          cargo test -p xai-grok-update
+          cargo test -p wth-update
           # Focused privacy filters (also covered above; keep for clarity).
-          cargo test -p xai-grok-update --lib privacy -- --nocapture
-          cargo test -p xai-grok-update --lib env_cannot_disable -- --nocapture
+          cargo test -p wth-update --lib privacy -- --nocapture
+          cargo test -p wth-update --lib env_cannot_disable -- --nocapture
           # Installer mechanics against local mocks (feature + env required).
           # IMPORTANT: cargo's `--tests` also runs library unit tests. With the
           # feature compiled in and GORK_TEST_ALLOW_UPDATE=1 in the process
           # env, privacy unit tests that assert "gate stays on" would fail.
           # Target only the installer integration test binaries by name.
-          GORK_TEST_ALLOW_UPDATE=1 cargo test -p xai-grok-update \
+          GORK_TEST_ALLOW_UPDATE=1 cargo test -p wth-update \
             --features updater-integration-tests \
             --test test_install_internal \
             --test test_blitz_cancel \
@@ -146,7 +207,7 @@ jobs:
             --test test_concurrent_convergence \
             --test test_downgrade_matrix
           # Telemetry / trace resolvers: env/config/remote cannot re-enable.
-          cargo test -p xai-grok-shell --test privacy_resolvers -- --nocapture
+          cargo test -p wth-shell --test privacy_resolvers -- --nocapture
 
       - name: Static install chokepoint inventory
         run: |
@@ -219,10 +280,9 @@ jobs:
           cache-targets: "true"
 
       - name: Build wth (release)
-        run: |
-          # MinGW-w64 from choco installs to C:\tools\mingw64\bin; make sure it is on PATH.
-          $env:Path = 'C:\tools\mingw64\bin;' + $env:Path
-          cargo build -p wth-pager-bin --release
+        # ubuntu-latest: no MinGW here — that PATH line belongs to
+        # build-wth-windows only.
+        run: cargo build -p wth-pager-bin --release
 
       - name: Smoke wth CLI
         run: |
@@ -286,7 +346,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 120
     env:
-      # Repo-bundled Windows protoc (the dotslash bin/protoc has no Windows entry).
+      # Vendored Windows protoc (ships bin/ + include/ as siblings).
       PROTOC: ${{ github.workspace }}\bin\protoc-win64\bin\protoc.exe
     steps:
       - uses: actions/checkout@v7

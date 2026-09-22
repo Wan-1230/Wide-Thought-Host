@@ -9,7 +9,12 @@
     "prebuild": "node scripts/copy-monaco.mjs",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "ci:check": "npm run typecheck"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",

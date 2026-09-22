@@ -15023,7 +15023,7 @@ dependencies = [
 
 [[package]]
 name = "wth-desktop"
-version = "2.0.1"
+version = "2.1.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -15057,21 +15057,8 @@ dependencies = [
  "walkdir",
  "windows 0.61.3",
  "windows-sys 0.60.2",
- "wth-agent",
  "wth-config",
- "wth-config-types",
- "wth-mcp",
- "wth-memory",
- "wth-models",
- "wth-sampler",
- "wth-sandbox",
- "wth-secrets",
- "wth-shared",
  "wth-shell",
- "wth-tool-protocol",
- "wth-tool-runtime",
- "wth-tool-types",
- "wth-tools",
  "zip 2.4.2",
 ]
 

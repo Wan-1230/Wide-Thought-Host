@@ -24,8 +24,17 @@ Requirements:
 
 - Rust toolchain from [`rust-toolchain.toml`](rust-toolchain.toml) (`rustup`
   installs it automatically)
-- `protoc` — see [`bin/protoc`](bin/protoc) or install a system `protoc` /
-  set `$PROTOC`
+- Rust: on Windows use the GNU toolchain (`rustup toolchain install
+  stable-x86_64-pc-windows-gnu`); `scripts/dev.ps1` and
+  `scripts/cargo-gnu.cmd` select it for you. The default MSVC host fails on
+  build scripts unless the C++ workload is installed.
+- `protoc` — vendored at [`bin/protoc-win64`](bin/protoc-win64) (Windows), or
+  install a system `protoc` / set `$PROTOC`. `crates/build/xai-proto-build`
+  needs the `include/` directory to sit next to `bin/`, so a lone `protoc.exe`
+  dropped in `bin/` is not enough.
+- Python 3.11+ — the repository-governance scripts under `scripts/` (no third
+  party packages; stdlib `tomllib` only).
+- Node.js 20+ — desktop UI only.
 
 ```sh
 git clone https://github.com/Wan-1230/Wide-Thought-Host.git

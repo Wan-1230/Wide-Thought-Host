@@ -5,12 +5,14 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
-# 1. protoc
-if (-not (Get-Command protoc -ErrorAction SilentlyContinue)) {
-  if (Test-Path "$root\bin\protoc.exe") {
-    $env:PATH = "$root\bin;$env:PATH"
-  } else {
-    Write-Host "[warn] protoc not found; put protoc.exe in bin\" -ForegroundColor Yellow
+# 1. protoc (vendored: bin/protoc-win64 ships bin/ + include/, which
+#    find_protoc_include_dir requires as siblings)
+if (-not $env:PROTOC) {
+  $vendored = Join-Path $root 'bin\protoc-win64\bin\protoc.exe'
+  if (Test-Path $vendored) {
+    $env:PROTOC = $vendored
+  } elseif (-not (Get-Command protoc -ErrorAction SilentlyContinue)) {
+    Write-Host "[warn] protoc not found; expected $vendored or a system protoc" -ForegroundColor Yellow
   }
 }
 

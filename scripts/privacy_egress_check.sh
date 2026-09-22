@@ -11,7 +11,7 @@ cd "$ROOT"
 BIN="${WTH_BIN:-target/release/wth}"
 if [[ ! -x "$BIN" ]]; then
   echo "Building release wth..."
-  cargo build -p xai-grok-pager-bin --release
+  cargo build -p wth-pager-bin --release
   BIN=target/release/wth
 fi
 

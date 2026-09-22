@@ -1,0 +1,23 @@
+* text=auto
+
+# Shell must stay LF: a CRLF `#!/bin/sh` line makes Git for Windows' sh fail to
+# find the interpreter, and the same file is checked out on Linux runners too.
+*.sh text eol=lf
+*.bash text eol=lf
+git-hooks/* text eol=lf
+
+# Windows-only scripts stay CRLF so they render correctly in Notepad/ISE.
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Never normalize generated or vendored bytes -- it changes checksums.
+Cargo.lock text eol=lf
+*.snap -text
+THIRD-PARTY-NOTICES -text
+bin/protoc-win64/** -text
+
+# Diffs
+*.rs diff=rust
+*.toml diff=toml
+*.py diff=python

@@ -1,0 +1,35 @@
+#!/bin/sh
+# Pre-push: run the same gates CI runs, scoped to what this push touches.
+#
+# Deliberately NOT a language toolchain wrapper (no husky, no cargo alias that
+# CI then skips): one file, so "passes locally" and "passes in CI" cannot drift
+# apart. CI stays authoritative -- this only shortens the feedback loop.
+#
+# Install: scripts/bootstrap.sh --hooks   (or scripts/bootstrap.ps1 -Hooks)
+# Skip once: git push --no-verify   (CI will still catch it)
+set -eu
+
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+. "$root/scripts/lib/wth_common.sh"
+
+echo "pre-push: changed-file architecture gate"
+wth_python scripts/arch/check_arch.py --changed || {
+  echo "pre-push blocked: fix the NEW violations above (see scripts/arch/architecture-policy.toml)" >&2
+  exit 1
+}
+
+echo "pre-push: workflow package/path references"
+wth_python scripts/check_workflow_pkg_names.py || exit 1
+
+echo "pre-push: desktop version surfaces"
+wth_python scripts/check_version_sync.py || exit 1
+
+# Formatting is the cheapest thing to enforce and the most annoying to find in
+# CI 20 minutes later.
+if command -v cargo >/dev/null 2>&1; then
+  echo "pre-push: cargo fmt --check"
+  cargo fmt --all -- --check || exit 1
+fi
+
+echo "pre-push: all gates passed"

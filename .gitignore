@@ -4,8 +4,11 @@
 .protoc/
 protoc-*.zip
 .reasonix/
+# Local build/test logs and scratch. `memory/` notes stay visible (some are
+# deliberately tracked); everything else is noise in `git status`.
+.workbuddy/*
+!.workbuddy/memory/
 .superpowers/
-.workbuddy/tmp/
 crates/codegen/xai-grok-tools-api/NUL
 crates/desktop/wth-desktop/gen/
 crates/desktop/wth-desktop/WebView2Loader.dll
@@ -21,6 +24,11 @@ tauri-build*.log
 # local tooling / accidental vendor
 .playwright-mcp/
 crates/desktop/wth-desktop/node_modules/
+
+# Vendored protoc lives at bin/protoc-win64/ (found by
+# crates/build/xai-proto-build/src/find_protoc.rs). Never commit a second copy.
+/bin/protoc
+/bin/protoc.exe
 
 /dist
 

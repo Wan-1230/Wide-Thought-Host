@@ -1,0 +1,185 @@
+# WTH architecture policy -- the rules scripts/arch/check_arch.py enforces.
+#
+# TOML, not YAML: the checker must run on a stock Python 3.11+ with no
+# third-party packages (`tomllib` is stdlib; there is no stdlib YAML parser).
+#
+# Ratchet semantics: a violation that appears in
+# .architecture-baseline.json is frozen and never blocks a pull request.
+# A violation that is NOT in the baseline fails `check`. So this file can be
+# tightened to aspirational values today -- the gap becomes visible debt with a
+# mechanism that only ever shrinks.
+#
+# Layer rule: a crate at layer N may depend only on layers <= N.
+
+# --------------------------------------------------------------------------- #
+# Layers, in dependency order (arrays of tables: index == layer number)
+# --------------------------------------------------------------------------- #
+
+# L0 -- pure contracts: types, wire shapes, version/name constants. Must stay
+# dependency-free with respect to everything above, or every leaf becomes a hub.
+[[layers]]
+name = "contracts"
+crates = [
+  "wth-tool-types",
+  "wth-tool-protocol",
+  "wth-config-types",
+  "wth-sampling-types",
+  "wth-workspace-types",
+  "wth-hooks-plugins-types",
+  "wth-version",
+  "wth-env",
+  "wth-paths",
+  "prod-mc-cli-chat-proxy-types",
+]
+
+# L1 -- foundations: OS/platform adapters, storage primitives, render helpers,
+# and the small content crates that only consume L0.
+[[layers]]
+name = "foundations"
+crates = [
+  "xai-proto-build",
+  "ptyctl",
+  "wth-tty-utils",
+  "wth-file-utils",
+  "wth-fsnotify",
+  "wth-gix-status",
+  "wth-http",
+  "wth-secrets",
+  "wth-auth",
+  "wth-sqlite-journal",
+  "wth-token-estimation",
+  "wth-crash-handler",
+  "wth-system-power",
+  "wth-tracing",
+  "wth-tracing-macros",
+  "wth-circuit-breaker",
+  "wth-interjection-core",
+  "wth-compaction",
+  "wth-ratatui-inline",
+  "wth-ratatui-textarea",
+  "wth-markdown-core",
+  "wth-markdown",
+  "wth-mermaid",
+  "wth-chat-state",
+  "wth-agent-lifecycle",
+  "wth-test-utils",
+  "wth-test-support",
+  "xai-mixpanel",
+  "xai-computer-hub-core",
+  "xai-grok-announcements",
+]
+
+# L2 -- capabilities: things a session can call. May not reach up into hosts.
+[[layers]]
+name = "capabilities"
+crates = [
+  "wth-tools-api",
+  "wth-tools",
+  "wth-tool-runtime",
+  "wth-sampler",
+  "wth-mcp",
+  "wth-memory",
+  "wth-sandbox",
+  "wth-hooks",
+  "wth-codebase-graph",
+  "wth-fast-worktree",
+  "wth-hunk-tracker",
+  "wth-prompt-queue",
+  "wth-acp-lib",
+  "wth-subagent-resolution",
+  "wth-plugin-marketplace",
+  "wth-telemetry",
+  "wth-update",
+  "wth-models",
+  "wth-config",
+  "wth-shared",
+  "wth-shell-base",
+  "wth-shell-session-support",
+  "wth-workspace-client",
+  "wth-agent",
+  "xai-computer-hub-sdk",
+  "xai-computer-hub-mcp-adapter",
+  "xai-grok-voice",
+]
+
+# L3 -- session hosts: own a turn loop and a persistence surface.
+[[layers]]
+name = "session-hosts"
+crates = [
+  "wth-shell",
+  "wth-workspace",
+  "wth-mcp-server",
+]
+
+# L4 -- user interfaces. Nothing may import these.
+[[layers]]
+name = "frontends"
+crates = [
+  "wth-pager",
+  "wth-pager-render",
+  "wth-pager-minimal",
+  "wth-pager-pty-harness",
+  "wth-pager-bin",
+  "wth-desktop",
+]
+
+# Vendored third-party trees are exempt from layering (they mirror upstream and
+# are leaves). `vendored = true` makes them importable from every layer instead
+# of treating their list position as a rank.
+[[layers]]
+name = "vendored"
+vendored = true
+dir_prefixes = ["third_party/"]
+crates = []
+
+# --------------------------------------------------------------------------- #
+# Named exceptions to the layer rule: same-layer edges that are still wrong.
+# --------------------------------------------------------------------------- #
+
+[[deny]]
+from = "wth-memory"
+to = "wth-tools"
+reason = """memory is a capability the tool layer calls; the reverse edge makes
+retrieval untestable without the whole tool registry and blocks splitting the
+memory engine out for the desktop kernel."""
+
+# --------------------------------------------------------------------------- #
+# Metrics
+# --------------------------------------------------------------------------- #
+
+[dependencies]
+# Fan-out is counted over INTERNAL crates only. Limits below are deliberately set
+# under the measured values so the surplus is frozen and visibly shrinks.
+default_max_fanout = 30
+
+[dependencies.max_fanout]
+wth-shell = 60
+wth-workspace = 40
+wth-pager = 45
+wth-tools = 35
+wth-desktop = 12
+
+[files]
+# A .rs file over this many lines is frozen debt; a NEW file over it fails.
+max_lines = 2000
+# ...and a file this large with zero `mod` declarations cannot be reviewed.
+giant_no_mod_lines = 3000
+
+[naming]
+# The xai-*/grok* legacy names are frozen in the baseline; anything created
+# from now on must carry the product prefix. See docs/adr/naming-policy.md.
+required_prefix_for_new = "wth-"
+vendor_prefixes = ["dagre_rust", "graphlib_rust", "mermaid-to-svg", "ordered_hashmap"]
+
+[docs]
+# Crates at least this large must open src/lib.rs with a `//!` role statement.
+min_crate_lines = 5000
+
+[cycles]
+# Cycles are reported when cargo only tolerates them via split lib/bin targets.
+# Anything genuinely intended goes here with an ADR reference.
+allow = []
+
+# One-off suppressions by violation id (`rule|key`). Prefer a [cycles].allow or
+# [[deny]] entry with a reason over listing ids here.
+exempt = []

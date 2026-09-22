@@ -20,11 +20,22 @@ on:
       - "rust-toolchain.toml"
   workflow_dispatch:
 
+concurrency:
+  # Desktop packaging is 60 minutes; a superseding push should cancel the older
+  # run instead of queueing a second Windows build. Never cancel a tag build --
+  # that is the release artifact.
+  group: desktop-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
 jobs:
   test-and-build:
     name: 测试与构建
     runs-on: windows-latest
     timeout-minutes: 30
+    env:
+      # Vendored protoc (ships bin/ + include/ as siblings); wth-desktop pulls
+      # xai-proto-build transitively through wth-shell.
+      PROTOC: ${{ github.workspace }}\bin\protoc-win64\bin\protoc.exe
     steps:
       - uses: actions/checkout@v4
 
@@ -32,6 +43,22 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+
+      - name: Rust 缓存
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: desktop-ci
+
+      # The two checks below were configured but never invoked: rustfmt and
+      # clippy components were installed and no step called them, so desktop
+      # code landed unlinted while ci.yml's crates were gated.
+      - name: 格式检查
+        shell: bash
+        run: cargo fmt --all -- --check
+
+      - name: Clippy（桌面 crate）
+        shell: bash
+        run: cargo clippy --no-deps -p wth-desktop --all-targets -- -D warnings
 
       - name: Rust 单元测试
         shell: bash
@@ -48,9 +75,18 @@ jobs:
         working-directory: crates/desktop/wth-desktop/ui
         run: npm ci
 
+      - name: 前端格式与静态检查
+        working-directory: crates/desktop/wth-desktop/ui
+        run: npm run ci:check
+
       - name: 前端单元测试
         working-directory: crates/desktop/wth-desktop/ui
         run: npm run test
+
+      - name: 前端依赖审计（仅生产依赖）
+        working-directory: crates/desktop/wth-desktop/ui
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high
 
       - name: 前端类型检查与构建
         working-directory: crates/desktop/wth-desktop/ui

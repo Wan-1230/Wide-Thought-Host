@@ -87,7 +87,11 @@ members = [
 ]
 
 [workspace.package]
-version = "1.0.0"
+# Product version anchor. No member crate inherits this today (each pins its
+# own), so scripts/check_version_sync.py is the real gate for the desktop
+# surfaces. Kept in sync by hand at release time; the CLI/TUI train versions
+# independently -- see docs/adr/version-policy.md.
+version = "2.1.0"
 edition = "2024"
 license = "Apache-2.0"
 description = "Wide Thought Host — an optimized coding agent harness with multi-backend LLM support, enhanced TUI, and deep extensibility."

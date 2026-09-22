@@ -21,24 +21,17 @@ tauri-plugin-process = "2"
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-single-instance = "2"
 
-# WTH core crates (local — package names retained for compatibility)
-wth-agent = { path = "../../codegen/wth-agent" }
+# WTH kernel crates actually referenced by src/ (see scripts/arch/check_arch.py
+# rule `dead_path_dep` — declaring a crate here without using it costs a full
+# compile of its dependency closure).
+#   xai_grok_config::* — config loading (21 refs)
+#   xai_grok_shell::*  — ACP kernel bridge, ipc/acp_bridge.rs (2 refs)
+# The desktop's own agent loop, tools, MCP client, memory, and Windows sandbox
+# are self-contained under src/ and do NOT link the kernel crates. When the
+# unified kernel (`kernel_agent`) becomes the default path, re-add only what
+# the routing actually consumes.
 wth-config = { path = "../../codegen/wth-config" }
-wth-config-types = { path = "../../codegen/wth-config-types" }
-wth-models = { path = "../../codegen/wth-models" }
-wth-tool-protocol = { path = "../../common/wth-tool-protocol" }
-wth-tool-runtime = { path = "../../common/wth-tool-runtime" }
-wth-tool-types = { path = "../../common/wth-tool-types" }
-
-# xAI shell crates (for Agent runtime)
 wth-shell = { path = "../../codegen/xai-grok-shell" }
-wth-tools = { path = "../../codegen/xai-grok-tools" }
-wth-mcp = { path = "../../codegen/xai-grok-mcp" }
-wth-sampler = { path = "../../codegen/xai-grok-sampler" }
-wth-memory = { path = "../../codegen/xai-grok-memory" }
-wth-sandbox = { path = "../../codegen/xai-grok-sandbox" }
-wth-secrets = { path = "../../codegen/xai-grok-secrets" }
-wth-shared = { path = "../../codegen/xai-grok-shared" }
 
 # Async runtime
 tokio = { workspace = true }

@@ -28,12 +28,14 @@ fn is_github_actions() -> bool {
 ///
 /// Search order:
 /// 1. `$PROTOC` environment variable (set by Bazel `build_script_env` or user override)
-/// 2. `bin/protoc` walking up parent directories (dotslash wrapper for local dev)
+/// 2. `bin/protoc-win64/bin/protoc.exe` walking up parent directories (the vendored
+///    Windows distribution; it ships `include/` as a sibling of `bin/`, which
+///    `find_protoc_include_dir` requires)
 /// 3. `protoc` on `$PATH` (system install or other tooling)
 ///
-/// When `bin/protoc` exists but fails to execute (e.g. the dotslash wrapper running
-/// in Bazel remote execution where `dotslash` is not installed), the error is not fatal —
-/// we fall through to the PATH-based lookup instead.
+/// When a vendored `bin/protoc*` exists but fails to execute (e.g. a Windows PE on a
+/// Linux host, or a dotslash wrapper without `dotslash` installed), the error is not
+/// fatal — we fall through to the PATH-based lookup instead.
 ///
 /// Returns `Ok(None)` if not found and not in a strict environment (GitHub Actions).
 pub fn find_protoc() -> anyhow::Result<Option<PathBuf>> {
@@ -48,26 +50,32 @@ pub fn find_protoc() -> anyhow::Result<Option<PathBuf>> {
         }
     }
 
-    // 2. Walk up directories looking for bin/protoc (dotslash wrapper).
+    // 2. Walk up directories looking for the vendored protoc. Relative paths are
+    //    returned deliberately so build output stays deterministic.
+    const VENDORED: &[&str] = &[
+        "bin/protoc-win64/bin/protoc.exe",
+        "bin/protoc-win64/bin/protoc",
+        "bin/protoc",
+    ];
     let cwd = env::current_dir()?;
     let mut dir = cwd.clone();
     let mut dir_rel = PathBuf::new();
     loop {
-        // Return relative path to make build more deterministic.
-        let protoc = dir_rel.join("bin/protoc");
-        if protoc.try_exists()? {
+        for candidate in VENDORED {
+            let protoc = dir_rel.join(candidate);
+            if !protoc.try_exists()? {
+                continue;
+            }
             match check_protoc_good(&protoc) {
                 Ok(()) => return Ok(Some(protoc)),
                 Err(e) => {
-                    // bin/protoc exists but can't execute — likely the dotslash wrapper
-                    // in an environment without dotslash (e.g. Bazel remote execution).
-                    // Fall through to PATH-based lookup below.
+                    // Present but not runnable — keep walking, then try PATH.
                     eprintln!(
-                        "bin/protoc found at `{}` but failed to execute: {e:#}; \
+                        "vendored protoc at `{}` failed to execute: {e:#}; \
                          trying protoc from PATH as fallback",
                         protoc.display()
                     );
-                    break;
+                    return try_path_protoc();
                 }
             }
         }
@@ -78,6 +86,10 @@ pub fn find_protoc() -> anyhow::Result<Option<PathBuf>> {
     }
 
     // 3. Try protoc from PATH (system install or other tooling).
+    try_path_protoc()
+}
+
+fn try_path_protoc() -> anyhow::Result<Option<PathBuf>> {
     if check_protoc_good(Path::new("protoc")).is_ok() {
         return Ok(Some(PathBuf::from("protoc")));
     }
@@ -85,7 +97,7 @@ pub fn find_protoc() -> anyhow::Result<Option<PathBuf>> {
     // 4. Not found anywhere.
     if is_github_actions() {
         return Err(anyhow::anyhow!(
-            "`protoc` not found (checked $PROTOC env, bin/protoc, and PATH)"
+            "`protoc` not found (checked $PROTOC env, vendored bin/protoc-win64, and PATH)"
         ));
     }
     eprintln!("`protoc` not found; likely it is missing in docker image");
