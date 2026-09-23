@@ -1,4 +1,3 @@
-import { listen } from "@tauri-apps/api/event";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { open as openUrl } from "@tauri-apps/plugin-shell";
 import {
@@ -68,6 +67,7 @@ import {
   memoryList,
   memoryWrite,
   metricsSummary,
+  onUpdateProgress,
   openPathInExplorer,
   type PluginMarketEntry,
   type PluginMarketItem,
@@ -3634,8 +3634,8 @@ function PageAbout({ onNotice }: { onNotice: (s: string) => void }) {
     setDownloading(true);
     setProgress(null);
     setDownloadResult(null);
-    const dispose = await listen<UpdateProgress>("update:progress", event => {
-      setProgress(event.payload);
+    const dispose = await onUpdateProgress(p => {
+      setProgress(p);
     });
     try {
       const res = await updateDownload();

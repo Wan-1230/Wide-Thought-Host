@@ -5,10 +5,16 @@
 // 右侧：窗口控制按钮（最小化 / 最大化-还原 / 关闭）。
 // 整栏作为窗口拖拽区域（data-tauri-drag-region）。
 
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Copy, Minus, PanelLeftClose, PanelLeftOpen, Square, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import wthIcon from "@/assets/wth-icon.png";
+import {
+  onWindowResized,
+  windowClose,
+  windowIsMaximized,
+  windowMinimize,
+  windowToggleMaximize,
+} from "@/lib/ipc";
 import { useUiStore } from "@/stores/ui";
 
 interface TitleBarProps {
@@ -24,18 +30,15 @@ export function TitleBar({ sessionTitle, streaming = false }: TitleBarProps) {
   const toggleSidebar = useUiStore(s => s.toggleSidebar);
 
   useEffect(() => {
-    const appWindow = getCurrentWindow();
     let disposed = false;
-    appWindow
-      .isMaximized()
+    windowIsMaximized()
       .then(m => {
         if (!disposed) setMaximized(m);
       })
       .catch(() => {});
     // 监听窗口最大化状态变化（含双击标题栏、Win+↑ 等系统行为）
-    const unlisten = appWindow.onResized(() => {
-      appWindow
-        .isMaximized()
+    const unlisten = onWindowResized(() => {
+      windowIsMaximized()
         .then(m => setMaximized(m))
         .catch(() => {});
     });
@@ -45,9 +48,9 @@ export function TitleBar({ sessionTitle, streaming = false }: TitleBarProps) {
     };
   }, []);
 
-  const handleMinimize = () => getCurrentWindow().minimize().catch(console.error);
-  const handleToggleMaximize = () => getCurrentWindow().toggleMaximize().catch(console.error);
-  const handleClose = () => getCurrentWindow().close().catch(console.error);
+  const handleMinimize = () => windowMinimize().catch(console.error);
+  const handleToggleMaximize = () => windowToggleMaximize().catch(console.error);
+  const handleClose = () => windowClose().catch(console.error);
 
   return (
     <header

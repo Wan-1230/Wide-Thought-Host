@@ -5,8 +5,13 @@ import { defineConfig } from "vite";
 /// <reference types="vitest" />
 export default defineConfig({
   test: {
+    // Default stays "node": store / IPC-contract tests never touch the DOM, and
+    // booting jsdom is by far the most expensive part of a test file's startup.
+    // Component tests opt in individually with the `// @vitest-environment jsdom`
+    // docblock — unlike `environmentMatchGlobs` (removed in v4) or `projects`
+    // (added in v4) that annotation has been stable across every vitest major.
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.{ts,tsx}"],
   },
   plugins: [react()],
   resolve: {

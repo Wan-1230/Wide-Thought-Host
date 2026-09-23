@@ -1,8 +1,10 @@
-// IPC bridge — wraps all Tauri invoke calls into typed async functions.
+// IPC bridge — the single place that touches the Tauri API surface
+// (`invoke`, `listen`, `getCurrentWindow`); components depend on this module only.
 // Handles streaming events via Tauri event system.
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 // ─── Types ───────────────────────────────────────────
 
@@ -608,6 +610,10 @@ export interface UpdateProgress {
 
 export const updateDownload = () => invoke<UpdateDownloadResult>("update_download");
 
+export function onUpdateProgress(cb: (evt: UpdateProgress) => void): Promise<UnlistenFn> {
+  return listen<UpdateProgress>("update:progress", event => cb(event.payload));
+}
+
 export interface WorkspaceSearchHit {
   path: string;
   line: number;
@@ -776,3 +782,26 @@ export interface MessageSearchHit {
 
 export const sessionSearch = (query: string, limit?: number) =>
   invoke<MessageSearchHit[]>("session_search", { query, limit });
+
+// ─── 窗口控制与原生菜单事件 ───────────────────────────
+
+export const windowIsMaximized = () => getCurrentWindow().isMaximized();
+export const windowMinimize = () => getCurrentWindow().minimize();
+export const windowToggleMaximize = () => getCurrentWindow().toggleMaximize();
+export const windowClose = () => getCurrentWindow().close();
+
+export function onWindowResized(cb: () => void): Promise<UnlistenFn> {
+  return getCurrentWindow().onResized(() => cb());
+}
+
+export function onMenuNewSession(cb: () => void | Promise<void>): Promise<UnlistenFn> {
+  return listen<null>("menu:new-session", () => cb());
+}
+
+export function onMenuQuickAsk(cb: () => void): Promise<UnlistenFn> {
+  return listen<null>("menu:quick-ask", () => cb());
+}
+
+export function onMenuOpenSession(cb: (sessionId: string) => void): Promise<UnlistenFn> {
+  return listen<string>("menu:open-session", event => cb(event.payload));
+}

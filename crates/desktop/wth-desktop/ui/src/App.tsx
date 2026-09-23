@@ -11,7 +11,6 @@
 //   └────────────────────────────────────────────┘
 // 本文件仅承担布局编排与既有业务回调接线，不含新增业务接口。
 
-import { listen } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { open as openUrl } from "@tauri-apps/plugin-shell";
@@ -73,6 +72,9 @@ import {
   githubAuthStatus,
   onAgentApproval,
   onAgentStream,
+  onMenuNewSession,
+  onMenuOpenSession,
+  onMenuQuickAsk,
   onSubagentResult,
   type ProviderSummary,
   providerList,
@@ -390,17 +392,16 @@ export default function App() {
   }, [messages, activeSessionId]);
 
   useEffect(() => {
-    const dispose = listen("menu:new-session", async () => {
+    const dispose = onMenuNewSession(async () => {
       const session = await sessionCreate("新会话", "");
       upsertSession(session);
       setActiveSession(session.id);
       setNavSection("sessions");
     });
-    const disposeQuickAsk = listen("menu:quick-ask", () => {
+    const disposeQuickAsk = onMenuQuickAsk(() => {
       setShowQuickAsk(true);
     });
-    const disposeOpenSession = listen("menu:open-session", event => {
-      const id = event.payload as string;
+    const disposeOpenSession = onMenuOpenSession(id => {
       if (id) {
         setActiveSession(id);
         setNavSection("sessions");
