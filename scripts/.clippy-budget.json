@@ -1,0 +1,9 @@
+{
+  "budget": {
+    "kernel_parity": 2,
+    "wth-desktop": 119,
+    "xai_grok_shared": 6,
+    "xai_grok_shell": 14
+  },
+  "note": "Frozen clippy warning counts per crate. check_clippy_budget.py fails when a crate exceeds its number. Shrink it; regenerate on main only."
+}

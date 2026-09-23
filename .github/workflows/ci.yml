@@ -223,6 +223,32 @@ jobs:
           # is what blocks them — not a silent empty list).
           grep -n 'https://x.ai/cli' crates/codegen/xai-grok-update/src/version.rs
 
+  # License / provenance / duplicate-version gate. Advisory exemptions are shared
+  # with cargo-audit: edit .cargo/audit.toml, then run
+  # `python scripts/sync_advisory_ignore.py` and commit both files.
+  cargo-deny:
+    name: cargo deny
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      # Pinned to the version the config was validated against (see the header
+      # comment in cargo-deny.toml) so a cargo-deny release cannot silently
+      # change what we gate on.
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked --version 0.20.2 --debug
+
+      # cargo-deny only auto-discovers `deny.toml`; without --config it falls back
+      # to an EMPTY allow list and rejects every crate. Never drop this flag.
+      - name: Check
+        run: cargo deny --config cargo-deny.toml check
+
   # Supply-chain hard gate: fails on any vulnerability not ignored in audit.toml.
   # Ignore list is residual monorepo debt (rsa unfixed; quick-xml major pin).
   cargo-audit:

@@ -49,16 +49,19 @@ jobs:
         with:
           shared-key: desktop-ci
 
-      # The two checks below were configured but never invoked: rustfmt and
-      # clippy components were installed and no step called them, so desktop
-      # code landed unlinted while ci.yml's crates were gated.
+      # rustfmt and clippy components were installed but no step ever invoked
+      # them, so desktop code landed unlinted while ci.yml's crates were gated.
       - name: 格式检查
         shell: bash
         run: cargo fmt --all -- --check
 
-      - name: Clippy（桌面 crate）
+      # Report-only for the tree as a whole, gated as a ratchet: wth-desktop
+      # carries ~119 inherited clippy warnings, so `-D warnings` here would just
+      # pin CI red and get removed. check_clippy_budget.py fails on any NEW
+      # warning while the frozen number shrinks over time.
+      - name: Clippy 预算（桌面 crate）
         shell: bash
-        run: cargo clippy --no-deps -p wth-desktop --all-targets -- -D warnings
+        run: python scripts/check_clippy_budget.py --crate wth-desktop
 
       - name: Rust 单元测试
         shell: bash

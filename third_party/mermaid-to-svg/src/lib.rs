@@ -1,3 +1,12 @@
+//! Vendored from `warpdotdev/mermaid-to-svg` (MIT), pinned to a commit rather
+//! than pulled from crates.io: this engine renders untrusted model output, so
+//! it needs a reviewable diff surface plus immunity to upstream yanks. Exempt
+//! from the layer rules as `vendored`, and a leaf — `wth-mermaid` is its only
+//! consumer.
+//!
+//! The ledger of local patches — including the hermetic
+//! `mermaid_port::is_enabled()` that refuses to read the environment — is the
+//! header comment of `Cargo.toml`. Re-apply every entry in it when upgrading.
 use std::borrow::Cow;
 mod ast;
 mod block_diagram;

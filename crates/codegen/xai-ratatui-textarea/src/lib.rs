@@ -1,3 +1,14 @@
+//! The prompt editor: a ratatui `TextArea` holding multiple `TextElement`s —
+//! typed text interleaved with pasted-image and file chips — with selection,
+//! word motions, undo/redo and screen-coordinate hit testing. Layer L1:
+//! terminal-agnostic; consumers are the pager crates and `wth-markdown`.
+//!
+//! It never touches the pasteboard itself, only the injected
+//! `ClipboardProvider` (default: in-memory `InternalClipboard`) — that is why
+//! `arboard` is a dev-dependency here. Note that `cursor()` is a byte offset
+//! which snaps to the nearest element boundary: a position you computed from
+//! the plain text can silently move.
+
 #![allow(clippy::new_without_default)]
 
 pub mod render;

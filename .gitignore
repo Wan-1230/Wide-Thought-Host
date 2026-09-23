@@ -34,3 +34,7 @@ crates/desktop/wth-desktop/node_modules/
 
 editors/vscode/node_modules/
 editors/vscode/out/
+
+# Python governance scripts
+__pycache__/
+*.py[cod]

@@ -10,3 +10,5 @@
 | [frontend-quality.md](frontend-quality.md) | 前端用 Biome + 棘轮；PrismLight 与分包把 gzip 465→267KB |
 | [windows-sandbox-design.md](windows-sandbox-design.md) | Windows 沙箱：Job → Restricted Token → AppContainer 分阶段 |
 | [unified-kernel-policy.md](unified-kernel-policy.md) | kernel_agent 默认关闭，失败回退自研循环 |
+| [upstream-sync-policy.md](upstream-sync-policy.md) | 三层划分保住上游可合并性，隐私面与桌面端承认永久分叉，季度按可量判据复核 |
+| [kernel-parity.md](kernel-parity.md) | 双内核差异用静态对齐测试 + 双向棘轮锁定，按内核可定位性对新装用户灰度开启 |

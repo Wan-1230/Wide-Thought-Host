@@ -46,6 +46,12 @@ cargo run -p wth-pager-bin          # launches the TUI binary `wth`
 Useful checks (same gates as GitHub Actions CI):
 
 ```sh
+# Fast, no compilation -- worth wiring into a hook via `scripts/bootstrap.sh --hooks`
+python scripts/check_workflow_pkg_names.py   # CI must name packages that exist
+python scripts/check_version_sync.py         # the four desktop version surfaces
+python scripts/arch/check_arch.py            # architecture ratchet (see docs/adr/architecture-governance.md)
+python scripts/check_clippy_budget.py --crate wth-desktop
+
 cargo fmt --all -- --check
 cargo clippy --no-deps \
   -p wth-agent -p wth-pager-bin \
@@ -54,6 +60,19 @@ cargo clippy --no-deps -p wth-pager-bin --bins -- -D warnings
 cargo test -p wth-agent --lib
 cargo test -p wth-config --lib
 ```
+
+On Windows, set the toolchain and protoc first -- the default MSVC host fails on
+build scripts unless the VS C++ workload is installed, and `bin/protoc` is no
+longer vendored as a bare file:
+
+```powershell
+$env:RUSTUP_TOOLCHAIN = "stable-x86_64-pc-windows-gnu"
+$env:PROTOC = "$PWD\bin\protoc-win64\bin\protoc.exe"
+```
+
+`cargo deny` needs its config passed explicitly (`cargo deny --config
+cargo-deny.toml check`); a bare `cargo deny check` reads no config, gets an empty
+license allow-list, and rejects every crate in the tree.
 
 Prefer focused tests for the crate you touch over a full workspace run unless
 you are changing shared infrastructure.
@@ -124,7 +143,9 @@ When porting an upstream fix:
 
 Open a GitHub Discussion or issue with the `question` label if unsure how to
 proceed. For license questions, start from [`LICENSE`](LICENSE) and
-[`NOTICE`](NOTICE).
+[`NOTICE`](NOTICE). After changing dependencies, `THIRD-PARTY-NOTICES` is
+regenerated and checked by `scripts/gen_third_party_notices.py` (see
+[`docs/third-party-notices.md`](docs/third-party-notices.md)).
 
 ## Windows 中文用户名环境（已知问题）
 

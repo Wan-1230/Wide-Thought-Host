@@ -1,10 +1,16 @@
-#![allow(
-    unused_imports,
-    unused_variables,
-    unused_mut,
-    unreachable_code,
-    dead_code
-)]
+//! Session host: owns the agent turn loop, the on-disk session store, config
+//! and auth resolution, and the ACP surface every frontend talks to. Layer L3
+//! in `scripts/arch/architecture-policy.toml` — it may use capabilities
+//! (`wth-tools`, `wth-agent`, `wth-mcp`) but must not import a frontend.
+//! Dependents: `wth-pager*`, `wth-desktop`, `wth-update`.
+//!
+//! Two things bite. The lib target is still `xai_grok_shell`, so source paths
+//! read `xai_grok_shell::…` while `cargo -p` wants `wth-shell`. And `leader/`
+//! runs one host process per machine over a Unix socket — anything you attach
+//! to a session is shared by every client on it, not private to the one that
+//! started the turn.
+
+// TEMPORARY: allow block removed to measure which lints still fire.
 pub(crate) use xai_grok_telemetry::unified_log;
 pub use xai_tracing_macros::{teprintln, timed, tprintln};
 pub mod active_sessions;
