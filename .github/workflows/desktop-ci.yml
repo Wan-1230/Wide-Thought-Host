@@ -37,7 +37,7 @@ jobs:
       # xai-proto-build transitively through wth-shell.
       PROTOC: ${{ github.workspace }}\bin\protoc-win64\bin\protoc.exe
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: 安装 Rust 工具链
         uses: dtolnay/rust-toolchain@stable
@@ -102,7 +102,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: 安装 Rust 工具链
         uses: dtolnay/rust-toolchain@stable
@@ -192,7 +192,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: 下载安装包
         uses: actions/download-artifact@v4
