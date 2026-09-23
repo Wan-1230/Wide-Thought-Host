@@ -10,10 +10,10 @@ name = "xai_fsnotify"
 
 [dependencies]
 dunce = { workspace = true }
-notify = "8"
+notify = { workspace = true }
 notify-debouncer-full = "0.5"
 ignore = { workspace = true }
-globset = "0.4"
+globset = { workspace = true }
 tokio = { workspace = true, features = ["sync", "time", "rt"] }
 tokio-util = { workspace = true }
 tracing = { workspace = true }

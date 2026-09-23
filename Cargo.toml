@@ -278,6 +278,13 @@ webbrowser = { version = "1.0.4" }
 which = "8"
 whoami = "1.4"
 windows = { version = "0.61", features = ["Win32_Security", "Win32_Security_Authorization", "Win32_Security_Credentials", "Win32_Foundation", "Win32_System_Threading", "Win32_System_JobObjects", "Win32_System_Console", "Win32_System_Pipes"] }
+# Pin point for the windows-sys 0.59 group (crash-handler, pager, pager-render,
+# sqlite-journal, system-power). wth-desktop is on 0.60 and stays hardcoded:
+# 0.x minors are semver-incompatible to cargo, so 0.59 -> 0.60 is a breaking bump
+# for the five crates above, not a dedupe. A new member using this entry gets
+# 0.59, which is deliberately older than the graph's newest -- bump it here, once,
+# when the 0.59 group is migrated together.
+windows-sys = "0.59"
 wiremock = "0.6"
 wl-clipboard-rs = "0.9"
 wth-acp-lib = { path = "crates/codegen/xai-acp-lib" }

@@ -14,7 +14,7 @@ name = "xai_system_power"
 zbus = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-windows-sys = { version = "0.59", features = [
+windows-sys = { workspace = true, features = [
     "Win32_Foundation",
     "Win32_System_Power",
     # Provides REGISTER_NOTIFICATION_FLAGS / DEVICE_NOTIFY_CALLBACK and gates

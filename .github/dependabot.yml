@@ -1,11 +1,35 @@
 # Dependabot for Gork Build.
 #
-# Only github-actions: CI workflows are fork-owned surface area.
-# Cargo deps intentionally follow xai-org/grok-build — version bumps here
-# would drift the lockfile from upstream and make re-sync harder (VSCodium
-# model: track upstream tree; don't parallel-maintain their dependency set).
-# Security alerts remain enabled at the repo level; review critically and
-# prefer fixing via upstream sync when possible.
+# ## Why there is no `cargo` ecosystem here (deliberate, not an oversight)
+#
+# WTH is a fork of `xai-org/grok-build` and re-syncs against it on a regular
+# cadence. `Cargo.lock` is the single hottest conflict surface in that merge:
+# every automated lockfile rewrite dependabot makes is a conflict we then have
+# to resolve by hand against upstream's own resolution. With one maintainer and
+# no merge queue, the steady-state cost of that is higher than the value of the
+# bumps, because the bumps are mostly for crates we don't control the version
+# range of anyway (see `[bans] skip` in `cargo-deny.toml`).
+#
+# So version freshness for cargo is explicitly out of scope, and the *security*
+# half of the problem is covered by a different control instead:
+#
+#   * `cargo-audit` is a hard CI gate (`.github/workflows/ci.yml`, `cargo-audit`
+#     job; exemptions in `.cargo/audit.toml`).
+#   * `cargo-deny` gates licenses, sources and duplicate versions
+#     (`cargo-deny.toml`).
+#   * GitHub dependency alerts stay on at the repo level for the advisory feed.
+#
+# Net effect: dependabot may not refresh our cargo tree, but it also may not be
+# the thing standing between a published RUSTSEC and a release. If the re-sync
+# conflict surface ever shrinks (upstream import ends, or a merge queue lands),
+# revisit this rather than treating it as permanent.
+#
+# ## Why npm *is* in scope
+#
+# The desktop front end (`crates/desktop/wth-desktop/ui`) and the VS Code
+# extension (`editors/vscode`) are fork-owned surfaces: upstream grok-build has
+# no corresponding `package.json`, so there is no lockfile to conflict with and
+# no re-sync tax. Dependabot here is pure upside, so we track it weekly.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -17,6 +41,39 @@ updates:
     labels:
       - dependencies
       - github-actions
+    commit-message:
+      prefix: build
+      include: scope
+
+  # Two npm trees, one ecosystem entry. Both commit their lockfile, so
+  # dependabot updates `package.json` *and* `package-lock.json` together.
+  #
+  # Not included: `crates/codegen/wth-pager/npm/*/package.json`. Those are
+  # per-platform npm wrapper shells emitted by the release packaging script at
+  # cut time, not hand-maintained manifests; a dependabot PR against them would
+  # be overwritten by the next packaging run.
+  - package-ecosystem: npm
+    directories:
+      - "/crates/desktop/wth-desktop/ui"
+      - "/editors/vscode"
+    schedule:
+      interval: weekly
+      day: monday
+    # Conservative: 5 open PRs total, and majors are never bundled so each one
+    # stays individually reviewable. Minor+patch land as one grouped PR per
+    # tree, which is what actually keeps the count under the cap.
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    groups:
+      npm-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+    labels:
+      - dependencies
+      - npm
     commit-message:
       prefix: build
       include: scope

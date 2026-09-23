@@ -164,7 +164,7 @@ walkdir = { workspace = true }
 tdigests = "1.0"
 semver = { workspace = true }
 process-wrap = { version = "9.0.0", features = ["tokio1", "job-object", "creation-flags"] }
-portable-pty = "0.9"
+portable-pty = { workspace = true }
 parking_lot.workspace = true
 dashmap.workspace = true
 

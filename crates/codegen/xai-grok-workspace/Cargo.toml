@@ -72,7 +72,7 @@ url = { workspace = true }
 wth-env = { workspace = true }
 humantime-serde = { workspace = true }
 prometheus = { workspace = true }
-glob = "0.3"
+glob = { workspace = true }
 wth-sandbox = { path = "../xai-grok-sandbox", default-features = false }
 wth-hooks = { path = "../xai-grok-hooks" }
 wth-hunk-tracker = { path = "../xai-hunk-tracker" }

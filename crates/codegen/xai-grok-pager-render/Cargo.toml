@@ -97,7 +97,7 @@ libc = { workspace = true }
 
 # EnumDisplaySettingsW for primary-display refresh probe (host/display_refresh).
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_Graphics_Gdi"] }
+windows-sys = { workspace = true, features = ["Win32_Graphics_Gdi"] }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

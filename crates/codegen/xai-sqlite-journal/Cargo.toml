@@ -19,7 +19,7 @@ libc = { workspace = true }
 # Same per-crate pin as xai-crash-handler / xai-system-power / xai-grok-pager
 # (windows-sys has no workspace entry).
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = [
+windows-sys = { workspace = true, features = [
     "Win32_Foundation",
     "Win32_Storage_FileSystem",
     "Win32_System_WindowsProgramming",
