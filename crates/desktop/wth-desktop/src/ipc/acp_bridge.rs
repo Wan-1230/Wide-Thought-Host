@@ -17,6 +17,7 @@ use serde_json::{Value, json};
 use tokio::sync::{RwLock, mpsc, oneshot};
 
 use crate::ipc::agent::{AgentStreamChunk, StreamPayload};
+use crate::ipc::approval_mode;
 use xai_grok_shell::leader::{ClientCapabilities, ClientMode, LeaderEnvUrls, connect_or_spawn};
 
 /// 事件出口抽象：内核桥接产生的前端事件经此分发。
@@ -103,9 +104,10 @@ impl AcpKernel {
             grok_ws_url: String::new(),
             grok_ws_origin: String::new(),
         };
+        let approval = approval_mode::kernel_approval_flags(edit_mode);
         let capabilities = ClientCapabilities {
-            yolo_mode: edit_mode.eq_ignore_ascii_case("yolo"),
-            auto_mode: edit_mode.eq_ignore_ascii_case("auto"),
+            yolo_mode: approval.yolo_mode,
+            auto_mode: approval.auto_mode,
             client_version: Some(env!("CARGO_PKG_VERSION").to_string()),
             default_model,
             ..Default::default()
@@ -561,8 +563,15 @@ pub fn snapshot_handle(kernel: &AcpKernel) -> AcpKernel {
 }
 
 /// 连接状态（诊断命令，设置 → 诊断页可用）。
+/// `kernel_binary` 让 UI 能解释「灰度默认值为何是 off」，无需新面板。
 #[tauri::command]
 pub async fn acp_status(state: tauri::State<'_, crate::state::AppState>) -> Result<Value, String> {
+    let explicit = {
+        let settings = state.settings.read().map_err(|e| e.to_string())?;
+        settings.kernel_agent_path.clone()
+    };
+    let located =
+        crate::settings::kernel_binary_path(explicit.as_deref()).map(|p| p.display().to_string());
     let guard = state.acp.lock().await;
     match guard.as_ref() {
         Some(kernel) => {
@@ -572,9 +581,10 @@ pub async fn acp_status(state: tauri::State<'_, crate::state::AppState>) -> Resu
                 "connected": true,
                 "session_id": sid,
                 "leader_version": ver,
+                "kernel_binary": located,
             }))
         }
-        None => Ok(json!({ "connected": false })),
+        None => Ok(json!({ "connected": false, "kernel_binary": located })),
     }
 }
 
@@ -733,13 +743,11 @@ mod tests {
             eprintln!("跳过 e2e：未找到 wth 可执行文件（构建 wth-pager-bin 后重试）");
             return;
         };
-        // SAFETY: e2e 测试专用路径；其余测试不读取该变量。
+        // SAFETY: e2e 测试专用路径；其余测试不读取这些变量。
         unsafe {
             std::env::set_var("WTH_LEADER_BIN", &bin);
             // BYOK 传播：假 key 仅供 session/new 的鉴权 gate（无模型调用）
-            unsafe {
-                std::env::set_var("WTH_API_KEY", "e2e-test-key");
-            }
+            std::env::set_var("WTH_API_KEY", "e2e-test-key");
         }
         // 预清理：历史失败运行可能遗留无 BYOK 环境的 leader（连接时会
         // 被收养并复用其旧环境，导致鉴权 gate 复现）。先精准清除。

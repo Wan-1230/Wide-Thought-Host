@@ -78,3 +78,7 @@ tauri-build = { version = "2", features = [] }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+# tests/kernel_parity.rs 需要内核工具注册表做跨路径对齐断言。
+# 刻意只进 dev-dependencies：wth-shell 已经传递依赖 wth-tools（编译产物复用，
+# 无额外成本），放进 [dependencies] 会让自研循环路径也背上内核符号表。
+wth-tools = { path = "../../codegen/xai-grok-tools" }

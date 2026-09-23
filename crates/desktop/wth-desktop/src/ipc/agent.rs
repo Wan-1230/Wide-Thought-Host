@@ -4,6 +4,7 @@
 //! “模型声明工具 → 按权限模式确认 → 执行工具 → 回填结果”的多轮循环，
 //! 直到模型产出最终回答或达到最大迭代轮数。
 
+use crate::ipc::approval_mode;
 use crate::ipc::hooks;
 use crate::ipc::tools::{self, ApprovalRequest};
 use crate::state::{AgentHandle, AppState};
@@ -153,7 +154,12 @@ pub async fn agent_send(
                 }
             }
             Err(e) => {
-                tracing::warn!("内核桥接不可用，回退自研循环: {e}");
+                // 降级必须留痕：warn 日志 + Inspector「最近日志」用的诊断缓冲。
+                let route = approval_mode::kernel_route(true, Some(&e));
+                if let Some(line) = route.diagnostic_line() {
+                    tracing::warn!("{line}");
+                    crate::state::push_log(&state.log_buffer, "WARN", &line);
+                }
             }
         }
     }

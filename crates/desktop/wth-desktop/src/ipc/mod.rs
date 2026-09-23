@@ -1,5 +1,6 @@
 pub mod acp_bridge;
 pub mod agent;
+pub mod approval_mode;
 pub mod backup;
 pub mod bundled_skills;
 pub mod capabilities;

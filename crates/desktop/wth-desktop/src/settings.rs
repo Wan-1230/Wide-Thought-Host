@@ -1,6 +1,6 @@
 //! 桌面设置、模型提供商和工作区管理。
 
-use crate::{credentials, state::AppState};
+use crate::{credentials, ipc::approval_mode, state::AppState};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -373,6 +373,8 @@ pub struct DesktopSettings {
     /// 网络配置（G12）：代理模式 / 请求超时 / 自动重试
     pub network: NetworkConfig,
     /// A-01: 优先使用 CLI Agent 内核（ACP）处理会话；连接失败自动回退自研循环。
+    /// 条件默认值：**仅当本机没有可解析的 settings.json 时**才按内核可定位性
+    /// 取 true/false（见 `load_settings`）；已有记录一律沿用存值，老配置无损。
     #[serde(default)]
     pub kernel_agent: bool,
     /// A-01: 内核可执行文件路径（WTH_LEADER_BIN 覆盖），为空走默认解析。
@@ -487,6 +489,7 @@ impl Default for DesktopSettings {
             prompt_templates: default_prompt_templates(),
             workflows: default_workflows(),
             network: NetworkConfig::default(),
+            // 无条件基线 false；灰度用的条件默认值只存在于 `load_settings`。
             kernel_agent: false,
             kernel_agent_path: None,
             test_cmd: None,
@@ -710,10 +713,70 @@ pub struct WorkspaceInfo {
 }
 
 pub fn load_settings(path: &Path) -> DesktopSettings {
-    std::fs::read_to_string(path)
+    load_settings_with(path, |p| kernel_binary_path(p).is_some())
+}
+
+/// `load_settings` 的可注入探针版本：CI/单测里不触碰真实 `PATH`，保证
+/// 灰度默认值的断言是确定的。
+fn load_settings_with(
+    path: &Path,
+    kernel_present: impl FnOnce(Option<&str>) -> bool,
+) -> DesktopSettings {
+    let persisted = std::fs::read_to_string(path)
         .ok()
-        .and_then(|raw| serde_json::from_str(&raw).ok())
-        .unwrap_or_default()
+        .and_then(|raw| serde_json::from_str(&raw).ok());
+    match persisted {
+        // 有可解析的记录：`kernel_agent` 字段缺失时由 `#[serde(default)]` 落到
+        // false，因此老配置一律保持关闭，不会被灰度默认值静默切到内核。
+        Some(settings) => settings,
+        // 无记录（新装或文件损坏）才允许灰度：定位得到内核二进制即开启。
+        None => {
+            let mut settings = DesktopSettings::default();
+            settings.kernel_agent = approval_mode::resolve_kernel_agent(
+                None,
+                kernel_present(settings.kernel_agent_path.as_deref()),
+            );
+            settings
+        }
+    }
+}
+
+/// 内核 CLI 的二进制名（`wth-pager-bin` 的 `[[bin]] name = "wth"`）。
+const KERNEL_BIN_NAMES: &[&str] = &["wth", "wth.exe"];
+
+/// 定位本机 `wth` 可执行文件，顺序对齐 `xai_grok_shell::leader` 的解析：
+/// 设置里的显式路径 → `WTH_LEADER_BIN` → 与主程序同目录（随安装包捆绑）→
+/// `PATH`。只读环境变量与文件系统，不发网络请求。
+pub fn kernel_binary_path(explicit: Option<&str>) -> Option<PathBuf> {
+    let is_file = |p: &std::path::Path| p.is_file();
+    if let Some(raw) = explicit.map(str::trim).filter(|p| !p.is_empty()) {
+        let candidate = PathBuf::from(raw);
+        if is_file(&candidate) {
+            return Some(candidate);
+        }
+    }
+    if let Some(raw) = std::env::var_os("WTH_LEADER_BIN") {
+        let candidate = PathBuf::from(raw);
+        if is_file(&candidate) {
+            return Some(candidate);
+        }
+    }
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(dir) = exe.parent()
+        && let Some(found) = KERNEL_BIN_NAMES
+            .iter()
+            .map(|n| dir.join(n))
+            .find(|p| is_file(p))
+    {
+        return Some(found);
+    }
+    let paths = std::env::var_os("PATH")?;
+    std::env::split_paths(&paths).find_map(|dir| {
+        KERNEL_BIN_NAMES
+            .iter()
+            .map(|n| dir.join(n))
+            .find(|p| is_file(p))
+    })
 }
 
 fn validate(settings: &DesktopSettings) -> Result<(), String> {
@@ -741,10 +804,7 @@ fn validate(settings: &DesktopSettings) -> Result<(), String> {
     ) {
         return Err("推理力度无效".into());
     }
-    if !matches!(
-        settings.edit_mode.as_str(),
-        "plan" | "review" | "auto" | "yolo"
-    ) {
+    if !approval_mode::DESKTOP_APPROVAL_MODES.contains(&settings.edit_mode.as_str()) {
         return Err("编辑模式无效".into());
     }
     if !matches!(
@@ -1209,8 +1269,8 @@ mod tests {
         let _ = client; // 构建成功即可
     }
     use super::{
-        DesktopSettings, default_shortcuts, default_subagents, load_settings, save_settings,
-        validate,
+        DesktopSettings, default_shortcuts, default_subagents, load_settings, load_settings_with,
+        save_settings, validate,
     };
 
     #[test]
@@ -1245,6 +1305,43 @@ mod tests {
         std::fs::write(&path, "{ not valid json").unwrap();
         let settings = load_settings(&path);
         assert_eq!(settings.theme, "light");
+    }
+
+    #[test]
+    fn fresh_install_grays_kernel_agent_on_when_kernel_present() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let found = load_settings_with(&path, |_| true);
+        assert!(found.kernel_agent);
+        let missing = load_settings_with(&path, |_| false);
+        assert!(!missing.kernel_agent);
+    }
+
+    #[test]
+    fn persisted_kernel_agent_survives_kernel_removal() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        // 走真实序列化：存 true 时探针找不到内核也不关，存 false 时找得到也不开。
+        for (stored, probe_finds) in [(true, false), (false, true)] {
+            let mut raw = serde_json::to_value(DesktopSettings::default()).unwrap();
+            raw["kernel_agent"] = serde_json::Value::Bool(stored);
+            std::fs::write(&path, raw.to_string()).unwrap();
+            assert_eq!(
+                load_settings_with(&path, |_| probe_finds).kernel_agent,
+                stored
+            );
+        }
+    }
+
+    #[test]
+    fn legacy_settings_without_kernel_field_stay_off() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        // 老配置：有记录但没有 kernel_agent 字段，即使本机装有 wth 也不开启。
+        std::fs::write(&path, r#"{"theme":"dark","language":"zh-CN"}"#).unwrap();
+        let loaded = load_settings_with(&path, |_| true);
+        assert!(!loaded.kernel_agent);
+        assert_eq!(loaded.theme, "dark");
     }
 
     #[test]
